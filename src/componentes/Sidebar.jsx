@@ -16,7 +16,7 @@ export default function Sidebar() {
 
   const menuItems = [
     { path: '/inicio',      name: 'Inicio',      icon: <FaHome /> },
-    { path: '/asistencias', name: 'Asistencias', icon: <FaCalendarCheck /> },
+    { path: '/asistencias', name: 'Personal', icon: <FaCalendarCheck /> },
     { path: '/constancias', name: 'Constancias', icon: <FaCertificate /> },
     { path: '/reportes',    name: 'Reportes',    icon: <FaChartBar /> },
     { path: '/cursos',      name: 'Cursos',      icon: <FaBook /> },

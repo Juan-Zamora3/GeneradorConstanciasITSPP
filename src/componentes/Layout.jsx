@@ -1,18 +1,22 @@
 // src/componentes/Layout.jsx
 import React, { useState } from 'react'
 import Sidebar from './Sidebar'
-import Topbar  from './Topbar'
+import Topbar from './Topbar'
 
 export default function Layout({ children }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div
-      className="flex"
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => setIsOpen(false)}
-    >
-      <Sidebar isOpen={isOpen} />
+    <div className="flex">
+      {/* wrapper exclusivo para la barra  */}
+      <div
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        className="flex-shrink-0"
+      >
+        <Sidebar isOpen={isOpen} />
+      </div>
+
       <div className="flex-1 flex flex-col">
         <Topbar isOpen={isOpen} />
         <main

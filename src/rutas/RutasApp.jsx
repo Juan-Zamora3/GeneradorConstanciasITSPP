@@ -9,6 +9,7 @@ import Asistencias from '../paginas/Asistencias'
 import Constancias from '../paginas/Constancias'
 import Reportes    from '../paginas/Reportes'
 import Cursos      from '../paginas/Cursos'
+import Perfil      from '../paginas/Perfil'
 import Layout      from '../componentes/Layout'
 
 export default function RutasApp() {
@@ -67,6 +68,15 @@ export default function RutasApp() {
             element={
               <Layout>
                 <Cursos />
+              </Layout>
+            }
+          />
+          {/* Nueva ruta para perfil */}
+          <Route
+            path="/perfil"
+            element={
+              <Layout>
+                <Perfil />
               </Layout>
             }
           />
