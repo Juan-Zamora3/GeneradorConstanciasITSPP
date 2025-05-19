@@ -1,167 +1,200 @@
-import React, { useState, useContext, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { AuthContext } from '../contexto/AuthContext'
+// Reportes.jsx
+import React, { useState, useContext, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  collection,
+  query,
+  onSnapshot,
+  doc,
+  updateDoc,
+  arrayUnion,
+  orderBy
+} from 'firebase/firestore';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'firebase/storage';
+import { db, storage } from '../servicios/firebaseConfig';
+import { AuthContext } from '../contexto/AuthContext';
 
 export default function Reportes() {
-  const navigate = useNavigate()
-  const { usuario } = useContext(AuthContext)
-  const [busqueda, setBusqueda] = useState('')
-  const [ordenarPor, setOrdenarPor] = useState('fecha')
-  const [mostrarFormulario, setMostrarFormulario] = useState(false)
-  const [reportes, setReportes] = useState([])
-  const [reporteSeleccionado, setReporteSeleccionado] = useState(null)
-  const [verDetalle, setVerDetalle] = useState(false)
-  const [cursos, setCursos] = useState([]) // Lista de cursos para seleccionar
-  
-  // Estado para las imágenes seleccionadas
-  const [imagenes, setImagenes] = useState([])
-  const [previewImagenes, setPreviewImagenes] = useState([])
+  const navigate = useNavigate();
+  const { usuario } = useContext(AuthContext);
 
-  // Estado para el nuevo reporte
+  /* -------------------------- estado -------------------------- */
+  const [busqueda, setBusqueda] = useState('');
+  const [ordenarPor, setOrdenarPor] = useState('fecha');
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
+  const [reportes, setReportes] = useState([]);
+  const [reporteSeleccionado, setReporteSeleccionado] = useState(null);
+  const [verDetalle, setVerDetalle] = useState(false);
+
+  const [cursos, setCursos] = useState([]);
+
+  const [imagenes, setImagenes] = useState([]);
+  const [previewImagenes, setPreviewImagenes] = useState([]);
+
   const [nuevoReporte, setNuevoReporte] = useState({
     titulo: '',
     descripcion: '',
     tipo: '',
     fecha: new Date().toISOString().substr(0, 10),
     cursoId: ''
-  })
+  });
 
+  /* --------------------- cargar cursos + reportes -------------------- */
   useEffect(() => {
     if (!usuario) {
-      navigate('/login', { replace: true })
+      navigate('/login', { replace: true });
+      return;
     }
-    
-    // Aquí se cargarán los cursos desde Firebase cuando esté implementado
-  }, [usuario, navigate])
 
-  // Maneja la selección de imágenes
-  const handleImagenChange = (e) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files)
-      
-      // Generar previsualizaciones
-      const nuevasPreview = filesArray.map(file => URL.createObjectURL(file))
-      setPreviewImagenes([...previewImagenes, ...nuevasPreview])
-      
-      // Guardar archivos
-      setImagenes([...imagenes, ...filesArray])
+    const q = query(collection(db, 'Cursos'), orderBy('fechaInicio', 'desc'));
+    const unsub = onSnapshot(q, snap => {
+      const cursosData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCursos(cursosData);
+
+      const todosReportes = cursosData.flatMap(c =>
+        (c.reportes || []).map(r => ({
+          ...r,
+          id: crypto.randomUUID(),          // id local para React
+          cursoId: c.id,
+          cursoNombre: c.cursoNombre || c.titulo || 'Sin título'
+        }))
+      );
+      setReportes(todosReportes);
+    });
+
+    return () => unsub();
+  }, [usuario, navigate]);
+
+  /* ------------------------- imágenes ------------------------- */
+  const handleImagenChange = e => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    setImagenes(prev => [...prev, ...files]);
+    setPreviewImagenes(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+  };
+
+  const eliminarImagen = idx => {
+    setImagenes(arr => arr.filter((_, i) => i !== idx));
+    setPreviewImagenes(prev => {
+      URL.revokeObjectURL(prev[idx]);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  /* ----------------------- formulario ------------------------- */
+  const handleInputChange = e => {
+    const { name, value } = e.target;
+    setNuevoReporte(nr => ({ ...nr, [name]: value }));
+  };
+
+  const subirImagenesYObtenerUrls = async () => {
+    const urls = [];
+    for (const file of imagenes) {
+      const fileRef = ref(
+        storage,
+        `reportes/${Date.now()}-${crypto.randomUUID()}-${file.name}`
+      );
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      urls.push(url);
     }
-  }
+    return urls;
+  };
 
-  // Elimina una imagen de la lista
-  const eliminarImagen = (index) => {
-    const nuevasImagenes = [...imagenes]
-    nuevasImagenes.splice(index, 1)
-    setImagenes(nuevasImagenes)
-    
-    const nuevasPreview = [...previewImagenes]
-    URL.revokeObjectURL(nuevasPreview[index]) // Liberar memoria
-    nuevasPreview.splice(index, 1)
-    setPreviewImagenes(nuevasPreview)
-  }
+  const handleSubmit = async e => {
+    e.preventDefault();
+    if (!nuevoReporte.cursoId) return alert('Selecciona un curso');
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setNuevoReporte({
-      ...nuevoReporte,
-      [name]: value
-    })
-  }
+    try {
+      const urls = await subirImagenesYObtenerUrls();
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    
-    // Aquí se manejarán las imágenes cuando se implemente Firebase Storage
-    const imagenesUrls = previewImagenes // Temporalmente guardamos las previsualizaciones
-    
-    const nuevoReporteCompleto = {
-      ...nuevoReporte,
-      id: reportes.length + 1,
-      imagenes: imagenesUrls,
-      creadoPor: usuario.nombre,
-      fechaCreacion: new Date().toISOString()
+      const cursoRef = doc(db, 'Cursos', nuevoReporte.cursoId);
+      await updateDoc(cursoRef, {
+        reportes: arrayUnion({
+          titulo: nuevoReporte.titulo,
+          descripcion: nuevoReporte.descripcion,
+          tipo: nuevoReporte.tipo,
+          fecha: nuevoReporte.fecha,
+          imagenes: urls,
+          creadoPor: usuario.nombre || usuario.email || 'Anónimo',
+          fechaCreacion: new Date().toISOString()
+        })
+      });
+
+      // limpiar UI
+      setNuevoReporte({
+        titulo: '',
+        descripcion: '',
+        tipo: '',
+        fecha: new Date().toISOString().substr(0, 10),
+        cursoId: ''
+      });
+      imagenes.forEach(f => URL.revokeObjectURL(f));
+      setImagenes([]);
+      setPreviewImagenes([]);
+      setMostrarFormulario(false);
+    } catch (err) {
+      console.error('Error al guardar reporte:', err);
+      alert(`Error al guardar reporte: ${err.message}`);
     }
-    
-    setReportes([...reportes, nuevoReporteCompleto])
-    setNuevoReporte({
-      titulo: '',
-      descripcion: '',
-      tipo: '',
-      fecha: new Date().toISOString().substr(0, 10),
-      cursoId: ''
-    })
-    setImagenes([])
-    setPreviewImagenes([])
-    setMostrarFormulario(false)
-  }
+  };
 
-  const verDetalleReporte = (reporte) => {
-    setReporteSeleccionado(reporte)
-    setVerDetalle(true)
-  }
+  /* ---------------------- utilidades UI ----------------------- */
+  const filtrarReportes = () =>
+    !busqueda
+      ? reportes
+      : reportes.filter(r =>
+          [r.titulo, r.tipo, r.creadoPor, r.cursoNombre]
+            .join(' ')
+            .toLowerCase()
+            .includes(busqueda.toLowerCase())
+        );
 
-  const filtrarReportes = () => {
-    if (!busqueda) return reportes
-    
-    return reportes.filter(reporte => 
-      reporte.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
-      reporte.tipo.toLowerCase().includes(busqueda.toLowerCase()) ||
-      reporte.creadoPor.toLowerCase().includes(busqueda.toLowerCase()) ||
-      (reporte.cursoNombre && reporte.cursoNombre.toLowerCase().includes(busqueda.toLowerCase()))
-    )
-  }
+  const ordenarReportes = arr =>
+    [...arr].sort((a, b) => {
+      if (ordenarPor === 'fecha')
+        return new Date(b.fechaCreacion) - new Date(a.fechaCreacion);
+      if (ordenarPor === 'titulo') return a.titulo.localeCompare(b.titulo);
+      if (ordenarPor === 'tipo') return a.tipo.localeCompare(b.tipo);
+      if (ordenarPor === 'curso')
+        return (a.cursoNombre || '').localeCompare(b.cursoNombre || '');
+      return 0;
+    });
 
-  const ordenarReportes = (reportesFiltrados) => {
-    return [...reportesFiltrados].sort((a, b) => {
-      if (ordenarPor === 'fecha') {
-        return new Date(b.fechaCreacion) - new Date(a.fechaCreacion)
-      } else if (ordenarPor === 'titulo') {
-        return a.titulo.localeCompare(b.titulo)
-      } else if (ordenarPor === 'tipo') {
-        return a.tipo.localeCompare(b.tipo)
-      } else if (ordenarPor === 'curso') {
-        return (a.cursoNombre || '').localeCompare(b.cursoNombre || '')
-      }
-      return 0
-    })
-  }
+  const formatearFecha = iso =>
+    new Date(iso).toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
 
-  const formatearFecha = (fechaISO) => {
-    const fecha = new Date(fechaISO)
-    return fecha.toLocaleDateString('es-MX', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric' 
-    })
-  }
+  const tiposLabels = {
+    asistencia: 'Asistencia',
+    incidente: 'Incidente',
+    evaluacion: 'Evaluación',
+    general: 'General'
+  };
+  const coloresTipos = {
+    asistencia: 'bg-green-100 text-green-800',
+    incidente: 'bg-red-100 text-red-800',
+    evaluacion: 'bg-purple-100 text-purple-800',
+    general: 'bg-blue-100 text-blue-800'
+  };
+  const formatearTipo = t => tiposLabels[t] || t;
+  const getColorTipo = t => coloresTipos[t] || 'bg-gray-100 text-gray-800';
 
-  const formatearTipo = (tipo) => {
-    const tipos = {
-      'asistencia': 'Asistencia',
-      'incidente': 'Incidente',
-      'evaluacion': 'Evaluación',
-      'general': 'General'
-    }
-    return tipos[tipo] || tipo
-  }
-
-  const getColorTipo = (tipo) => {
-    const colores = {
-      'asistencia': 'bg-green-100 text-green-800',
-      'incidente': 'bg-red-100 text-red-800',
-      'evaluacion': 'bg-purple-100 text-purple-800',
-      'general': 'bg-blue-100 text-blue-800'
-    }
-    return colores[tipo] || 'bg-gray-100 text-gray-800'
-  }
-
-  const reportesFiltrados = filtrarReportes()
-  const reportesOrdenados = ordenarReportes(reportesFiltrados)
-
-  if (!usuario) return null
+  /* --------------------------- render -------------------------- */
+  if (!usuario) return null;
+  const reportesOrdenados = ordenarReportes(filtrarReportes());
 
   return (
     <div className="p-6 space-y-6">
+      {/* título y botón */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-semibold">Reportes</h2>
         <button
@@ -173,14 +206,14 @@ export default function Reportes() {
         </button>
       </div>
 
-      {/* Búsqueda y filtros */}
+      {/* búsqueda + orden */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <input
             type="text"
             placeholder="Buscar reportes..."
             value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            onChange={e => setBusqueda(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <i className="ri-search-line absolute left-3 top-3 text-gray-400"></i>
@@ -188,7 +221,7 @@ export default function Reportes() {
         <div className="w-full sm:w-48">
           <select
             value={ordenarPor}
-            onChange={(e) => setOrdenarPor(e.target.value)}
+            onChange={e => setOrdenarPor(e.target.value)}
             className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="fecha">Ordenar por fecha</option>
@@ -199,19 +232,17 @@ export default function Reportes() {
         </div>
       </div>
 
-      {/* Lista de reportes */}
+      {/* lista de reportes */}
       {reportesOrdenados.length === 0 ? (
         <div className="text-center py-12">
           <div className="mx-auto w-24 h-24 flex items-center justify-center rounded-full bg-gray-100">
             <i className="ri-file-list-3-line text-4xl text-gray-400"></i>
           </div>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">
-            No hay reportes
-          </h3>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">No hay reportes</h3>
           <p className="mt-2 text-sm text-gray-500">
             {busqueda
               ? `No se encontraron reportes para "${busqueda}"`
-              : "Aún no hay reportes creados. Crea tu primer reporte."}
+              : 'Aún no hay reportes creados. Crea tu primer reporte.'}
           </p>
           <div className="mt-6">
             <button
@@ -226,31 +257,40 @@ export default function Reportes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {reportesOrdenados.map(reporte => (
-            <div 
-              key={reporte.id} 
+            <div
+              key={reporte.id}
               className="bg-white rounded-xl shadow overflow-hidden flex flex-col h-full"
             >
               <div className="p-6 flex-grow">
                 <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-lg text-gray-800 line-clamp-2">{reporte.titulo}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getColorTipo(reporte.tipo)}`}>
+                  <h3 className="font-semibold text-lg text-gray-800 line-clamp-2">
+                    {reporte.titulo}
+                  </h3>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${getColorTipo(
+                      reporte.tipo
+                    )}`}
+                  >
                     {formatearTipo(reporte.tipo)}
                   </span>
                 </div>
-                
+
                 {reporte.descripcion && (
                   <p className="text-gray-600 text-sm line-clamp-3 mb-3">
                     {reporte.descripcion}
                   </p>
                 )}
-                
+
                 {reporte.imagenes && reporte.imagenes.length > 0 && (
                   <div className="my-3 flex flex-wrap gap-2">
                     {reporte.imagenes.slice(0, 3).map((img, idx) => (
-                      <div key={idx} className="w-16 h-16 relative rounded overflow-hidden">
-                        <img 
-                          src={img} 
-                          alt={`Imagen ${idx + 1}`} 
+                      <div
+                        key={idx}
+                        className="w-16 h-16 relative rounded overflow-hidden"
+                      >
+                        <img
+                          src={img}
+                          alt={`Imagen ${idx + 1}`}
                           className="w-full h-full object-cover"
                         />
                         {reporte.imagenes.length > 3 && idx === 2 && (
@@ -262,20 +302,20 @@ export default function Reportes() {
                     ))}
                   </div>
                 )}
-                
+
                 <div className="mt-3 space-y-2 text-sm text-gray-600">
                   <div className="flex items-center">
                     <i className="ri-calendar-line mr-2 text-gray-400"></i>
                     <span>{formatearFecha(reporte.fecha)}</span>
                   </div>
-                  
+
                   {reporte.cursoNombre && (
                     <div className="flex items-center">
                       <i className="ri-book-open-line mr-2 text-gray-400"></i>
                       <span>{reporte.cursoNombre}</span>
                     </div>
                   )}
-                  
+
                   <div className="flex items-center">
                     <i className="ri-user-line mr-2 text-gray-400"></i>
                     <span>{reporte.creadoPor}</span>
@@ -283,8 +323,11 @@ export default function Reportes() {
                 </div>
               </div>
               <div className="border-t p-4 flex gap-2">
-                <button 
-                  onClick={() => verDetalleReporte(reporte)}
+                <button
+                  onClick={() => {
+                    setReporteSeleccionado(reporte);
+                    setVerDetalle(true);
+                  }}
                   className="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition flex items-center justify-center"
                 >
                   <i className="ri-eye-line mr-1"></i> Ver
@@ -298,21 +341,26 @@ export default function Reportes() {
         </div>
       )}
 
-      {/* Modal para Nuevo Reporte (tamaño reducido) */}
+      {/* ---------------- Modal NUEVO REPORTE ---------------- */}
       {mostrarFormulario && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-lg w-full max-h-screen overflow-y-auto">
             <div className="p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Crear Nuevo Reporte</h3>
-                <button onClick={() => setMostrarFormulario(false)} className="text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={() => setMostrarFormulario(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
                   <i className="ri-close-line text-xl"></i>
                 </button>
               </div>
-              
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título del Reporte</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Título del Reporte
+                  </label>
                   <input
                     type="text"
                     name="titulo"
@@ -326,7 +374,9 @@ export default function Reportes() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Curso Relacionado</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Curso Relacionado
+                    </label>
                     <select
                       name="cursoId"
                       value={nuevoReporte.cursoId}
@@ -337,14 +387,16 @@ export default function Reportes() {
                       <option value="">Seleccionar curso</option>
                       {cursos.map(curso => (
                         <option key={curso.id} value={curso.id}>
-                          {curso.titulo}
+                          {curso.cursoNombre || curso.titulo || 'Sin título'}
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Reporte</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tipo de Reporte
+                    </label>
                     <select
                       name="tipo"
                       value={nuevoReporte.tipo}
@@ -360,9 +412,11 @@ export default function Reportes() {
                     </select>
                   </div>
                 </div>
-                
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del Reporte</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha del Reporte
+                  </label>
                   <input
                     type="date"
                     name="fecha"
@@ -374,7 +428,9 @@ export default function Reportes() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del Reporte</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Descripción del Reporte
+                  </label>
                   <textarea
                     name="descripcion"
                     value={nuevoReporte.descripcion}
@@ -384,9 +440,11 @@ export default function Reportes() {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   ></textarea>
                 </div>
-                
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Imágenes</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Imágenes
+                  </label>
                   <div className="flex items-center justify-center border-2 border-gray-300 border-dashed rounded-md p-3">
                     <label
                       htmlFor="file-upload"
@@ -407,11 +465,13 @@ export default function Reportes() {
                     </label>
                   </div>
                 </div>
-                
-                {/* Previsualización de imágenes */}
+
+                {/* previsualización */}
                 {previewImagenes.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Imágenes seleccionadas</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Imágenes seleccionadas
+                    </label>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                       {previewImagenes.map((img, idx) => (
                         <div key={idx} className="relative">
@@ -432,7 +492,7 @@ export default function Reportes() {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex justify-end space-x-3 pt-4 border-t">
                   <button
                     type="button"
@@ -454,76 +514,97 @@ export default function Reportes() {
         </div>
       )}
 
-      {/* Modal de Detalle de Reporte */}
+      {/* ---------------- Modal DETALLE REPORTE ---------------- */}
       {verDetalle && reporteSeleccionado && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
             <div className="p-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Detalle del Reporte</h3>
-                <button onClick={() => setVerDetalle(false)} className="text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={() => setVerDetalle(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
                   <i className="ri-close-line text-xl"></i>
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-800">{reporteSeleccionado.titulo}</h2>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getColorTipo(reporteSeleccionado.tipo)}`}>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {reporteSeleccionado.titulo}
+                  </h2>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${getColorTipo(
+                      reporteSeleccionado.tipo
+                    )}`}
+                  >
                     {formatearTipo(reporteSeleccionado.tipo)}
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-gray-500">Fecha:</span>
-                    <span className="ml-2 text-gray-800">{formatearFecha(reporteSeleccionado.fecha)}</span>
+                    <span className="ml-2 text-gray-800">
+                      {formatearFecha(reporteSeleccionado.fecha)}
+                    </span>
                   </div>
-                  
+
                   {reporteSeleccionado.cursoNombre && (
                     <div>
                       <span className="text-gray-500">Curso:</span>
-                      <span className="ml-2 text-gray-800">{reporteSeleccionado.cursoNombre}</span>
+                      <span className="ml-2 text-gray-800">
+                        {reporteSeleccionado.cursoNombre}
+                      </span>
                     </div>
                   )}
-                  
+
                   <div>
                     <span className="text-gray-500">Creado por:</span>
-                    <span className="ml-2 text-gray-800">{reporteSeleccionado.creadoPor}</span>
+                    <span className="ml-2 text-gray-800">
+                      {reporteSeleccionado.creadoPor}
+                    </span>
                   </div>
-                  
+
                   <div>
                     <span className="text-gray-500">Fecha de creación:</span>
-                    <span className="ml-2 text-gray-800">{formatearFecha(reporteSeleccionado.fechaCreacion)}</span>
+                    <span className="ml-2 text-gray-800">
+                      {formatearFecha(reporteSeleccionado.fechaCreacion)}
+                    </span>
                   </div>
                 </div>
-                
+
                 {reporteSeleccionado.descripcion && (
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-1">Descripción</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">
+                      Descripción
+                    </h4>
                     <p className="text-gray-600 text-sm whitespace-pre-line">
                       {reporteSeleccionado.descripcion}
                     </p>
                   </div>
                 )}
-                
-                {/* Imágenes del reporte */}
-                {reporteSeleccionado.imagenes && reporteSeleccionado.imagenes.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-1">Imágenes</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {reporteSeleccionado.imagenes.map((img, idx) => (
-                        <div key={idx} className="relative">
-                          <img
-                            src={img}
-                            alt={`Imagen ${idx + 1}`}
-                            className="w-full h-24 object-cover rounded-md"
-                          />
-                        </div>
-                      ))}
+
+                {reporteSeleccionado.imagenes &&
+                  reporteSeleccionado.imagenes.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-1">
+                        Imágenes
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {reporteSeleccionado.imagenes.map((img, idx) => (
+                          <div key={idx}>
+                            <img
+                              src={img}
+                              alt={`Imagen ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded-md"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 <div className="flex justify-end space-x-3 pt-3 border-t">
                   <button
@@ -542,5 +623,5 @@ export default function Reportes() {
         </div>
       )}
     </div>
-  )
+  );
 }
