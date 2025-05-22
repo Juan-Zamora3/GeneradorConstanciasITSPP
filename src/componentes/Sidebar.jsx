@@ -18,7 +18,6 @@ export default function Sidebar() {
     { path: '/inicio',      name: 'Inicio',      icon: <FaHome /> },
     { path: '/asistencias', name: 'Personal', icon: <FaCalendarCheck /> },
     { path: '/constancias', name: 'Constancias', icon: <FaCertificate /> },
-    { path: '/reportes',    name: 'Reportes',    icon: <FaChartBar /> },
     { path: '/cursos',      name: 'Cursos',      icon: <FaBook /> },
   ]
 

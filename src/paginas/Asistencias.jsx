@@ -21,6 +21,8 @@ export default function Participantes () {
   /* ──────────────── STATE ──────────────── */
   const [participantes, setParticipantes] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState('nombre') // Nuevo estado para ordenamiento
+  const [filterByArea, setFilterByArea] = useState('') // Nuevo estado para filtro por área
   const [loading, setLoading] = useState(true)
 
   const [showModal, setShowModal] = useState(false)
@@ -161,12 +163,38 @@ export default function Participantes () {
 
   /* ──────────────── UTILIDADES UI ──────────────── */
   const filtrarParticipantes = () => {
-    if (!searchTerm) return participantes
-    return participantes.filter(p =>
-      `${p.nombre} ${p.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.correo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.area.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    let filtered = participantes;
+    
+    // Filtro de búsqueda
+    if (searchTerm) {
+      filtered = filtered.filter(p =>
+        `${p.nombre} ${p.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.correo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.area.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Filtro por área
+    if (filterByArea) {
+      filtered = filtered.filter(p => p.area.toLowerCase().includes(filterByArea.toLowerCase()));
+    }
+    
+    return filtered;
+  }
+
+  const ordenarParticipantes = (arr) => {
+    return [...arr].sort((a, b) => {
+      if (sortBy === 'nombre') {
+        return `${a.nombre} ${a.apellidos}`.localeCompare(`${b.nombre} ${b.apellidos}`);
+      }
+      if (sortBy === 'nombre-desc') {
+        return `${b.nombre} ${b.apellidos}`.localeCompare(`${a.nombre} ${a.apellidos}`);
+      }
+      if (sortBy === 'area') {
+        return a.area.localeCompare(b.area);
+      }
+      return 0;
+    });
   }
 
   const getAvatarInitials = (nombre, apellidos) =>
@@ -185,7 +213,7 @@ export default function Participantes () {
     return colors[numeric % colors.length]
   }
 
-  const participantesFiltrados = filtrarParticipantes()
+  const participantesFiltrados = ordenarParticipantes(filtrarParticipantes())
 
   if (!usuario) return null
 
@@ -203,16 +231,42 @@ export default function Participantes () {
         </button>
       </div>
 
-      {/* Búsqueda */}
-      <div className="relative max-w-md">
-        <input
-          type="text"
-          placeholder="Buscar participantes..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-        <i className="ri-search-line absolute left-3 top-3 text-gray-400"></i>
+      {/* Búsqueda + orden + filtros */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Buscar participantes..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <i className="ri-search-line absolute left-3 top-3 text-gray-400"></i>
+        </div>
+        <div className="w-full sm:w-48">
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="nombre">Ordenar A-Z</option>
+            <option value="nombre-desc">Ordenar Z-A</option>
+            <option value="area">Ordenar por Área</option>
+          </select>
+        </div>
+        <div className="w-full sm:w-48">
+          <select
+            value={filterByArea}
+            onChange={e => setFilterByArea(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Todas las áreas</option>
+            {/* Obtener áreas únicas dinámicamente */}
+            {[...new Set(participantes.map(p => p.area).filter(area => area))].map(area => (
+              <option key={area} value={area}>{area}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Grid de participantes */}
@@ -311,7 +365,7 @@ export default function Participantes () {
                     setParticipanteSeleccionado(participante)
                     setShowDeleteModal(true)
                   }}
-                  className="w-10 h-10 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition flex items-center justify-center"
+                  className="w-10 h-10 bg-red-500 text-white rounded hover:bg-red-600 transition flex items-center justify-center"
                 >
                   <i className="ri-delete-bin-line"></i>
                 </button>
@@ -341,75 +395,60 @@ export default function Participantes () {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
                     name="nombre"
                     value={nuevoParticipante.nombre}
                     onChange={handleInputChange}
-                    placeholder="Nombre del participante"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Nombre del participante"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Apellidos
+                    Apellidos *
                   </label>
                   <input
                     type="text"
                     name="apellidos"
                     value={nuevoParticipante.apellidos}
                     onChange={handleInputChange}
-                    placeholder="Apellidos del participante"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Apellidos del participante"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Correo electrónico
+                    Correo electrónico *
                   </label>
                   <input
                     type="email"
                     name="correo"
                     value={nuevoParticipante.correo}
                     onChange={handleInputChange}
-                    placeholder="correo@ejemplo.com"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="ejemplo@correo.com"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Área
+                    Área/Puesto *
                   </label>
-                  <select
+                  <input
+                    type="text"
                     name="area"
                     value={nuevoParticipante.area}
                     onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
-                  >
-                    <option value="">Seleccionar área</option>
-                    <option value="Ing. Sistemas Computacionales">
-                      Ing. Sistemas Computacionales
-                    </option>
-                    <option value="Lic. Administración">Lic. Administración</option>
-                    <option value="Ing. Industrial">Ing. Industrial</option>
-                    <option value="Ing. Civil">Ing. Civil</option>
-                    <option value="Docente">Docente</option>
-                    <option value="Recursos Humanos">Recursos Humanos</option>
-                    <option value="Limpieza y Mantenimiento">
-                      Limpieza y Mantenimiento
-                    </option>
-                  </select>
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Ej: Recursos Humanos, Ventas, etc."
+                  />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Teléfono (opcional)
@@ -419,23 +458,23 @@ export default function Participantes () {
                     name="telefono"
                     value={nuevoParticipante.telefono}
                     onChange={handleInputChange}
-                    placeholder="(123) 456-7890"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="555-123-4567"
                   />
                 </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
+                <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
                   >
+                    <i className="ri-save-line mr-2"></i>
                     Guardar
                   </button>
                 </div>
@@ -445,7 +484,80 @@ export default function Participantes () {
         </div>
       )}
 
-      {/* Modal ― Editar */}
+      {/* Modal ― Ver Detalles */}
+      {showDetalles && participanteSeleccionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold">Detalles del Participante</h3>
+                <button
+                  onClick={() => setShowDetalles(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <i className="ri-close-line text-2xl"></i>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center mb-6">
+                  <div
+                    className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg ${getRandomColor(
+                      participanteSeleccionado.id
+                    )}`}
+                  >
+                    {getAvatarInitials(
+                      participanteSeleccionado.nombre,
+                      participanteSeleccionado.apellidos
+                    )}
+                  </div>
+                  <div className="ml-4">
+                    <h4 className="text-lg font-semibold text-gray-800">
+                      {participanteSeleccionado.nombre}{' '}
+                      {participanteSeleccionado.apellidos}
+                    </h4>
+                    <p className="text-gray-600">{participanteSeleccionado.area}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Correo electrónico
+                  </label>
+                  <p className="text-gray-900">{participanteSeleccionado.correo}</p>
+                </div>
+
+                {participanteSeleccionado.telefono && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Teléfono
+                    </label>
+                    <p className="text-gray-900">{participanteSeleccionado.telefono}</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Área/Puesto
+                  </label>
+                  <p className="text-gray-900">{participanteSeleccionado.area}</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-6">
+                <button
+                  onClick={() => setShowDetalles(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ― Editar Participante */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full">
@@ -463,75 +575,56 @@ export default function Participantes () {
               <form onSubmit={handleEditSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
                     name="nombre"
                     value={editParticipante.nombre}
                     onChange={handleEditInputChange}
-                    placeholder="Nombre del participante"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Apellidos
+                    Apellidos *
                   </label>
                   <input
                     type="text"
                     name="apellidos"
                     value={editParticipante.apellidos}
                     onChange={handleEditInputChange}
-                    placeholder="Apellidos del participante"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Correo electrónico
+                    Correo electrónico *
                   </label>
                   <input
                     type="email"
                     name="correo"
                     value={editParticipante.correo}
                     onChange={handleEditInputChange}
-                    placeholder="correo@ejemplo.com"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Área
+                    Área/Puesto *
                   </label>
-                  <select
+                  <input
+                    type="text"
                     name="area"
                     value={editParticipante.area}
                     onChange={handleEditInputChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
-                  >
-                    <option value="">Seleccionar área</option>
-                    <option value="Ing. Sistemas Computacionales">
-                      Ing. Sistemas Computacionales
-                    </option>
-                    <option value="Lic. Administración">Lic. Administración</option>
-                    <option value="Ing. Industrial">Ing. Industrial</option>
-                    <option value="Ing. Civil">Ing. Civil</option>
-                    <option value="Docente">Docente</option>
-                    <option value="Recursos Humanos">Recursos Humanos</option>
-                    <option value="Limpieza y Mantenimiento">
-                      Limpieza y Mantenimiento
-                    </option>
-                  </select>
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Teléfono (opcional)
@@ -541,23 +634,22 @@ export default function Participantes () {
                     name="telefono"
                     value={editParticipante.telefono}
                     onChange={handleEditInputChange}
-                    placeholder="(123) 456-7890"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
+                <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowEditModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
                   >
+                    <i className="ri-save-line mr-2"></i>
                     Actualizar
                   </button>
                 </div>
@@ -567,127 +659,64 @@ export default function Participantes () {
         </div>
       )}
 
-      {/* Modal ― Detalles */}
-      {showDetalles && participanteSeleccionado && (
+      {/* Modal ― Confirmar Eliminación */}
+      {showDeleteModal && participanteSeleccionado && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full">
+          <div className="bg-white rounded-lg max-w-md w-full">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold">Detalles del Participante</h3>
+                <h3 className="text-xl font-semibold text-red-600">
+                  Confirmar Eliminación
+                </h3>
                 <button
-                  onClick={() => setShowDetalles(false)}
+                  onClick={() => setShowDeleteModal(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <i className="ri-close-line text-2xl"></i>
                 </button>
               </div>
 
-              <div className="flex items-center mb-6">
-                <div
-                  className={`w-16 h-16 rounded-full flex items-center justify-center font-medium text-lg ${getRandomColor(
-                    participanteSeleccionado.id
-                  )}`}
-                >
-                  {getAvatarInitials(
-                    participanteSeleccionado.nombre,
-                    participanteSeleccionado.apellidos
-                  )}
+              <div className="mb-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <i className="ri-error-warning-line text-2xl text-red-600"></i>
+                  </div>
+                  <div className="ml-4">
+                    <h4 className="text-lg font-medium text-gray-900">
+                      ¿Estás seguro de eliminar este participante?
+                    </h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Esta acción no se puede deshacer
+                    </p>
+                  </div>
                 </div>
-                <div className="ml-4">
-                  <h3 className="text-xl font-semibold">
+
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="font-medium text-gray-900">
                     {participanteSeleccionado.nombre}{' '}
                     {participanteSeleccionado.apellidos}
-                  </h3>
-                  <p className="text-gray-500">{participanteSeleccionado.area}</p>
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {participanteSeleccionado.correo}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {participanteSeleccionado.area}
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex items-start">
-                  <i className="ri-mail-line text-gray-400 mt-0.5 mr-3 w-5"></i>
-                  <div>
-                    <p className="text-sm text-gray-500">Correo electrónico</p>
-                    <p>{participanteSeleccionado.correo}</p>
-                  </div>
-                </div>
-
-                {participanteSeleccionado.telefono && (
-                  <div className="flex items-start">
-                    <i className="ri-phone-line text-gray-400 mt-0.5 mr-3 w-5"></i>
-                    <div>
-                      <p className="text-sm text-gray-500">Teléfono</p>
-                      <p>{participanteSeleccionado.telefono}</p>
-                    </div>
-                  </div>
-                )}
-
-                {participanteSeleccionado.createdAt && (
-                  <div className="flex items-start">
-                    <i className="ri-calendar-line text-gray-400 mt-0.5 mr-3 w-5"></i>
-                    <div>
-                      <p className="text-sm text-gray-500">Fecha de registro</p>
-                      <p>
-                        {participanteSeleccionado.createdAt.toDate
-                          ? participanteSeleccionado.createdAt
-                              .toDate()
-                              .toLocaleDateString()
-                          : 'Fecha no disponible'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowDetalles(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Cerrar
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDetalles(false)
-                    setEditParticipante(participanteSeleccionado)
-                    setShowEditModal(true)
-                  }}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
-                >
-                  Editar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal ― Confirmar eliminar */}
-      {showDeleteModal && participanteSeleccionado && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="mx-auto w-12 h-12 flex items-center justify-center rounded-full bg-red-100 mb-4">
-                  <i className="ri-delete-bin-line text-2xl text-red-500"></i>
-                </div>
-                <h3 className="text-xl font-semibold">¿Eliminar participante?</h3>
-                <p className="mt-2 text-gray-500">
-                  Esta acción no se puede deshacer. El participante será eliminado
-                  permanentemente.
-                </p>
-              </div>
-
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
                 >
+                  <i className="ri-delete-bin-line mr-2"></i>
                   Eliminar
                 </button>
               </div>

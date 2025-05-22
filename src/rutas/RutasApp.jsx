@@ -7,7 +7,6 @@ import Login       from '../paginas/Login'
 import Inicio      from '../paginas/Inicio'
 import Asistencias from '../paginas/Asistencias'
 import Constancias from '../paginas/Constancias'
-import Reportes    from '../paginas/Reportes'
 import Cursos      from '../paginas/Cursos'
 import Perfil      from '../paginas/Perfil'
 import Layout      from '../componentes/Layout'
@@ -52,14 +51,6 @@ export default function RutasApp() {
             element={
               <Layout>
                 <Constancias />
-              </Layout>
-            }
-          />
-          <Route
-            path="/reportes"
-            element={
-              <Layout>
-                <Reportes />
               </Layout>
             }
           />
