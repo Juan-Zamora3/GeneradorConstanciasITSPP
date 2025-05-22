@@ -156,7 +156,7 @@ const handleGenerarConstancias = async () => {
 
   const zip = new JSZip();
   for (const p of sel) {
-    const bytes = await generarPDFpara(p, plantillaPDF);
+    const bytes = await generarPDFpara(p, plantillaPDF,);
     const filename = `Constancia_${p.Nombres.replace(/\s/g,"_")}.pdf`;
     zip.file(filename, bytes);
   }
@@ -172,35 +172,48 @@ const handleGenerarConstancias = async () => {
  // Genera un PDF para un participante (código tal como en “pre”
  // ------------------------------------------------------------------
  const generarPDFpara = async (participante, pdfTemplate, mensajePersonalizado = "") => {
-  if (!participante) throw new Error("No se proporcionó información del participante");
-  if (!pdfTemplate) throw new Error("No se proporcionó la plantilla PDF");
-
-  const nombre = `${participante.Nombres} ${participante.ApellidoP} ${participante.ApellidoM}`.trim();
+  // 1) Carga el PDF y registra fontkit
   const pdfDoc = await PDFDocument.load(pdfTemplate);
-  // **Ya no necesitas fontkit ni fetch de fuentes**
-  const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
-const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  pdfDoc.registerFontkit(fontkit);
 
+  // 2) Embebe las fuentes base (Helvetica y Helvetica Bold)
+  const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // 3) Prepara la página
   const page = pdfDoc.getPages()[0];
   const { width, height } = page.getSize();
 
-  // parámetros
+  // 4) Construye el nombre
+  const nombre = `${participante.Nombres} ${participante.ApellidoP} ${participante.ApellidoM}`.trim();
+  
+  // Parámetros de estilo
   const SIZE_NAME   = 24;
   const SIZE_TEXT   = 13.5;
   const LINE_HEIGHT = 18.5;
-  const MARGIN_H    = 50;
   const COLOR_NAME  = rgb(73/255,73/255,73/255);
   const COLOR_TEXT  = rgb(0.2,0.2,0.2);
 
-  // 1) Nombre centrado y subrayado
+  // 5) Dibuja el nombre centrado y subrayado
   const nameTXT = nombre.toUpperCase();
   const nameW   = fontBold.widthOfTextAtSize(nameTXT, SIZE_NAME);
-  const nameX   = (width  - nameW) / 2;
+  const nameX   = (width - nameW) / 2;
   const nameY   = (height / 2) + 50;
-  page.drawText(nameTXT, { x: nameX, y: nameY, size: SIZE_NAME, font: fontBold, color: COLOR_NAME });
-  page.drawLine({ start:{x:nameX,y:nameY-4}, end:{x:nameX+nameW,y:nameY-4}, thickness:1, color: COLOR_NAME });
+  page.drawText(nameTXT, {
+    x: nameX,
+    y: nameY,
+    size: SIZE_NAME,
+    font: fontBold,
+    color: COLOR_NAME
+  });
+  page.drawLine({
+    start: { x: nameX,        y: nameY - 4 },
+    end:   { x: nameX + nameW, y: nameY - 4 },
+    thickness: 1,
+    color: COLOR_NAME
+  });
 
-  // 2) Mensaje con word-wrap
+  // 6) Dibuja el mensaje centrado con word-wrap
   if (mensajePersonalizado.trim()) {
     const palabras = mensajePersonalizado.trim().split(/\s+/);
     const lineas   = [];
@@ -208,7 +221,7 @@ const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     for (const palabra of palabras) {
       const prueba = linea ? `${linea} ${palabra}` : palabra;
-      if (fontReg.widthOfTextAtSize(prueba, SIZE_TEXT) <= width - 2*MARGIN_H) {
+      if (fontReg.widthOfTextAtSize(prueba, SIZE_TEXT) <= width * 0.8) {
         linea = prueba;
       } else {
         lineas.push(linea);
@@ -219,19 +232,24 @@ const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     let cursorY = nameY - SIZE_NAME - 12;
     for (const l of lineas) {
+      const w = fontReg.widthOfTextAtSize(l, SIZE_TEXT);
+      const x = (width - w) / 2;
       page.drawText(l, {
-        x: MARGIN_H,
+        x,
         y: cursorY,
         size: SIZE_TEXT,
         font: fontReg,
-        color: COLOR_TEXT,
+        color: COLOR_TEXT
       });
       cursorY -= LINE_HEIGHT;
     }
   }
 
+  // 7) Guarda y retorna
   return await pdfDoc.save();
 };
+
+
 
 
  
@@ -247,60 +265,60 @@ const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
  // Enviar constancias por correo (lógica intacta de “post”)
  // ------------------------------------------------------------------
  const handleEnviarCorreos = async () => {
-   if (!plantillaPDF) {
-     alert('Por favor sube una plantilla PDF primero');
-     return;
-   }
+  if (!plantillaPDF) {
+    alert('Por favor sube una plantilla PDF primero');
+    return;
+  }
 
-   // Tomamos equipos/participantes marcados
-   const selectedParticipantesList = Participantes.filter(t => checkedParticipantes[t.id]);
-   const allParticipants = [];
-   selectedParticipantesList.forEach(Participantes => {
-    Participantes.integrantes.forEach(integ => {
-       allParticipants.push({
-        ParticipantesName: Participantes.nombre,
-         ...integ,
-       });
-     });
-   });
+  // Tomamos equipos/participantes marcados
+  const selectedTeamsList = teams.filter(t => checkedTeams[t.id]);
+  const allParticipants = [];
+  selectedTeamsList.forEach(team => {
+    team.integrantes.forEach(integ => {
+      allParticipants.push({
+        teamName: team.nombre,
+        ...integ,
+      });
+    });
+  });
 
-   if (allParticipants.length === 0) {
-     alert('No hay integrantes seleccionados para enviar correo');
-     return;
-   }
+  if (allParticipants.length === 0) {
+    alert('No hay integrantes seleccionados para enviar correo');
+    return;
+  }
 
-   setLoadingEmail(true);
-   try {
-     for (let i = 0; i < allParticipants.length; i++) {
-       const p = allParticipants[i];
-       // Solo enviamos si tiene correo
-       if (!p.correo) continue;
-       const pdfBytes = await generarPDFpara(p, plantillaPDF,tipoConstancia);
-       const base64Pdf = arrayBufferToBase64(pdfBytes);
+  setLoadingEmail(true);
+  try {
+    for (let i = 0; i < allParticipants.length; i++) {
+      const p = allParticipants[i];
+      // Solo enviamos si tiene correo
+      if (!p.correo) continue;
+      const pdfBytes = await generarPDFpara(p, plantillaPDF,tipoConstancia);
+      const base64Pdf = arrayBufferToBase64(pdfBytes);
 
-       // Petición al servidor
-       const response = await fetch('http://localhost:3000/enviarConstancia', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({
-           correo: p.correo,
-           nombre: p.nombre,
-           equipo: p.ParticipantesName,
-           pdf: base64Pdf
-         })
-       });
-       if (!response.ok) {
-         console.error(`Error enviando correo a ${p.correo}`);
-       }
-     }
-     alert('Correos enviados correctamente');
-   } catch (error) {
-     console.error('Error al enviar correos:', error);
-     alert('Error al enviar correos');
-   } finally {
-     setLoadingEmail(false);
-   }
- };
+      // Petición al servidor
+      const response = await fetch('http://localhost:3000/enviarConstancia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correo: p.correo,
+          nombre: p.nombre,
+          equipo: p.teamName,
+          pdf: base64Pdf
+        })
+      });
+      if (!response.ok) {
+        console.error(`Error enviando correo a ${p.correo}`);
+      }
+    }
+    alert('Correos enviados correctamente');
+  } catch (error) {
+    console.error('Error al enviar correos:', error);
+    alert('Error al enviar correos');
+  } finally {
+    setLoadingEmail(false);
+  }
+};
 
  // ------------------------------------------------------------------
  // Función auxiliar para convertir ArrayBuffer a base64 (intacta)
