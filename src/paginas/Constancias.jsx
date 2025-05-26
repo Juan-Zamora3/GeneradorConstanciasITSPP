@@ -4,6 +4,10 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { db } from "../servicios/firebaseConfig";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
+
+
 
 
 
@@ -150,19 +154,33 @@ const handlePreviewConstancias = () => {
  // ------------------------------------------------------------------
 // 2) Generar ZIP y descarga
 const handleGenerarConstancias = async () => {
-  if (!plantillaPDF) return alert("Sube plantilla primero");
-  const sel = participantes.filter((_, i) => seleccionados[i]);
-  if (!sel.length) return alert("Selecciona al menos uno");
+  if (!plantillaPDF) {
+    alert("Por favor, sube primero la plantilla PDF.");
+    return;
+  }
+
+  // Obtener los participantes seleccionados
+  const seleccionados = participantes.filter((_, i) => checkedParticipantes[i]);
+  if (seleccionados.length === 0) {
+    alert("Selecciona al menos un participante.");
+    return;
+  }
 
   const zip = new JSZip();
-  for (const p of sel) {
-    const bytes = await generarPDFpara(p, plantillaPDF,);
-    const filename = `Constancia_${p.Nombres.replace(/\s/g,"_")}.pdf`;
-    zip.file(filename, bytes);
+
+  for (const p of seleccionados) {
+    const pdfBytes = await generarPDFpara(p, plantillaPDF, mensajePersonalizado);
+    const nombreArchivo = `Constancia_${p.Nombres}_${p.ApellidoP}_${p.ApellidoM}.pdf`
+      .replace(/\s+/g, "_")
+      .replace(/[^\w\-\.]/g, ""); // Limpia caracteres especiales
+
+    zip.file(nombreArchivo, pdfBytes);
   }
+
   const blob = await zip.generateAsync({ type: "blob" });
-  saveAs(blob, "constancias.zip");
+  saveAs(blob, "Constancias.zip");
 };
+
 
 
 
@@ -505,7 +523,7 @@ const applyFormat = (type) => {
             value={selectedCurso}
             onChange={handleSeleccionCurso}
           >
-            <option value="">Seleccionar</option>
+            <option value="" disabled hidden>Seleccionar</option>
             {cursos.map(c => (
               <option key={c.id} value={c.id}>
                 {c.asistencia?.[0]?.cursoNombre}
@@ -522,7 +540,7 @@ const applyFormat = (type) => {
             onChange={e => setTipoConstancia(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Seleccionar</option>
+            <option value="" disabled hidden>Seleccionar</option>
             <option value="equipos">Equipos</option>
             <option value="coordinadores">Coordinadores</option>
             <option value="maestros">Maestros</option>

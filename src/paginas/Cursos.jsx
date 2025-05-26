@@ -126,6 +126,11 @@ useEffect(() => {
 
   return () => unsub();
 }, [usuario, navigate]);
+const [mostrarParticipantes, setMostrarParticipantes] = useState(false);
+const [showParticipantesModal, setShowParticipantesModal] = useState(false);
+const mostrarParticipantesModal = () => setShowParticipantesModal(true);
+
+
 
 // ✅ AÑADIR ESTE useEffect AQUÍ:
 useEffect(() => {
@@ -707,7 +712,8 @@ useEffect(() => {
 
       {/* ------------------- Modal NUEVO CURSO ------------------- */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
@@ -859,7 +865,8 @@ useEffect(() => {
 
       {/* ------------------- Modal VER DETALLES CURSO ------------------- */}
       {showDetalles && cursoSeleccionado && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
@@ -907,6 +914,63 @@ useEffect(() => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Participantes</label>
                     <p className="text-gray-900">{cursoSeleccionado.participantes?.length || 0} inscritos</p>
+                    <button
+  onClick={mostrarParticipantesModal}
+  className="text-sm text-blue-600 hover:text-blue-800 mt-1"
+>
+  Ver lista de participantes
+</button>
+{showParticipantesModal && cursoSeleccionado && (
+  <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+  <div className="bg-white rounded-lg max-w-md w-full max-h-screen overflow-y-auto shadow-lg">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Participantes</h3>
+          <button
+            onClick={() => setShowParticipantesModal(false)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <i className="ri-close-line text-2xl" />
+          </button>
+        </div>
+
+        {cursoSeleccionado.participantes?.length > 0 ? (
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">#</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Nombre completo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {cursoSeleccionado.participantes.map((p, i) => (
+                <tr key={i}>
+                  <td className="px-4 py-2 text-gray-600">{i + 1}</td>
+                  <td className="px-4 py-2 text-gray-800">
+                    {p.Nombres} {p.ApellidoP} {p.ApellidoM}
+                  </td>
+                </tr>
+                
+              ))}
+            </tbody>
+            <div className="flex justify-end pt-4">
+  <button
+    onClick={() => setShowParticipantesModal(false)}
+    className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 transition"
+  >
+    Regresar
+  </button>
+</div>
+          </table>
+
+        ) : (
+          <p className="text-gray-600">No hay participantes registrados.</p>
+        )}
+      </div>
+    </div>
+  </div>
+)}
+
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Total de reportes</label>
@@ -1023,7 +1087,8 @@ useEffect(() => {
 
       {/* ------------------- Modal EDITAR CURSO ------------------- */}
       {showEditModal && cursoSeleccionado && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
@@ -1170,7 +1235,8 @@ useEffect(() => {
 
       {/* ------------------- Modal NUEVO REPORTE ------------------- */}
       {showNewReportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
@@ -1320,7 +1386,8 @@ useEffect(() => {
 
       {/* ------------------- Modal VER DETALLES REPORTE ------------------- */}
       {showReportDetailsModal && selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+
           <div className="bg-white rounded-lg max-w-3xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
@@ -1409,8 +1476,8 @@ useEffect(() => {
 
       {/* ------------------- Modal EDITAR REPORTE ------------------- */}
       {showEditReportModal && selectedReport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold">Editar Reporte</h3>
