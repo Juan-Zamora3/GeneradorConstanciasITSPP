@@ -1,8 +1,21 @@
-import React from 'react';
+import React from "react";
 
-export default function CourseListItem({ course, onView, onEdit }) {
+export default function CourseListItem({ course, onView, onEdit, onDelete }) {
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden">
+    <div className="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden relative">
+      {/* Botón eliminar */}
+      <button
+        onClick={() => {
+          if (window.confirm(`¿Estás seguro de que quieres eliminar el curso "${course.titulo}"? Esta acción no se puede deshacer.`)) {
+            onDelete(course);
+          }
+        }}
+        className="absolute top-2 right-2 z-10 bg-red-500 hover:bg-red-600 text-white rounded w-6 h-6 flex items-center justify-center text-sm transition-colors"
+        title="Eliminar curso"
+      >
+        ×
+      </button>
+
       {/* Imagen destacada */}
       <div className="h-32 bg-gray-100">
         {course.imageUrl ? (
@@ -22,12 +35,12 @@ export default function CourseListItem({ course, onView, onEdit }) {
       <div className="p-4 space-y-1">
         <h3 className="text-lg font-semibold line-clamp-2">{course.titulo}</h3>
         <p className="text-sm text-gray-600">
-          {course.fechaInicio} – {course.fechaFin || '…'}
+          {course.fechaInicio} – {course.fechaFin || "…"}
         </p>
         <p className="text-sm">{course.instructor}</p>
         <p className="text-xs text-gray-500">
-          {course.participantes.length} participantes •{' '}
-          {course.reportes.length} reportes
+          {course.lista?.length || 0} participantes •{' '}
+          {course.reportes?.length || 0} informes
         </p>
       </div>
 

@@ -10,7 +10,7 @@ import DetailsModal from '../componentes/PantallaCursos/DetailsModal';
 
 export default function Cursos() {
   // Hooks
-  const { courses, loading: lc, createCourse, updateCourse } = useCourses();
+  const { courses, loading: lc, createCourse, updateCourse, deleteCourse } = useCourses();
   const { reports, loading: lr, createReport } = useReports();
 
   // UI state
@@ -44,6 +44,28 @@ export default function Cursos() {
       (a[sortBy] || '').localeCompare(b[sortBy] || '')
     );
   }, [courses, search, filterCat, sortBy]);
+
+  const handleViewCourse = c => {
+    setDetailData(c);
+    setDetailType('course');
+    setShowDetail(true);
+  };
+
+  const handleEditCourse = c => {
+    setEditCourse(c);
+    setShowCourseModal(true);
+  };
+
+  const handleDeleteCourse = async (course) => {
+    if (window.confirm("¿Estás seguro de que quieres eliminar este curso?")) {
+      try {
+        await deleteCourse(course.id);
+      } catch (error) {
+        console.error('Error al eliminar curso:', error);
+        alert('Error al eliminar el curso. Por favor, inténtalo de nuevo.');
+      }
+    }
+  };
 
   return (
     <div className="p-6">
@@ -130,15 +152,9 @@ export default function Cursos() {
                 <CourseListItem
                   key={c.id}
                   course={c}
-                  onView={() => {
-                    setDetailData(c);
-                    setDetailType('course');
-                    setShowDetail(true);
-                  }}
-                  onEdit={() => {
-                    setEditCourse(c);
-                    setShowCourseModal(true);
-                  }}
+                  onView={() => handleViewCourse(c)}
+                  onEdit={() => handleEditCourse(c)}
+                  onDelete={() => handleDeleteCourse(c)}
                 />
               ))}
             </div>

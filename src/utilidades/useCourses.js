@@ -4,6 +4,7 @@ import {
   onSnapshot,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   query,
   orderBy,
@@ -32,9 +33,8 @@ export function useCourses() {
               ubicacion: data.ubicacion || '',
               categoria: data.categoria || '',
               descripcion: data.descripcion || '',
-              lista: (data.listas || [])[0] || '',
+              lista: Array.isArray(data.listas) ? data.listas : [],
               estado: data.estado || '',
-              participantes: data.asistencia?.[0]?.estudiantes || [],
               reportes: data.reportes || [],
               imageUrl: data.imageUrl || '',
             };
@@ -64,17 +64,16 @@ export function useCourses() {
       ubicacion: courseData.ubicacion,
       categoria: courseData.categoria,
       descripcion: courseData.descripcion,
-      listas: courseData.lista ? [courseData.lista] : [],
+      listas: Array.isArray(courseData.lista) ? courseData.lista : [],
       estado: 'proximo',
-      asistencia: [],
       reportes: [],
       imageUrl,
     });
   };
 
-  const updateCourse = async (id, courseData) => {
+  const updateCourse = async (id, courseData, imageFile) => {
     const cRef = doc(db, 'Cursos', id);
-    await updateDoc(cRef, {
+    const updateData = {
       cursoNombre: courseData.titulo,
       asesor: courseData.instructor,
       fechaInicio: courseData.fechaInicio,
@@ -82,9 +81,21 @@ export function useCourses() {
       ubicacion: courseData.ubicacion,
       categoria: courseData.categoria,
       descripcion: courseData.descripcion,
-      listas: courseData.lista ? [courseData.lista] : [],
-    });
+      listas: Array.isArray(courseData.lista) ? courseData.lista : [],
+    };
+
+    if (imageFile) {
+      const imageUrl = await uploadImage(imageFile);
+      updateData.imageUrl = imageUrl;
+    }
+
+    await updateDoc(cRef, updateData);
   };
 
-  return { courses, loading, createCourse, updateCourse };
+  const deleteCourse = async (id) => {
+    const cRef = doc(db, 'Cursos', id);
+    await deleteDoc(cRef);
+  };
+
+  return { courses, loading, createCourse, updateCourse, deleteCourse };
 }
