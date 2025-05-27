@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'
 
 export default function ReportModal({
   isOpen,
@@ -13,34 +13,34 @@ export default function ReportModal({
     titulo: '',
     fecha: '',
     descripcion: '',
-  });
-  const [images, setImages] = useState([]);
+  })
+  const [images, setImages] = useState([])
 
   useEffect(() => {
     if (initialData.id) {
       setForm({
-        cursoId: initialData.cursoId,
-        tipo: initialData.tipo,
-        titulo: initialData.titulo,
-        fecha: initialData.fecha,
+        cursoId:     initialData.cursoId,
+        tipo:        initialData.tipo,
+        titulo:      initialData.titulo,
+        fecha:       initialData.fecha,
         descripcion: initialData.descripcion,
-      });
+      })
     }
-  }, [initialData]);
+  }, [initialData])
 
   const handleChange = e => {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-  };
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: value }))
+  }
 
   const submit = e => {
-    e.preventDefault();
-    onSubmit(form, images);
-  };
+    e.preventDefault()
+    onSubmit(form, images)
+  }
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <form
         onSubmit={submit}
         className="bg-white rounded-lg max-w-xl w-full p-6 space-y-4 overflow-y-auto max-h-full"
@@ -125,5 +125,5 @@ export default function ReportModal({
         </div>
       </form>
     </div>
-  );
+  )
 }

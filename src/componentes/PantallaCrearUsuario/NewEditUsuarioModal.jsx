@@ -14,9 +14,9 @@ export default function NewEditUsuarioModal({ isOpen, onClose, onSubmit }) {
 
   const validate = () => {
     const e = {}
-    if (!form.nombre.trim())      e.nombre = 'Requerido'
+    if (!form.nombre.trim())        e.nombre   = 'Requerido'
     if (!emailRegex.test(form.correo)) e.correo = 'Inválido'
-    if (form.password.length < 6) e.password = '6+ chars'
+    if (form.password.length < 6)    e.password = '6+ chars'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -32,14 +32,16 @@ export default function NewEditUsuarioModal({ isOpen, onClose, onSubmit }) {
 
   if (!isOpen) return null
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-sm w-full p-6 space-y-4">
+    <div className="fixed inset-0 flex items-center justify-center p-4">
+      {/* Fondo borroso */}
+      <div className="absolute inset-0 backdrop-blur-sm"></div>
+      <div className="relative bg-white rounded-lg max-w-sm w-full p-6 space-y-4 z-10">
         <h3 className="text-xl font-semibold">Nuevo Usuario</h3>
         <form onSubmit={submit} className="space-y-3">
           {[
-            { name:'nombre', label:'Nombre completo', type:'text' },
-            { name:'correo', label:'Correo', type:'email' },
-            { name:'password', label:'Contraseña', type:'password' }
+            { name:'nombre',   label:'Nombre completo', type:'text'     },
+            { name:'correo',   label:'Correo',          type:'email'    },
+            { name:'password', label:'Contraseña',      type:'password' }
           ].map(f => (
             <div key={f.name}>
               <label className="block text-sm font-medium text-gray-700">

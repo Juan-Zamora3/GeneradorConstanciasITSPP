@@ -1,71 +1,85 @@
-import React, { useState, useMemo } from 'react';
-import { useCourses } from '../utilidades/useCourses';
-import { useReports } from '../utilidades/useReports';
-import CourseListItem from '../componentes/PantallaCursos/CourseListItem';
-import ReportListItem from '../componentes/PantallaCursos/ReportListItem';  // <— Falta esta importación
-import CourseModal from '../componentes/PantallaCursos/CourseModal';
-import ReportModal from '../componentes/PantallaCursos/ReportModal';
-import DetailsModal from '../componentes/PantallaCursos/DetailsModal';
-
+// src/pages/Cursos.jsx
+import React, { useState, useMemo, useContext } from 'react'
+import { useCourses } from '../utilidades/useCourses'
+import { useReports } from '../utilidades/useReports'
+import CourseListItem from '../componentes/PantallaCursos/CourseListItem'
+import ReportListItem from '../componentes/PantallaCursos/ReportListItem'
+import CourseModal    from '../componentes/PantallaCursos/CourseModal'
+import ReportModal    from '../componentes/PantallaCursos/ReportModal'
+import DetailsModal   from '../componentes/PantallaCursos/DetailsModal'
+import { AuthContext } from '../contexto/AuthContext'
 
 export default function Cursos() {
+  const { usuario } = useContext(AuthContext)
+  const isAdmin = usuario?.role !== 'user'
+
   // Hooks
-  const { courses, loading: lc, createCourse, updateCourse, deleteCourse } = useCourses();
-  const { reports, loading: lr, createReport } = useReports();
+  const {
+    courses,
+    loading: lc,
+    createCourse,
+    updateCourse,
+    deleteCourse
+  } = useCourses()
+
+  const {
+    reports,
+    loading: lr,
+    createReport
+  } = useReports()
 
   // UI state
-  const [view, setView]       = useState('courses');    // <— SÓLO 'courses' o 'reports'
-  const [search, setSearch]   = useState('');
-  const [sortBy, setSortBy]   = useState('titulo');
-  const [filterCat, setFilterCat] = useState('');
+  const [view, setView]             = useState('courses')
+  const [search, setSearch]         = useState('')
+  const [sortBy, setSortBy]         = useState('titulo')
+  const [filterCat, setFilterCat]   = useState('')
 
   // Modales
-  const [showCourseModal, setShowCourseModal] = useState(false);
-  const [editCourse, setEditCourse]           = useState(null);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [showDetail, setShowDetail]           = useState(false);
-  const [detailData, setDetailData]           = useState({});
-  const [detailType, setDetailType]           = useState('course');
+  const [showCourseModal, setShowCourseModal] = useState(false)
+  const [editCourse, setEditCourse]           = useState(null)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [showDetail, setShowDetail]           = useState(false)
+  const [detailData, setDetailData]           = useState({})
+  const [detailType, setDetailType]           = useState('course')
 
   // Filtrado + orden solo para cursos
   const filteredCourses = useMemo(() => {
-    let arr = courses;
+    let arr = courses
     if (search) {
-      const t = search.toLowerCase();
+      const t = search.toLowerCase()
       arr = arr.filter(c =>
         c.titulo.toLowerCase().includes(t) ||
         c.instructor.toLowerCase().includes(t)
-      );
+      )
     }
     if (filterCat) {
-      arr = arr.filter(c => c.categoria === filterCat);
+      arr = arr.filter(c => c.categoria === filterCat)
     }
     return [...arr].sort((a, b) =>
       (a[sortBy] || '').localeCompare(b[sortBy] || '')
-    );
-  }, [courses, search, filterCat, sortBy]);
+    )
+  }, [courses, search, filterCat, sortBy])
 
   const handleViewCourse = c => {
-    setDetailData(c);
-    setDetailType('course');
-    setShowDetail(true);
-  };
+    setDetailData(c)
+    setDetailType('course')
+    setShowDetail(true)
+  }
 
   const handleEditCourse = c => {
-    setEditCourse(c);
-    setShowCourseModal(true);
-  };
+    setEditCourse(c)
+    setShowCourseModal(true)
+  }
 
-  const handleDeleteCourse = async (course) => {
-    if (window.confirm("¿Estás seguro de que quieres eliminar este curso?")) {
-      try {
-        await deleteCourse(course.id);
-      } catch (error) {
-        console.error('Error al eliminar curso:', error);
-        alert('Error al eliminar el curso. Por favor, inténtalo de nuevo.');
-      }
+  const handleDeleteCourse = async course => {
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este curso?')) return
+    try {
+      await deleteCourse(course.id)
+    } catch (error) {
+      console.error('Error al eliminar curso:', error)
+      alert('Error al eliminar el curso. Por favor, inténtalo de nuevo.')
     }
-  };
+  }
 
   return (
     <div className="p-6">
@@ -79,12 +93,14 @@ export default function Cursos() {
           >
             Nuevo Reporte
           </button>
-          <button
-            onClick={() => { setEditCourse(null); setShowCourseModal(true); }}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Nuevo Curso
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setEditCourse(null); setShowCourseModal(true); }}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Nuevo Curso
+            </button>
+          )}
         </div>
       </div>
 
@@ -139,7 +155,6 @@ export default function Cursos() {
               <option value="">Todas las categorías</option>
               <option value="informatica">Informática</option>
               <option value="administracion">Administración</option>
-              {/* … */}
             </select>
           </div>
 
@@ -153,8 +168,8 @@ export default function Cursos() {
                   key={c.id}
                   course={c}
                   onView={() => handleViewCourse(c)}
-                  onEdit={() => handleEditCourse(c)}
-                  onDelete={() => handleDeleteCourse(c)}
+                  onEdit={isAdmin ? () => handleEditCourse(c) : undefined}
+                  onDelete={isAdmin ? () => handleDeleteCourse(c) : undefined}
                 />
               ))}
             </div>
@@ -172,9 +187,9 @@ export default function Cursos() {
                   key={r.id}
                   report={r}
                   onView={() => {
-                    setDetailData(r);
-                    setDetailType('report');
-                    setShowDetail(true);
+                    setDetailData(r)
+                    setDetailType('report')
+                    setShowDetail(true)
                   }}
                 />
               ))}
@@ -189,9 +204,9 @@ export default function Cursos() {
         initialData={editCourse || {}}
         onClose={() => setShowCourseModal(false)}
         onSubmit={async (data, img) => {
-          if (editCourse) await updateCourse(editCourse.id, data, img);
-          else await createCourse(data, img);
-          setShowCourseModal(false);
+          if (editCourse) await updateCourse(editCourse.id, data, img)
+          else await createCourse(data, img)
+          setShowCourseModal(false)
         }}
       />
 
@@ -200,8 +215,8 @@ export default function Cursos() {
         cursos={courses}
         onClose={() => setShowReportModal(false)}
         onSubmit={async reportData => {
-          await createReport(reportData.cursoId, reportData);
-          setShowReportModal(false);
+          await createReport(reportData.cursoId, reportData)
+          setShowReportModal(false)
         }}
       />
 
@@ -212,5 +227,5 @@ export default function Cursos() {
         onClose={() => setShowDetail(false)}
       />
     </div>
-  );
+  )
 }
