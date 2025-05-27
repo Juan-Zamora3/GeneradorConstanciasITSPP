@@ -1,13 +1,15 @@
 // src/componentes/TopbarCompact.jsx
 import React, { useState, useContext, useRef, useEffect } from 'react';
-import { FaBell, FaCog, FaUser } from 'react-icons/fa';
+import { FaBell, FaCog, FaUser, FaEye, FaBook, FaUserPlus, FaFileSignature } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexto/AuthContext';
+import { useNotifications } from '../contexto/NotificationContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 
 export default function TopbarCompact({ isOpen }) {
   const { logout, usuario } = useContext(AuthContext);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [perfil, setPerfil] = useState({
     nombre: '',
     apellidos: '',
@@ -82,50 +84,119 @@ export default function TopbarCompact({ isOpen }) {
           className="p-2 hover:bg-gray-100 rounded-full"
         >
           <FaBell className="text-gray-600"/>
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
-            3
-          </span>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
         {notOpen && (
           <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-30">
             <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
               <h3 className="font-bold text-gray-800">Notificaciones</h3>
-              <span className="text-xs text-blue-600 cursor-pointer hover:text-blue-800 font-medium">
+              <span 
+                onClick={markAllAsRead}
+                className="text-xs text-blue-600 cursor-pointer hover:text-blue-800 font-medium"
+              >
                 Marcar todas como leídas
               </span>
             </div>
             <div className="max-h-64 overflow-y-auto">
-              {/* Ejemplos */}
-              <div className="px-4 py-3 hover:bg-gray-50 border-b cursor-pointer flex items-start space-x-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <i className="ri-book-line text-blue-600 text-lg"></i>
+              {notifications.length === 0 ? (
+                <div className="px-4 py-8 text-center text-gray-500">
+                  <FaBell className="mx-auto text-gray-300 mb-2" size={24} />
+                  <p className="text-sm">No hay notificaciones</p>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-800">Nuevo curso agregado</p>
-                  <p className="text-xs text-gray-600">Se ha creado un nuevo curso de Informática</p>
-                  <p className="text-xs text-gray-400 mt-1">Hace 2 horas</p>
-                </div>
-              </div>
-              <div className="px-4 py-3 hover:bg-gray-50 border-b cursor-pointer flex items-start space-x-3">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                  <i className="ri-user-add-line text-green-600 text-lg"></i>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-800">Nuevo participante</p>
-                  <p className="text-xs text-gray-600">Se registró un nuevo participante</p>
-                  <p className="text-xs text-gray-400 mt-1">Hace 4 horas</p>
-                </div>
-              </div>
-              <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-start space-x-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                  <i className="ri-file-text-line text-purple-600 text-lg"></i>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-800">Reporte generado</p>
-                  <p className="text-xs text-gray-600">Se creó un reporte de asistencia</p>
-                  <p className="text-xs text-gray-400 mt-1">Hace 1 día</p>
-                </div>
-              </div>
+              ) : (
+                notifications.map((notif) => {
+                  const getIcon = (tipo) => {
+                    switch (tipo) {
+                      case 'curso': return <FaBook className="text-blue-600" />;
+                      case 'participante': return <FaUserPlus className="text-green-600" />;
+                      case 'reporte': return <FaFileSignature className="text-purple-600" />;
+                      case 'usuario': return <FaUser className="text-orange-600" />;
+                      default: return <FaBell className="text-gray-600" />;
+                    }
+                  };
+                  
+                  const getBgColor = (tipo) => {
+                    switch (tipo) {
+                      case 'curso': return 'bg-blue-100';
+                      case 'participante': return 'bg-green-100';
+                      case 'reporte': return 'bg-purple-100';
+                      case 'usuario': return 'bg-orange-100';
+                      default: return 'bg-gray-100';
+                    }
+                  };
+
+                  const formatDate = (timestamp) => {
+                    if (!timestamp) return 'Ahora';
+                    
+                    // Convertir timestamp de Firestore a Date
+                    let date;
+                    if (timestamp?.toDate) {
+                      date = timestamp.toDate();
+                    } else if (timestamp?.seconds) {
+                      date = new Date(timestamp.seconds * 1000);
+                    } else {
+                      date = new Date(timestamp);
+                    }
+                    
+                    const now = new Date();
+                    const diffMs = now - date;
+                    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    
+                    if (diffMinutes < 1) return 'Ahora mismo';
+                    if (diffMinutes < 60) return `Hace ${diffMinutes} ${diffMinutes === 1 ? 'minuto' : 'minutos'}`;
+                    if (diffHours < 24) return `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+                    return `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+                  };
+
+                  return (
+                    <div 
+                      key={notif.id}
+                      className={`px-4 py-3 hover:bg-gray-50 border-b flex items-start space-x-3 ${!notif.leida ? 'bg-blue-50' : ''}`}
+                    >
+                      <div className={`w-10 h-10 ${getBgColor(notif.tipo)} rounded-full flex items-center justify-center`}>
+                        {getIcon(notif.tipo)}
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm ${!notif.leida ? 'font-semibold' : 'font-medium'} text-gray-800`}>
+                          {notif.titulo}
+                        </p>
+                        <p className="text-xs text-gray-600">{notif.mensaje}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-gray-400">{formatDate(notif.createdAt)}</p>
+                          {notif.creadoPor && (
+                            <p className="text-xs text-blue-600 font-medium">
+                              por {notif.creadoPor.nombre}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {!notif.leida && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsRead(notif.id);
+                            }}
+                            className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+                            title="Marcar como leída"
+                          >
+                            <FaEye className="text-gray-500 text-sm" />
+                          </button>
+                        )}
+                        {!notif.leida && (
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}

@@ -1,21 +1,25 @@
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useContext } from 'react';
 import {
   collection,
   query,
   orderBy,
   onSnapshot,
   addDoc,
-  updateDoc,   // 👈
+  updateDoc,
   deleteDoc,
-  doc
+  doc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
+import { AuthContext } from '../contexto/AuthContext';
 
 /* —­­— cálculo rápido de bytes de una cadena base-64 —­­— */
 const b64bytes = str =>
   (str.length * 3) / 4 - (str.endsWith('==') ? 2 : str.endsWith('=') ? 1 : 0);
 
 export function useReports() {
+  const { usuario } = useContext(AuthContext);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +53,26 @@ export function useReports() {
       cursoId,
       ...data,
       imagenes,
-      fecha: new Date().toISOString(),   // ISO string para ordenar
+      fecha: new Date().toISOString(),
+    });
+
+    // Crear notificación
+    await addDoc(collection(db, 'Notificaciones'), {
+      tipo: 'reporte',
+      titulo: 'Nuevo reporte creado',
+      mensaje: `Se ha creado un reporte "${data.titulo}" de tipo ${data.tipo}`,
+      datos: {
+        reporteTitulo: data.titulo,
+        tipo: data.tipo,
+        cursoId: cursoId
+      },
+      leida: false,
+      createdAt: serverTimestamp(),
+      creadoPor: {
+        email: usuario?.email || 'sistema@admin.com',
+        nombre: usuario?.name || 'Usuario',
+        uid: usuario?.email || 'sistema'
+      }
     });
   };
 
@@ -63,14 +86,15 @@ export function useReports() {
     });
   };
 
-  const deleteReport = async reportId =>
+  const deleteReport = async reportId => {
     await deleteDoc(doc(db, 'Reportes', reportId));
+  };
 
   return {
     reports,
     loading,
     createReport,
-    updateReport,   // 👈  lo exportamos
+    updateReport,
     deleteReport,
   };
 }

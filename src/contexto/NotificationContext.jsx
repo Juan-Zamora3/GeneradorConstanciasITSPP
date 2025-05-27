@@ -73,7 +73,12 @@ export function NotificationProvider({ children }) {
         datos,
         leida: false,
         createdAt: serverTimestamp(),
-        usuarioId: usuario.email
+        usuarioId: usuario.email,
+        creadoPor: {
+          email: usuario.email,
+          nombre: usuario.displayName || 'Usuario',
+          uid: usuario.uid
+        }
       });
     } catch (error) {
       console.error('Error al crear notificación:', error);
