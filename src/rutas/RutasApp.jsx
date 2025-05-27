@@ -3,13 +3,14 @@ import React, { useContext } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthContext } from '../contexto/AuthContext'
 
-import Login       from '../paginas/Login'
-import Inicio      from '../paginas/Inicio'
-import Personal from '../paginas/Personal'
-import Constancias from '../paginas/Constancias'
-import Cursos      from '../paginas/Cursos'
-import Perfil      from '../paginas/Perfil'
-import Layout      from '../componentes/Layout'
+import Login          from '../paginas/Login'
+import Inicio         from '../paginas/Inicio'
+import Personal       from '../paginas/Personal'
+import Constancias    from '../paginas/Constancias'
+import Cursos         from '../paginas/Cursos'
+import Perfil         from '../paginas/Perfil'
+import CrearUsuarios  from '../paginas/CrearUsuarios'  // <-- nueva pantalla
+import Layout         from '../componentes/Layout'
 
 export default function RutasApp() {
   const { usuario } = useContext(AuthContext)
@@ -27,7 +28,7 @@ export default function RutasApp() {
         }
       />
 
-      {/* Rutas protegidas, solo si hay usuario */}
+      {/* Rutas protegidas */}
       {usuario && (
         <>
           <Route
@@ -62,7 +63,6 @@ export default function RutasApp() {
               </Layout>
             }
           />
-          {/* Nueva ruta para perfil */}
           <Route
             path="/perfil"
             element={
@@ -71,10 +71,19 @@ export default function RutasApp() {
               </Layout>
             }
           />
+          {/* Nueva ruta para crear usuarios */}
+          <Route
+            path="/usuarios"
+            element={
+              <Layout>
+                <CrearUsuarios />
+              </Layout>
+            }
+          />
         </>
       )}
 
-      {/* Cualquier otra ruta va a login o, si ya está auth, a inicio */}
+      {/* Fallback */}
       <Route
         path="*"
         element={

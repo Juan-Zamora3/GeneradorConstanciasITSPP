@@ -11,7 +11,7 @@ import logo        from '../assets/logo.png'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login } = useContext(AuthContext)     // ← trae la función del contexto
+  const { login } = useContext(AuthContext)
 
   const [isRegister, setIsRegister] = useState(false)
   const [name, setName]             = useState('')
@@ -35,13 +35,24 @@ export default function Login() {
 
     try {
       const snap = await getDoc(doc(db, 'Usuarios', email))
-      if (snap.exists() && snap.data().password === password) {
-        const userData = { name: snap.data().name, email }
-        login(userData)                         // ← notificamos al contexto
-        navigate('/inicio', { replace: true })
-      } else {
+      if (!snap.exists() || snap.data().password !== password) {
         setErrorMsg('Credenciales incorrectas.')
+        return
       }
+
+      const data = snap.data()
+      // Si role no está definido o es distinto de 'user', lo tratamos como 'admin'
+      const role = data.role === 'user' ? 'user' : 'admin'
+
+      const userData = {
+        name:  data.name || data.nombre || 'Usuario',
+        email,
+        role
+      }
+
+      // Guardamos en el contexto y localStorage
+      login(userData)
+      navigate('/inicio', { replace: true })
     } catch {
       setErrorMsg('Error al acceder a los datos del usuario.')
     }
@@ -62,9 +73,9 @@ export default function Login() {
         setErrorMsg('El correo ya está registrado.')
         return
       }
-      await setDoc(ref, { name, password })
-      const userData = { name, email }
-      login(userData)                         // ← aquí también
+      // Registro siempre como 'user'
+      await setDoc(ref, { name, password, role: 'user' })
+      login({ name, email, role: 'user' })
       navigate('/inicio', { replace: true })
     } catch {
       setErrorMsg('Error al registrar el usuario.')

@@ -5,7 +5,8 @@ import {
   FaHome,
   FaUser,
   FaFileSignature,
-  FaBook
+  FaBook,
+  FaUserPlus
 } from 'react-icons/fa'
 import { AuthContext } from '../contexto/AuthContext'
 import logoImg from '../assets/logo.png'
@@ -23,11 +24,12 @@ export default function Sidebar() {
     closeTimer.current = setTimeout(() => setIsOpen(false), 200)
   }
 
+  // Definimos todas las secciones e ítems posibles
   const sections = [
     {
       title: 'Principal',
       items: [
-        { path: '/inicio',      name: 'Inicio',      icon: <FaHome /> }
+        { path: '/inicio', name: 'Inicio', icon: <FaHome /> },
       ]
     },
     {
@@ -35,10 +37,14 @@ export default function Sidebar() {
       items: [
         { path: '/personal',    name: 'Personal',    icon: <FaUser /> },
         { path: '/constancias', name: 'Constancias', icon: <FaFileSignature /> },
-        { path: '/cursos',      name: 'Cursos',      icon: <FaBook /> }
+        { path: '/cursos',      name: 'Cursos',      icon: <FaBook /> },
+        { path: '/usuarios',    name: 'Usuarios',    icon: <FaUserPlus /> },
       ]
     }
   ]
+
+  // Para 'user', solo permitimos Inicio, Personal y Cursos
+  const allowedForUser = ['/inicio', '/personal', '/cursos']
 
   return (
     <aside
@@ -62,43 +68,54 @@ export default function Sidebar() {
 
       {/* MENÚ SECCIONADO */}
       <nav className="flex-1 mt-4 overflow-y-auto">
-        {sections.map(sec => (
-          <div key={sec.title} className="mb-6">
-            {isOpen && (
-              <h3 className="px-4 py-2 text-xs text-gray-500 uppercase">
-                {sec.title}
-              </h3>
-            )}
-            <ul>
-              {sec.items.map(({ path, name, icon }) => (
-                <li key={path} className="mb-1">
-                  <NavLink
-                    to={path}
-                    end
-                    className={({ isActive }) => `
-                      flex items-center transition-colors duration-200 rounded-lg
-                      ${isActive
-                        ? 'bg-gray-800 text-teal-300'
-                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'}
-                      ${isOpen
-                        ? 'px-4 py-3 justify-start'
-                        : 'p-4 justify-center'}
-                    `}
-                  >
-                    <div className={`${isOpen ? 'text-2xl' : 'text-3xl'}`}>
-                      {icon}
-                    </div>
-                    {isOpen && (
-                      <span className="ml-4 text-base font-medium truncate">
-                        {name}
-                      </span>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {sections.map(sec => {
+          // filtramos ítems según rol
+          const items = sec.items.filter(item => {
+            if (usuario?.role === 'user') {
+              return allowedForUser.includes(item.path)
+            }
+            return true
+          })
+          if (items.length === 0) return null
+
+          return (
+            <div key={sec.title} className="mb-6">
+              {isOpen && (
+                <h3 className="px-4 py-2 text-xs text-gray-500 uppercase">
+                  {sec.title}
+                </h3>
+              )}
+              <ul>
+                {items.map(({ path, name, icon }) => (
+                  <li key={path} className="mb-1">
+                    <NavLink
+                      to={path}
+                      end
+                      className={({ isActive }) => `
+                        flex items-center transition-colors duration-200 rounded-lg
+                        ${isActive
+                          ? 'bg-gray-800 text-teal-300'
+                          : 'text-gray-400 hover:bg-gray-800 hover:text-white'}
+                        ${isOpen
+                          ? 'px-4 py-3 justify-start'
+                          : 'p-4 justify-center'}
+                      `}
+                    >
+                      <div className={`${isOpen ? 'text-2xl' : 'text-5xl'}`}>
+                        {icon}
+                      </div>
+                      {isOpen && (
+                        <span className="ml-4 text-base font-medium truncate">
+                          {name}
+                        </span>
+                      )}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
       </nav>
     </aside>
   )
