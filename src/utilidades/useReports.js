@@ -1,42 +1,56 @@
 import { useState, useEffect } from 'react';
 import {
   collection,
+  query,
+  orderBy,
   onSnapshot,
-  updateDoc,
-  doc,
-  arrayUnion,
+  addDoc,
+  deleteDoc,
+  doc
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
+
+/* —­­— cálculo rápido de bytes de una cadena base-64 —­­— */
+const b64bytes = str =>
+  (str.length * 3) / 4 - (str.endsWith('==') ? 2 : str.endsWith('=') ? 1 : 0);
 
 export function useReports() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /* —­­— listener en /Reportes ordenado por fecha desc —­­— */
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'Cursos'), snap => {
-      const all = snap.docs.flatMap(d => {
-        const rs = d.data().reportes || [];
-        return rs.map(r => ({
-          ...r,
-          cursoId: d.id,
-        }));
-      });
-      setReports(all);
-      setLoading(false);
-    }, () => setLoading(false));
+    const q = query(collection(db, 'Reportes'), orderBy('fecha', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
     return () => unsub();
   }, []);
 
-  const createReport = async (cursoId, reportData) => {
-    const cRef = doc(db, 'Cursos', cursoId);
-    await updateDoc(cRef, {
-      reportes: arrayUnion({ 
-        id: crypto.randomUUID(),
-        ...reportData,
-        fechaCreacion: new Date().toISOString()
-      }),
+  /* —­­— CRUD —­­— */
+  const createReport = async (cursoId, data, imagenes = []) => {
+    /* opcional: bloquear docs > 1 MB */
+    const size =
+      JSON.stringify({ ...data, cursoId, imagenes }).length +
+      imagenes.reduce((n, d) => n + b64bytes(d), 0);
+    if (size > 950_000) throw new Error('doc-too-big');
+
+    await addDoc(collection(db, 'Reportes'), {
+      cursoId,
+      ...data,
+      imagenes,
+      fecha: new Date().toISOString(),
     });
   };
 
-  return { reports, loading, createReport };
+  const deleteReport = async reportId => {
+    await deleteDoc(doc(db, 'Reportes', reportId));
+  };
+
+  return { reports, loading, createReport, deleteReport };
 }
