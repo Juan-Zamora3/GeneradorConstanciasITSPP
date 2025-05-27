@@ -14,9 +14,10 @@ export default function Inicio() {
   const navigate = useNavigate()
   const { usuario, logout } = useContext(AuthContext)
   const [user, setUser] = useState(null)
-  const [timeFrame, setTimeFrame] = useState('2024-1')
+  const [timeFrame, setTimeFrame] = useState('1')
+  const [participantFilter, setParticipantFilter] = useState('')
   const [loading, setLoading] = useState(true)
-  
+
   // Estados para datos reales
   const [participantes, setParticipantes] = useState([])
   const [cursos, setCursos] = useState([])
@@ -79,7 +80,7 @@ export default function Inicio() {
           fechaFin: d.fechaFin || '',
           categoria: d.categoria || 'sin_categoria',
           estado: d.estado || 'proximo',
-          participantes: d.asistencia?.[0]?.estudiantes || [],
+          participantes: d.listas || [],
           descripcion: d.descripcion || '',
           ubicacion: d.ubicacion || '',
           reportes: d.reportes || []
@@ -109,20 +110,31 @@ export default function Inicio() {
   // Obtener próximos cursos (solo próximos o en curso, ordenados por fecha)
   const getProximosCursos = () => {
     const today = new Date()
-    return cursos
+    let cursosProximos = cursos
       .filter(curso => {
         if (!curso.fechaInicio) return false
         const fechaInicio = new Date(curso.fechaInicio)
-        return (curso.estado === 'proximo' || curso.estado === 'en_curso')
+        const cumpleFiltroEstado = (curso.estado === 'proximo' || curso.estado === 'en_curso')
+        
+        // Si hay filtro de mes, aplicarlo
+        if (participantFilter && participantFilter !== '') {
+          const mesSeleccionado = parseInt(participantFilter)
+          const mesCurso = fechaInicio.getMonth()
+          return cumpleFiltroEstado && mesCurso === mesSeleccionado
+        }
+        
+        return cumpleFiltroEstado
       })
       .sort((a, b) => new Date(a.fechaInicio) - new Date(b.fechaInicio))
       .slice(0, 6) // Mostrar máximo 6 cursos
+    
+    return cursosProximos
   }
 
   // Obtener actividad reciente (últimos reportes)
   const getActividadReciente = () => {
     const reportesRecientes = []
-    
+
     cursos.forEach(curso => {
       if (curso.reportes && curso.reportes.length > 0) {
         curso.reportes.forEach(reporte => {
@@ -228,40 +240,28 @@ export default function Inicio() {
         </button>
       </div>
 
-      {/* Encabezado y selector de periodo */}
+      {/* Encabezado */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Panel de Control</h2>
-        <div className="mt-4 md:mt-0">
-          <select 
-            value={timeFrame}
-            onChange={(e) => setTimeFrame(e.target.value)}
-            className="border-gray-300 border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="2023-1">Ene-Jun 2023</option>
-            <option value="2023-2">Jul-Dic 2023</option>
-            <option value="2024-1">Ene-Jun 2024</option>
-            <option value="2024-2">Jul-Dic 2024</option>
-          </select>
-        </div>
       </div>
 
       {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Participantes */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        {/* Total de Participantes */}
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center mb-4">
             <div className="bg-blue-100 rounded-full w-12 h-12 flex items-center justify-center">
-              <i className="ri-user-line text-xl text-blue-600"></i>
+              <i className="ri-group-line text-xl text-blue-600"></i>
             </div>
             <div className="ml-4">
-              <p className="text-gray-500 text-sm">Total Participantes</p>
+              <p className="text-gray-500 text-sm">Total de Participantes</p>
               <h4 className="text-2xl font-semibold">{statsData.participantCount}</h4>
             </div>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-green-600 flex items-center">
               <i className="ri-arrow-up-line mr-1"></i>
-              {formatTrend(12)}
+              +12%
             </span>
             <span className="text-gray-400 text-sm">vs mes anterior</span>
           </div>
@@ -271,7 +271,7 @@ export default function Inicio() {
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center mb-4">
             <div className="bg-green-100 rounded-full w-12 h-12 flex items-center justify-center">
-              <i className="ri-book-open-line text-xl text-green-600"></i>
+              <i className="ri-graduation-cap-line text-xl text-green-600"></i>
             </div>
             <div className="ml-4">
               <p className="text-gray-500 text-sm">Cursos Activos</p>
@@ -287,43 +287,157 @@ export default function Inicio() {
           </div>
         </div>
 
-        {/* Cursos Completados */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center mb-4">
-            <div className="bg-purple-100 rounded-full w-12 h-12 flex items-center justify-center">
-              <i className="ri-file-list-3-line text-xl text-purple-600"></i>
-            </div>
-            <div className="ml-4">
-              <p className="text-gray-500 text-sm">Cursos Completados</p>
-              <h4 className="text-2xl font-semibold">{statsData.completedCourseCount}</h4>
-            </div>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-green-600 flex items-center">
-              <i className="ri-arrow-up-line mr-1"></i>
-              {formatTrend(24)}
-            </span>
-            <span className="text-gray-400 text-sm">vs mes anterior</span>
-          </div>
-        </div>
-
-        {/* Total Reportes */}
+        {/* Reportes */}
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center mb-4">
             <div className="bg-orange-100 rounded-full w-12 h-12 flex items-center justify-center">
-              <i className="ri-file-text-line text-xl text-orange-600"></i>
+              <i className="ri-bar-chart-2-line text-xl text-orange-600"></i>
             </div>
             <div className="ml-4">
-              <p className="text-gray-500 text-sm">Total Reportes</p>
+              <p className="text-gray-500 text-sm">Informes totales</p>
               <h4 className="text-2xl font-semibold">{statsData.totalReports}</h4>
             </div>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-green-600 flex items-center">
               <i className="ri-arrow-up-line mr-1"></i>
-              +{statsData.totalReports > 0 ? Math.min(5, statsData.totalReports) : 0}
+              +1
             </span>
-            <span className="text-gray-400 text-sm">reportes creados</span>
+            <span className="text-gray-400 text-sm">informes creados</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráficas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Gráfica de Participantes por Curso Próximo */}
+        <div className="bg-white rounded-xl shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center">
+              <i className="ri-user-line text-blue-600 mr-2"></i>
+              Participantes por Curso Próximo
+            </h3>
+            <select 
+              value={participantFilter}
+              onChange={(e) => setParticipantFilter(e.target.value)}
+              className="border-gray-300 border rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Todos los meses</option>
+              <option value="0">Enero</option>
+              <option value="1">Febrero</option>
+              <option value="2">Marzo</option>
+              <option value="3">Abril</option>
+              <option value="4">Mayo</option>
+              <option value="5">Junio</option>
+              <option value="6">Julio</option>
+              <option value="7">Agosto</option>
+              <option value="8">Septiembre</option>
+              <option value="9">Octubre</option>
+              <option value="10">Noviembre</option>
+              <option value="11">Diciembre</option>
+            </select>
+          </div>
+          <div className="h-64 flex items-end justify-between space-x-2 border-b border-l border-gray-200 pl-2 pb-2">
+            {proximosCursos.slice(0, 5).map((curso, index) => {
+              const participantesCount = Array.isArray(curso.participantes) ? curso.participantes.length : 0;
+              const cursosParaEscala = proximosCursos.slice(0, 5);
+              const maxParticipantes = Math.max(...cursosParaEscala.map(c => Array.isArray(c.participantes) ? c.participantes.length : 0), 1);
+              const height = maxParticipantes === 0 ? 20 : Math.max((participantesCount / maxParticipantes) * 200, 20);
+              
+              return (
+                <div key={curso.id} className="flex-1 flex flex-col justify-end items-center h-full">
+                  <div className="w-full flex flex-col justify-end items-center h-full">
+                    <span className="text-xs font-semibold text-gray-700 mb-1">
+                      {participantesCount}
+                    </span>
+                    <div className="w-full flex justify-center">
+                      <div 
+                        className="w-12 bg-blue-600 rounded-t transition-all duration-500"
+                        style={{height: `${height}px`}}
+                      ></div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-center">
+                    <p className="text-xs font-medium text-gray-900 truncate max-w-[60px]" title={curso.titulo}>
+                      {curso.titulo.length > 8 ? curso.titulo.substring(0, 8) + '...' : curso.titulo}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatearFecha(curso.fechaInicio).split(' ')[0]}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+            {proximosCursos.length === 0 && (
+              <div className="w-full text-center text-gray-500 py-8">
+                <i className="ri-calendar-line text-3xl mb-2 block"></i>
+                <p>{participantFilter ? 'No hay cursos próximos en este mes' : 'No hay cursos próximos'}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Gráfica de Cursos por Mes */}
+        <div className="bg-white rounded-xl shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center">
+              <i className="ri-bar-chart-line text-green-600 mr-2"></i>
+              Cursos por Mes
+            </h3>
+            <select 
+              value={timeFrame}
+              onChange={(e) => setTimeFrame(e.target.value)}
+              className="border-gray-300 border rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="1">Enero - Junio</option>
+              <option value="2">Julio - Diciembre</option>
+            </select>
+          </div>
+          <div className="h-64 flex items-end justify-between space-x-2 border-b border-l border-gray-200 pl-2 pb-2">
+            {(() => {
+              const semester = timeFrame;
+              const startMonth = semester === '1' ? 0 : 6;
+              const endMonth = semester === '1' ? 5 : 11;
+              const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+              
+              const monthData = [];
+              for (let i = startMonth; i <= endMonth; i++) {
+                const cursosEnMes = cursos.filter(curso => {
+                  if (!curso.fechaInicio) return false;
+                  const fecha = new Date(curso.fechaInicio);
+                  return fecha.getMonth() === i;
+                }).length;
+                
+                monthData.push({ month: monthNames[i], count: cursosEnMes });
+              }
+              
+              const maxCount = Math.max(...monthData.map(d => d.count), 1);
+              
+              return monthData.map(data => {
+                const height = maxCount === 0 ? 20 : Math.max((data.count / maxCount) * 200, 20);
+                
+                return (
+                  <div key={data.month} className="flex-1 flex flex-col justify-end items-center h-full">
+                    <div className="w-full flex flex-col justify-end items-center h-full">
+                      <span className="text-xs font-semibold text-gray-700 mb-1">
+                        {data.count}
+                      </span>
+                      <div className="w-full flex justify-center">
+                        <div 
+                          className="w-12 bg-green-600 rounded-t transition-all duration-500"
+                          style={{height: `${height}px`}}
+                        ></div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-center">
+                      <p className="text-xs font-medium text-gray-700">
+                        {data.month}
+                      </p>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
@@ -339,7 +453,7 @@ export default function Inicio() {
             Ver todos →
           </button>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -370,7 +484,7 @@ export default function Inicio() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {curso.participantes?.length || 0}
+                    {Array.isArray(curso.participantes) ? curso.participantes.length : 0}
                   </td>
                 </tr>
               )) : (
@@ -396,7 +510,7 @@ export default function Inicio() {
             Ver todos los reportes →
           </button>
         </div>
-        
+
         <div className="space-y-4">
           {actividadReciente.length > 0 ? actividadReciente.map((actividad, index) => (
             <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50">
