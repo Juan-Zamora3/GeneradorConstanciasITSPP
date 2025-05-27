@@ -5,7 +5,7 @@ import { AuthContext } from '../contexto/AuthContext'
 
 import Login       from '../paginas/Login'
 import Inicio      from '../paginas/Inicio'
-import Asistencias from '../paginas/Asistencias'
+import Personal from '../paginas/Personal'
 import Constancias from '../paginas/Constancias'
 import Cursos      from '../paginas/Cursos'
 import Perfil      from '../paginas/Perfil'
@@ -39,10 +39,10 @@ export default function RutasApp() {
             }
           />
           <Route
-            path="/asistencias"
+            path="/personal"
             element={
               <Layout>
-                <Asistencias />
+                <Personal />
               </Layout>
             }
           />
