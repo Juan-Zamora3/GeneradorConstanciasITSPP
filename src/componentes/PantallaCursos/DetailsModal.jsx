@@ -10,11 +10,14 @@ export default function DetailsModal({ isOpen, onClose, data, type }) {
         </h3>
         {type === 'course' ? (
           <div className="grid grid-cols-1 gap-4">
-            {['Título','Instructor','Fechas','Ubicación','Categoría','Estado'].map((lbl,i)=>(
-              <p key={i}><strong>{lbl}:</strong> {data[Object.keys(data)[i]]}</p>
-            ))}
-            <p><strong>Participantes:</strong> {data.participantes.length}</p>
-            <p><strong>Reportes:</strong> {data.reportes.length}</p>
+            <p><strong>Título:</strong> {data.titulo}</p>
+            <p><strong>Instructor:</strong> {data.instructor}</p>
+            <p><strong>Fechas:</strong> {data.fechaInicio} - {data.fechaFin}</p>
+            <p><strong>Ubicación:</strong> {data.ubicacion}</p>
+            <p><strong>Categoría:</strong> {data.categoria}</p>
+            <p><strong>Estado:</strong> {data.estado}</p>
+            <p><strong>Participantes:</strong> {data.lista?.length || 0}</p>
+            <p><strong>Reportes:</strong> {data.reportes?.length || 0}</p>
             <p><strong>Descripción:</strong> {data.descripcion}</p>
           </div>
         ) : (
