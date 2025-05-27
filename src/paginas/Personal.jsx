@@ -1,83 +1,153 @@
+import React, { useState, useContext, useEffect, useRef } from 'react';
+import { useNavigate }              from 'react-router-dom';
+import { saveAs }                   from 'file-saver';
+import * as XLSX                    from 'xlsx';          // 👉 directo para export
+import { AuthContext }              from '../contexto/AuthContext';
+import { useParticipants }          from '../utilidades/useParticipants';
+import { listToWorkbook, fileToList } from '../utilidades/excelHelpers';
 
-import React, { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../contexto/AuthContext';
-import { useParticipants } from '../utilidades/useParticipants';
-import ParticipantList from '../componentes/PantallaPersonal/ParticipantList';
-import NewEditParticipantModal    from '../componentes/PantallaPersonal/NewEditParticipantModal';
-import DetailsParticipantModal    from '../componentes/PantallaPersonal/DetailsParticipantModal';
-import DeleteParticipantModal     from '../componentes/PantallaPersonal/DeleteParticipantModal';
+import ParticipantList          from '../componentes/PantallaPersonal/ParticipantList';
+import NewEditParticipantModal  from '../componentes/PantallaPersonal/NewEditParticipantModal';
+import DetailsParticipantModal  from '../componentes/PantallaPersonal/DetailsParticipantModal';
+import DeleteParticipantModal   from '../componentes/PantallaPersonal/DeleteParticipantModal';
 
 export default function Personal() {
   const { usuario } = useContext(AuthContext);
   const navigate    = useNavigate();
   const {
-    participants, loading, error,
+    participants, loading,
     addParticipant, updateParticipant, deleteParticipant
   } = useParticipants();
 
-  const [search, setSearch]     = useState('');
-  const [sortBy, setSortBy]     = useState('nombre');
+  /* ---------- estado ui ---------- */
+  const [search, setSearch]         = useState('');
+  const [sortBy, setSortBy]         = useState('nombre');
   const [filterByArea, setFilterByArea] = useState('');
+  const [modalType, setModalType]   = useState(null); // 'new'|'edit'|'details'|'delete'
+  const [selected,   setSelected]   = useState(null);
 
-  const [modalType, setModalType] = useState(null); // 'new'|'edit'|'details'|'delete'
-  const [selected, setSelected]   = useState(null);
+  /* ---------- refs ---------- */
+  const importInput = useRef(null);
 
-  // redirigir si no logueado
-  if (!usuario) {
-    navigate('/login',{replace:true});
-    return null;
-  }
+  /* ---------- export / import ---------- */
+  const exportFile = (fileName='Participantes.xlsx', list=participants) => {
+    const wb = listToWorkbook(list);
+    const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    saveAs(new Blob([wbout], { type: 'application/octet-stream' }), fileName);
+  };
 
-  // handlers de modales
-  const open = (type, p=null) => { setSelected(p); setModalType(type); };
-  const close= () => { setSelected(null); setModalType(null); };
+  const handleImport = async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const rows = await fileToList(file);
+      for (const row of rows) {
+        // *** criterio: correo único, actualiza si existe, crea si no
+        const exists = participants.find(p => p.correo === row.correo);
+        if (exists) {
+          await updateParticipant(exists.id, row);
+        } else {
+          await addParticipant(row);
+        }
+      }
+      alert('Importación completada');
+    } catch (err) {
+      console.error(err);
+      alert('Error al importar archivo');
+    }
+    e.target.value = ''; // reset input
+  };
+
+  /* ---------- export automático mensual ---------- */
+  useEffect(() => {
+    if (!participants.length) return;           // nada que exportar
+    const today = new Date();
+    if (today.getDate() !== 1) return;          // solo día 1
+    const key = 'lastParticipantExport';
+    const currentKeyVal = `${today.getFullYear()}-${today.getMonth()}`; // ej 2025-4
+    if (localStorage.getItem(key) === currentKeyVal) return; // ya exportado
+
+    const fileName = `Participantes-${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}.xlsx`;
+    exportFile(fileName);
+    localStorage.setItem(key, currentKeyVal);
+  }, [participants]);
+
+  /* ---------- seguridad ---------- */
+  if (!usuario) { navigate('/login', { replace:true }); return null; }
+
+  /* ---------- handlers modales ---------- */
+  const open  = (type,p=null)=>{ setSelected(p); setModalType(type); };
+  const close = ()            =>{ setSelected(null); setModalType(null); };
 
   const handleSubmit = async data => {
     try {
       if (modalType==='new')  await addParticipant(data);
       if (modalType==='edit') await updateParticipant(selected.id,data);
       close();
-    } catch(err) { alert(err.message); }
+    } catch(err){ alert(err.message); }
   };
-
   const handleDelete = async () => {
     try { await deleteParticipant(selected.id); close(); }
     catch(err){ alert(err.message); }
   };
 
-  // filtrado y orden
+  /* ---------- filtrado y orden ---------- */
   const list = participants
     .filter(p=>{
       const term = search.toLowerCase();
-      return (
-        (`${p.nombre} ${p.apellidos}`.toLowerCase().includes(term))||
-        p.correo.toLowerCase().includes(term)||
-        p.area.toLowerCase().includes(term)
-      );
+      return (`${p.nombre} ${p.apellidos}`.toLowerCase().includes(term) ||
+              p.correo.toLowerCase().includes(term) ||
+              p.area.toLowerCase().includes(term));
     })
     .filter(p => filterByArea ? p.area.toLowerCase().includes(filterByArea.toLowerCase()) : true)
     .sort((a,b)=>{
-      if (sortBy==='nombre') return (`${a.nombre} ${a.apellidos}`)
-        .localeCompare(`${b.nombre} ${b.apellidos}`);
-      if (sortBy==='nombre-desc') return (`${b.nombre} ${b.apellidos}`)
-        .localeCompare(`${a.nombre} ${a.apellidos}`);
-      if (sortBy==='area') return a.area.localeCompare(b.area);
+      if (sortBy==='nombre')      return (`${a.nombre} ${a.apellidos}`).localeCompare(`${b.nombre} ${b.apellidos}`);
+      if (sortBy==='nombre-desc') return (`${b.nombre} ${b.apellidos}`).localeCompare(`${a.nombre} ${a.apellidos}`);
+      if (sortBy==='area')        return a.area.localeCompare(b.area);
       return 0;
     });
 
+  /* ---------- render ---------- */
   return (
     <div className="p-6 space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between">
+      {/* CABECERA */}
+      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h2 className="text-2xl font-semibold">Gestión de Participantes</h2>
-        <button onClick={()=>open('new')}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mt-4 md:mt-0">
-          <i className="ri-user-add-line mr-2"></i>Nuevo
-        </button>
+
+        <div className="flex flex-wrap gap-3">
+          {/* IMPORTAR ⬇️ */}
+          <button
+            onClick={()=>importInput.current?.click()}
+            className="bg-amber-500 text-white px-4 py-2 rounded hover:bg-amber-600 flex items-center"
+          >
+            <i className="ri-upload-2-line mr-2"></i>Importar Excel
+          </button>
+          <input
+            ref={importInput} type="file" accept=".xlsx,.xls"
+            onChange={handleImport} className="hidden"
+          />
+
+          {/* EXPORTAR ⬆️ */}
+          <button
+            onClick={()=>exportFile()}
+            className="bg-teal-500 text-white px-4 py-2 rounded hover:bg-teal-600 flex items-center"
+          >
+            <i className="ri-download-2-line mr-2"></i>Exportar Excel
+          </button>
+
+          {/* NUEVO */}
+          <button
+            onClick={()=>open('new')}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center"
+          >
+            <i className="ri-user-add-line mr-2"></i>Nuevo
+          </button>
+        </div>
       </header>
 
-      {/* filtros */}
+      {/* FILTROS */}
       <div className="flex flex-col sm:flex-row gap-4">
+        {/* buscador */}
         <div className="relative flex-1">
           <input
             type="text" placeholder="Buscar..."
@@ -86,25 +156,28 @@ export default function Personal() {
           />
           <i className="ri-search-line absolute left-3 top-3 text-gray-400"></i>
         </div>
+        {/* orden */}
         <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
           className="w-full sm:w-48 border border-gray-300 rounded-md px-4 py-2">
           <option value="nombre">A–Z</option>
           <option value="nombre-desc">Z–A</option>
           <option value="area">Área</option>
         </select>
+        {/* área */}
         <select value={filterByArea} onChange={e=>setFilterByArea(e.target.value)}
           className="w-full sm:w-48 border border-gray-300 rounded-md px-4 py-2">
           <option value="">Todas las áreas</option>
-          {[...new Set(participants.map(p=>p.area).filter(a=>a))].map(a=>(
+          {[...new Set(participants.map(p=>p.area).filter(Boolean))].map(a=>(
             <option key={a} value={a}>{a}</option>
           ))}
         </select>
       </div>
 
+      {/* LISTA o placeholders */}
       {loading
         ? <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {[...Array(8)].map((_,i)=>
-              <div key={i} className="bg-white rounded-xl shadow p-6 h-48 animate-pulse"/>
+              <div key={i} className="bg-white rounded-xl shadow p-6 h-48 animate-pulse" />
             )}
           </div>
         : <ParticipantList
@@ -115,7 +188,7 @@ export default function Personal() {
           />
       }
 
-      {/* modales */}
+      {/* MODALES */}
       <NewEditParticipantModal
         isOpen={modalType==='new'||modalType==='edit'}
         onClose={close}
