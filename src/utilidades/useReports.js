@@ -5,6 +5,7 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
+  updateDoc,   // 👈
   deleteDoc,
   doc
 } from 'firebase/firestore';
@@ -32,25 +33,44 @@ export function useReports() {
     return () => unsub();
   }, []);
 
+  /* —­­— helpers comunes —­­— */
+  const tooBig = (data, imagenes) => {
+    const size =
+      JSON.stringify({ ...data, imagenes }).length +
+      imagenes.reduce((n, d) => n + b64bytes(d), 0);
+    return size > 950_000;
+  };
+
   /* —­­— CRUD —­­— */
   const createReport = async (cursoId, data, imagenes = []) => {
-    /* opcional: bloquear docs > 1 MB */
-    const size =
-      JSON.stringify({ ...data, cursoId, imagenes }).length +
-      imagenes.reduce((n, d) => n + b64bytes(d), 0);
-    if (size > 950_000) throw new Error('doc-too-big');
+    if (tooBig(data, imagenes)) throw new Error('doc-too-big');
 
     await addDoc(collection(db, 'Reportes'), {
       cursoId,
       ...data,
       imagenes,
-      fecha: new Date().toISOString(),
+      fecha: new Date().toISOString(),   // ISO string para ordenar
     });
   };
 
-  const deleteReport = async reportId => {
-    await deleteDoc(doc(db, 'Reportes', reportId));
+  const updateReport = async (reportId, data, imagenes = []) => {
+    if (tooBig(data, imagenes)) throw new Error('doc-too-big');
+
+    await updateDoc(doc(db, 'Reportes', reportId), {
+      ...data,
+      imagenes,
+      // fecha: data.fecha (mantenemos la que venga del form)
+    });
   };
 
-  return { reports, loading, createReport, deleteReport };
+  const deleteReport = async reportId =>
+    await deleteDoc(doc(db, 'Reportes', reportId));
+
+  return {
+    reports,
+    loading,
+    createReport,
+    updateReport,   // 👈  lo exportamos
+    deleteReport,
+  };
 }
