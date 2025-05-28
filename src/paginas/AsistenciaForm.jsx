@@ -1,3 +1,4 @@
+// src/paginas/AsistenciaForm.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { db, storage } from '@/servicios/firebaseConfig';
@@ -42,11 +43,11 @@ function levenshtein(a, b) {
 export default function AsistenciaForm() {
   const { cursoId } = useParams();
   const [curso, setCurso]     = useState(null);
-  const [form, setForm]       = useState({ nombre:'', puesto:'', foto:null });
+  const [form, setForm]       = useState({ nombre: '', puesto: '', foto: null });
   const [sending, setSending] = useState(false);
   const [done, setDone]       = useState(false);
 
-  // Cargar datos de curso
+  // 1) Carga datos del curso
   useEffect(() => {
     getDoc(doc(db, 'Cursos', cursoId)).then(snap => {
       if (snap.exists()) setCurso(snap.data());
@@ -54,11 +55,13 @@ export default function AsistenciaForm() {
     });
   }, [cursoId]);
 
+  // 2) Manejo de inputs
   const onChange = e =>
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
   const onFile = e =>
     setForm(f => ({ ...f, foto: e.target.files[0] }));
 
+  // 3) Envío del formulario
   const submit = async e => {
     e.preventDefault();
     if (!form.nombre || !form.puesto || !form.foto) {
@@ -70,7 +73,7 @@ export default function AsistenciaForm() {
       return;
     }
 
-    // Sólo si el curso no ha finalizado
+    // 3.1) Verifica fecha de fin
     const hoy = new Date();
     const fin = new Date(curso.fechaFin + 'T23:59:59');
     if (hoy > fin) {
@@ -80,7 +83,7 @@ export default function AsistenciaForm() {
 
     setSending(true);
 
-    // Validar nombre contra lista de IDs
+    // 3.2) Valida que el nombre esté en la lista
     const ids = curso.listas || [];
     const nombres = await Promise.all(
       ids.map(id =>
@@ -103,7 +106,7 @@ export default function AsistenciaForm() {
       return;
     }
 
-    // Subir foto
+    // 3.3) Sube la foto
     const imgRef = ref(
       storage,
       `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`
@@ -111,12 +114,12 @@ export default function AsistenciaForm() {
     await uploadBytes(imgRef, form.foto);
     const fotoURL = await getDownloadURL(imgRef);
 
-    // Guardar dentro de mismo documento de curso
+    // 3.4) Guarda EN EL MISMO DOCUMENTO (campo "asistencias")
     const cursoRef = doc(db, 'Cursos', cursoId);
     await updateDoc(cursoRef, {
       asistencias: arrayUnion({
-        nombre   : form.nombre,
-        puesto   : form.puesto,
+        nombre: form.nombre,
+        puesto: form.puesto,
         fotoURL,
         timestamp: new Date()
       })
@@ -126,7 +129,7 @@ export default function AsistenciaForm() {
     setSending(false);
   };
 
-  // UI
+  // 4) UI
   if (!curso) {
     return <p className="p-4">Cargando curso…</p>;
   }

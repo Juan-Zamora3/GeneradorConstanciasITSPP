@@ -8,7 +8,6 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { useCourses } from '../utilidades/useCourses';
 import EnviarCorreo from '../componentes/EnviarCorreo.jsx';
-import AttendanceList from '../componentes/AttendanceList';
 import AttendanceModal from '../componentes/AttendanceModal';
 
 export default function Constancias() {
@@ -16,29 +15,27 @@ export default function Constancias() {
   const { courses: cursos } = useCourses();
 
   // 2) Estado de selección y datos
-  const [selectedCurso, setSelectedCurso]         = useState("");
-  const [participantes, setParticipantes]         = useState([]);
+  const [selectedCurso, setSelectedCurso]             = useState("");
+  const [participantes, setParticipantes]             = useState([]);
   const [checkedParticipantes, setCheckedParticipantes] = useState({});
   const [mensajePersonalizado, setMensajePersonalizado] = useState("");
-  const [sendByEmail, setSendByEmail]             = useState(false);
-  const [plantillaPDF, setPlantillaPDF]           = useState(null);
-  const fileInputRef                              = useRef(null);
+  const [sendByEmail, setSendByEmail]                 = useState(false);
+  const [plantillaPDF, setPlantillaPDF]               = useState(null);
+  const fileInputRef                                  = useRef(null);
 
   // 3) Previsualización de PDF
-  const [pdfPreviews, setPdfPreviews]             = useState([]);
+  const [pdfPreviews, setPdfPreviews]                 = useState([]);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
-  const [loadingPreviews, setLoadingPreviews]     = useState(false);
-  const [progress, setProgress]                   = useState(0);
+  const [loadingPreviews, setLoadingPreviews]         = useState(false);
+  const [progress, setProgress]                       = useState(0);
 
   // 4) Asistencias reales + modal
-  const [asistenciasList, setAsistenciasList]     = useState([]);
-  const [showRealList, setShowRealList]           = useState(false);
-  const [showAttModal, setShowAttModal]           = useState(false);
-  const [selectedAtt, setSelectedAtt]             = useState(null);
+  const [asistenciasList, setAsistenciasList]         = useState([]);
+  const [showRealList, setShowRealList]               = useState(false);
+  const [showAttModal, setShowAttModal]               = useState(false);
+  const [selectedAtt, setSelectedAtt]                 = useState(null);
 
-  // -----------------------------
-  //  A) Selección de curso
-  // -----------------------------
+  // A) Selección de curso
   const handleSeleccionCurso = async e => {
     const cursoId = e.target.value;
     setSelectedCurso(cursoId);
@@ -70,9 +67,7 @@ export default function Constancias() {
     setAsistenciasList(data.asistencias || []);
   };
 
-  // -----------------------------
-  //  B) Subida de plantilla PDF
-  // -----------------------------
+  // B) Subida de plantilla PDF
   const handlePlantillaUpload = async e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -84,9 +79,7 @@ export default function Constancias() {
     setPlantillaPDF(buf);
   };
 
-  // -----------------------------
-  //  C) Generar vistas previas
-  // -----------------------------
+  // C) Generar vistas previas
   const generatePreviewsForSelectedParticipantes = async () => {
     if (!plantillaPDF) return alert("Sube primero la plantilla");
     const sel = participantes.filter((_,i) => checkedParticipantes[i]);
@@ -105,9 +98,7 @@ export default function Constancias() {
     setTimeout(() => setLoadingPreviews(false), 300);
   };
 
-  // -----------------------------
-  //  D) Descargar ZIP de constancias
-  // -----------------------------
+  // D) Descargar ZIP de constancias
   const handleGenerarConstancias = async () => {
     if (!plantillaPDF) return alert("Sube primero la plantilla");
     const sel = participantes.filter((_,i) => checkedParticipantes[i]);
@@ -125,9 +116,7 @@ export default function Constancias() {
     saveAs(blob, "Constancias.zip");
   };
 
-  // -----------------------------
-  //  E) Función PDF-lib
-  // -----------------------------
+  // E) Función PDF-lib
   const generarPDFpara = async (participante, pdfTemplate, mensaje) => {
     const pdfDoc = await PDFDocument.load(pdfTemplate);
     pdfDoc.registerFontkit(fontkit);
@@ -190,29 +179,13 @@ export default function Constancias() {
     return await pdfDoc.save();
   };
 
-  // -----------------------------
-  //  F) Envío por correo (tu lógica intacta)
-  // -----------------------------
-  const arrayBufferToBase64 = buffer => {
-    let binary = "", bytes = new Uint8Array(buffer);
-    bytes.forEach(b => binary += String.fromCharCode(b));
-    return window.btoa(binary);
-  };
-  const handleEnviarCorreos = async () => {
-    // …aquí tu fetch apuntando a Render o tu endpoint
-  };
-
-  // -----------------------------
-  //  G) Helpers UI
-  // -----------------------------
+  // F) Helpers UI
   const prevPreview = () =>
     setCurrentPreviewIndex(i => Math.max(0, i-1));
   const nextPreview = () =>
     setCurrentPreviewIndex(i => Math.min(pdfPreviews.length-1, i+1));
 
-  // -----------------------------
-  //  Render
-  // -----------------------------
+  // Render
   return (
     <div className="flex h-full">
 
@@ -265,39 +238,61 @@ export default function Constancias() {
           </select>
         </div>
 
-        {/* Botón toggle entre listas */}
+        {/* Toggle Listas */}
         <div className="mb-4">
           <button
             onClick={() => setShowRealList(s => !s)}
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
           >
-            {showRealList ? "Ver Participantes Iniciales" : "Ver Asistencias Registradas"}
+            {showRealList
+              ? "Ver Participantes Iniciales"
+              : "Ver Asistencias Registradas"}
           </button>
         </div>
 
-        {/* Lista inicial o real según toggle */}
-        {showRealList ? (
-          <AttendanceList
-            list={asistenciasList}
-            onView={att => { setSelectedAtt(att); setShowAttModal(true); }}
-          />
-        ) : (
-          participantes.length > 0 ? (
-            <div className="mb-6">
-              <h4 className="text-md font-semibold text-gray-700 mb-2">
-                Participantes (inicial)
-              </h4>
-              <div className="max-h-40 overflow-y-auto border rounded">
-                <table className="min-w-full text-sm text-left">
-                  <thead className="bg-purple-200 text-purple-800">
-                    <tr>
-                      <th className="px-4 py-2">Sel</th>
-                      <th className="px-4 py-2">Nombre</th>
-                      <th className="px-4 py-2">Puesto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {participantes.map((p, i) => (
+        {/* TABLA SIEMPRE VISIBLE */}
+        <div className="mb-6">
+          <h4 className="text-md font-semibold text-gray-700 mb-2">
+            {showRealList ? "Asistencias Registradas" : "Participantes (inicial)"}
+          </h4>
+          <div className="max-h-40 overflow-y-auto border rounded">
+            <table className="min-w-full text-sm text-left">
+              <thead className="bg-purple-200 text-purple-800">
+                <tr>
+                  {!showRealList && <th className="px-4 py-2">Sel</th>}
+                  <th className="px-4 py-2">Nombre</th>
+                  <th className="px-4 py-2">Puesto</th>
+                  {showRealList && <th className="px-4 py-2">Acción</th>}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {showRealList
+                  ? (
+                    asistenciasList.map((a, idx) => {
+                      const date = a.timestamp?.toDate
+                        ? a.timestamp.toDate()
+                        : new Date(a.timestamp);
+                      return (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">
+                            {a.nombre}
+                          </td>
+                          <td className="px-4 py-2">
+                            {a.puesto}
+                          </td>
+                          <td className="px-4 py-2">
+                            <button
+                              onClick={() => { setSelectedAtt(a); setShowAttModal(true); }}
+                              className="text-blue-600 hover:underline text-sm"
+                            >
+                              Ver foto
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    participantes.map((p,i) => (
                       <tr key={p.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2">
                           <input
@@ -313,23 +308,38 @@ export default function Constancias() {
                         <td className="px-4 py-2">
                           {p.Nombres} {p.ApellidoP} {p.ApellidoM}
                         </td>
-                        <td className="px-4 py-2">{p.Puesto}</td>
+                        <td className="px-4 py-2">
+                          {p.Puesto}
+                        </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <p className="text-gray-500 mb-6">
-              Selecciona un evento para ver participantes
-            </p>
-          )
-        )}
+                    ))
+                  )
+                }
+                {/* fila placeholder si no hay datos */}
+                {!showRealList && participantes.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-center text-gray-500">
+                      Selecciona un evento para ver participantes
+                    </td>
+                  </tr>
+                )}
+                {showRealList && asistenciasList.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-center text-gray-500">
+                      No hay asistencias registradas
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Mensaje personalizado */}
         <div className="space-y-2 mb-6">
-          <h3 className="text-lg font-medium text-gray-800">Mensaje personalizado</h3>
+          <h3 className="text-lg font-medium text-gray-800">
+            Mensaje personalizado
+          </h3>
           <textarea
             rows="4"
             className="w-full p-3 border rounded resize-none focus:ring-2 focus:ring-blue-500"
@@ -372,7 +382,7 @@ export default function Constancias() {
         {pdfPreviews.length > 0 && (
           <div className="flex justify-center items-center mb-4 space-x-4">
             <button
-              onClick={() => setCurrentPreviewIndex(i => Math.max(0, i-1))}
+              onClick={prevPreview}
               disabled={currentPreviewIndex === 0}
               className="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
             >
@@ -382,7 +392,7 @@ export default function Constancias() {
               {currentPreviewIndex + 1} / {pdfPreviews.length}
             </span>
             <button
-              onClick={() => setCurrentPreviewIndex(i => Math.min(pdfPreviews.length - 1, i + 1))}
+              onClick={nextPreview}
               disabled={currentPreviewIndex === pdfPreviews.length - 1}
               className="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
             >

@@ -1,6 +1,7 @@
+// src/componentes/PantallaPersonal/ParticipantList.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
-import ParticipantCard from './ParticipantCard';
+import ParticipantCardIdea2 from './ParticipantCardIdea2';
 
 export default function ParticipantList({ participants, onView, onEdit, onDelete }) {
   if (participants.length === 0) {
@@ -18,13 +19,15 @@ export default function ParticipantList({ participants, onView, onEdit, onDelete
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {participants.map(p => (
-        <ParticipantCard
-          key={p.id}
-          participant={p}
-          onView={onView}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
+        // wrapper para forzar altura idéntica
+        <div key={p.id} className="h-64 w-full">
+          <ParticipantCardIdea2
+            participant={p}
+            onView={onView}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        </div>
       ))}
     </div>
   );
@@ -32,7 +35,7 @@ export default function ParticipantList({ participants, onView, onEdit, onDelete
 
 ParticipantList.propTypes = {
   participants: PropTypes.array.isRequired,
-  onView: PropTypes.func.isRequired,
-  onEdit: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
+  onView:       PropTypes.func.isRequired,
+  onEdit:       PropTypes.func.isRequired,
+  onDelete:     PropTypes.func.isRequired,
 };
