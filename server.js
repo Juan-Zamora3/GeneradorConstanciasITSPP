@@ -76,11 +76,15 @@ Saludos.`,
   }
 });
 
-// 1) Sirve los archivos estáticos de tu build de Vite
-app.use(express.static(path.join(__dirname, 'dist')));
+ app.use(express.static(path.join(__dirname, 'dist')));
 
-// 2) SPA fallback: devuelve index.html ante cualquier ruta no-API
-app.get('/*', (req, res) => {
+// Antes:
+// app.get('/*', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// });
+
+// Después:
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
