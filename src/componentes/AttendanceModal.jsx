@@ -1,31 +1,46 @@
+// src/componentes/AttendanceModal.jsx
 import React from 'react';
 
-/**
- * Modal para mostrar detalle de una asistencia
- * @param {{asistencia: Object, onClose: Function}} props
- */
 export default function AttendanceModal({ asistencia, onClose }) {
   if (!asistencia) return null;
 
-  const date = asistencia.timestamp?.toDate
+  // Si tu timestamp viene de Firestore Timestamp
+  const fecha = asistencia.timestamp?.toDate
     ? asistencia.timestamp.toDate()
     : new Date(asistencia.timestamp);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded max-w-sm w-full space-y-4">
-        <h3 className="text-lg font-semibold">Detalle de Asistencia</h3>
-        <p><strong>Nombre:</strong> {asistencia.nombre}</p>
-        <p><strong>Puesto:</strong> {asistencia.puesto}</p>
-        <p><strong>Fecha:</strong> {date.toLocaleString('es-MX')}</p>
-        <img
-          src={asistencia.fotoURL}
-          alt="Foto de asistencia"
-          className="w-full rounded shadow"
-        />
+    // overlay con backdrop-blur y fondo semitransparente blanco
+    <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm bg-white/30">
+      {/* modal más ancho: hasta 36rem (xl) */}
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl p-6 space-y-6">
+        <h2 className="text-2xl font-semibold">Detalle de Asistencia</h2>
+
+        <div className="space-y-2 text-gray-700">
+          <p>
+            <span className="font-medium">Nombre:</span> {asistencia.nombre}
+          </p>
+          <p>
+            <span className="font-medium">Puesto:</span> {asistencia.puesto}
+          </p>
+          <p>
+            <span className="font-medium">Fecha:</span>{' '}
+            {fecha.toLocaleDateString('es-MX')} a las {fecha.toLocaleTimeString('es-MX')}
+          </p>
+        </div>
+
+        {/* contenedor responsivo para la imagen */}
+        <div className="w-full aspect-[4/3] relative">
+          <img
+            src={asistencia.fotoURL}
+            alt="Asistencia"
+            className="absolute inset-0 w-full h-full object-cover rounded-lg"
+          />
+        </div>
+
         <button
           onClick={onClose}
-          className="mt-2 w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mt-4 w-full py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
         >
           Cerrar
         </button>
