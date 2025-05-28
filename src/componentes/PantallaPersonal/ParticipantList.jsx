@@ -1,7 +1,7 @@
 // src/componentes/PantallaPersonal/ParticipantList.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
-import ParticipantCardIdea2 from './ParticipantCardIdea2';
+import ParticipantCardIdea2 from './ParticipantCard';
 
 export default function ParticipantList({ participants, onView, onEdit, onDelete }) {
   if (participants.length === 0) {
