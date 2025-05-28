@@ -56,23 +56,27 @@ export default function TopbarCompact({ isOpen }) {
     navigate('/login', { replace: true });
   };
 
-  return (
-    <header className={`fixed top-0 right-0 left-${isOpen ? '64' : '20'} h-16 bg-white shadow flex items-center px-4 z-20 transition-all`}>
-      {/* Avatar + nombre + rol */}
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-blue-100 bg-gray-100">
-          {perfil.imagen
-            ? <img src={perfil.imagen} alt="Avatar" className="object-cover w-full h-full"/>
-            : <div className="w-full h-full flex items-center justify-center text-white bg-blue-200">
-                <FaUser size={18}/>
-              </div>
-          }
-        </div>
-        <div>
-          <p className="font-semibold text-gray-800">{fullName || 'Usuario'}</p>
-          <p className="text-xs text-gray-500">{perfil.rol}</p>
-        </div>
+ return (
+  <header
+    className={`fixed top-0 right-0 h-16 bg-white shadow flex items-center px-4 z-20 transition-all ${isOpen ? 'left-64' : 'left-20'}`}
+  >
+    {/* Avatar + nombre + rol */}
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-blue-100 bg-gray-100">
+        {perfil.imagen ? (
+          <img src={perfil.imagen} alt="Avatar" className="object-cover w-full h-full" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white bg-blue-200">
+            <FaUser size={18} />
+          </div>
+        )}
       </div>
+      <div>
+        <p className="font-semibold text-gray-800">{fullName || 'Usuario'}</p>
+        <p className="text-xs text-gray-500">{perfil.rol}</p>
+      </div>
+    </div>
+ 
 
       {/* Spacer */}
       <div className="flex-1"/>
