@@ -1,7 +1,7 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
 import bodyParser from 'body-parser';
-import cors from 'cors'; 
+import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -12,9 +12,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
+// Transporter de Mailjet
 const transporter = nodemailer.createTransport({
   host: 'in-v3.mailjet.com',
   port: 587,
@@ -25,6 +27,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Función para loguear envíos
 function registrarEnvio(Correo, Nombres, Puesto) {
   const logEntry = {
     Correo,
@@ -36,12 +39,14 @@ function registrarEnvio(Correo, Nombres, Puesto) {
   fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + "\n", { encoding: 'utf8' });
 }
 
+// Endpoint de envío de correo
 app.post('/EnviarCorreo', async (req, res) => {
   try {
     const { Correo, Nombres, Puesto, pdf } = req.body;
     if (!Correo || !Nombres || !Puesto || !pdf) {
       return res.status(400).json({ error: 'Faltan campos requeridos: Correo, Nombres, Puesto, pdf' });
     }
+
     const pdfBuffer = Buffer.from(pdf, 'base64');
     const mailOptions = {
       from: 'ConstanciasISCITSPP@outlook.com',
@@ -50,7 +55,7 @@ app.post('/EnviarCorreo', async (req, res) => {
       text: `Hola ${Nombres},
 
 Buen día:
-A través de este medio se le hace llegar la const<ancia de participación Innova TecNM 2025, organizado por el Instituto Tecnológico Superior De Puerto Peñasco.
+A través de este medio se le hace llegar la constancia de participación Innova TecNM 2025, organizado por el Instituto Tecnológico Superior De Puerto Peñasco.
 
 Saludos.`,
       attachments: [
@@ -63,7 +68,7 @@ Saludos.`,
     };
 
     await transporter.sendMail(mailOptions);
-    registrarEnvio(Correo, Nombres, Puesto, 'enviado');
+    registrarEnvio(Correo, Nombres, Puesto);
     return res.status(200).json({ message: 'Correo enviado y registro guardado' });
   } catch (error) {
     console.error('Error al enviar correo:', error);
@@ -71,6 +76,15 @@ Saludos.`,
   }
 });
 
-app.listen(port, () => {  
+// 1) Sirve los archivos estáticos de tu build de Vite
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// 2) SPA fallback: devuelve index.html ante cualquier ruta no-API
+app.get('/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// 3) Arranca el servidor
+app.listen(port, () => {
   console.log(`Servidor corriendo en el puerto ${port}`);
 });
