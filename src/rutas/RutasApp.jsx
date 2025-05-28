@@ -1,34 +1,36 @@
-// src/rutas/RutasApp.jsx
-import React, { useContext } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { AuthContext } from '../contexto/AuthContext'
+import React, { useContext } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthContext } from '../contexto/AuthContext';
 
-import Login          from '../paginas/Login'
-import Inicio         from '../paginas/Inicio'
-import Personal       from '../paginas/Personal'
-import Constancias    from '../paginas/Constancias'
-import Cursos         from '../paginas/Cursos'
-import Perfil         from '../paginas/Perfil'
-import CrearUsuarios  from '../paginas/CrearUsuarios'  // <-- nueva pantalla
-import Layout         from '../componentes/Layout'
+import Login          from '../paginas/Login';
+import Inicio         from '../paginas/Inicio';
+import Personal       from '../paginas/Personal';
+import Constancias    from '../paginas/Constancias';
+import Cursos         from '../paginas/Cursos';
+import Perfil         from '../paginas/Perfil';
+import CrearUsuarios  from '../paginas/CrearUsuarios';
+import AsistenciaForm from '../paginas/AsistenciaForm';   // ← NUEVO
+import Layout         from '../componentes/Layout';
 
 export default function RutasApp() {
-  const { usuario } = useContext(AuthContext)
+  const { usuario } = useContext(AuthContext);
 
   return (
     <Routes>
-      {/* Ruta pública */}
+      {/* ---------- Rutas públicas ---------- */}
       <Route path="/" element={<Navigate to="/login" replace />} />
+
+      {/* formulario de asistencia accesible SIN login */}
+      <Route path="/asistencia/:cursoId" element={<AsistenciaForm />} />
+
       <Route
         path="/login"
         element={
-          !usuario
-            ? <Login />
-            : <Navigate to="/inicio" replace />
+          !usuario ? <Login /> : <Navigate to="/inicio" replace />
         }
       />
 
-      {/* Rutas protegidas */}
+      {/* ---------- Rutas protegidas (requieren login) ---------- */}
       {usuario && (
         <>
           <Route
@@ -71,7 +73,6 @@ export default function RutasApp() {
               </Layout>
             }
           />
-          {/* Nueva ruta para crear usuarios */}
           <Route
             path="/usuarios"
             element={
@@ -83,7 +84,7 @@ export default function RutasApp() {
         </>
       )}
 
-      {/* Fallback */}
+      {/* ---------- Fallback ---------- */}
       <Route
         path="*"
         element={
@@ -93,5 +94,5 @@ export default function RutasApp() {
         }
       />
     </Routes>
-  )
+  );
 }

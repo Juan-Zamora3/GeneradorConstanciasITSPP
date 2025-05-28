@@ -1,5 +1,6 @@
 import React from 'react';
 import ImageCarousel from '../common/ImageCarousel';
+import QrCanvas from './QrCanvas';          // ← importa el componente
 
 export default function DetailsModal({
   isOpen,
@@ -18,19 +19,28 @@ export default function DetailsModal({
         </h3>
 
         {type === 'course' ? (
-          <div className="grid grid-cols-1 gap-2 text-sm">
-            <p><strong>Título:</strong> {data.titulo}</p>
-            <p><strong>Instructor:</strong> {data.instructor}</p>
-            <p><strong>Fechas:</strong> {data.fechaInicio} – {data.fechaFin}</p>
-            <p><strong>Ubicación:</strong> {data.ubicacion}</p>
-            <p><strong>Categoría:</strong> {data.categoria}</p>
-            <p><strong>Estado:</strong> {data.estado}</p>
-            <p><strong>Participantes:</strong> {data.lista?.length ?? 0}</p>
-            <p><strong>Reportes:</strong> {data.reportes?.length ?? 0}</p>
-            <p><strong>Descripción:</strong> {data.descripcion}</p>
-          </div>
+          <>
+            {/* ── Datos del curso ─────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 gap-2 text-sm">
+              <p><strong>Título:</strong> {data.titulo}</p>
+              <p><strong>Instructor:</strong> {data.instructor}</p>
+              <p><strong>Fechas:</strong> {data.fechaInicio} – {data.fechaFin}</p>
+              <p><strong>Ubicación:</strong> {data.ubicacion}</p>
+              <p><strong>Categoría:</strong> {data.categoria}</p>
+              <p><strong>Estado:</strong> {data.estado}</p>
+              <p><strong>Participantes:</strong> {data.lista?.length ?? 0}</p>
+              <p><strong>Reportes:</strong> {data.reportes?.length ?? 0}</p>
+              <p><strong>Descripción:</strong> {data.descripcion}</p>
+            </div>
+
+            {/* ── QR para registrar asistencia ────────────────────────────── */}
+            <div className="pt-4 flex justify-center">
+              <QrCanvas courseId={data.id} />
+            </div>
+          </>
         ) : (
           <>
+            {/* ── Datos de reporte ─────────────────────────────────────────── */}
             <div className="grid grid-cols-1 gap-2 text-sm">
               <p><strong>Título:</strong> {data.titulo}</p>
               <p><strong>Tipo:</strong> {data.tipo}</p>
@@ -46,15 +56,20 @@ export default function DetailsModal({
           </>
         )}
 
+        {/* ── Botones ─────────────────────────────────────────────────────── */}
         <div className="flex justify-end gap-2 pt-4">
           {type === 'report' && onDelete && (
-            <button onClick={onDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+            <button
+              onClick={onDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
               Eliminar
             </button>
           )}
-          <button onClick={onClose}
-            className="px-4 py-2 border rounded hover:bg-gray-100">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded hover:bg-gray-100"
+          >
             Cerrar
           </button>
         </div>
