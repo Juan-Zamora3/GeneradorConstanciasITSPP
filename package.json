@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://juan-zamora3.github.io/GeneradorConstanciasITSPP",
+  
   "scripts": {
     "dev": "vite",
     "dev:all": "concurrently \"node server.js\" \"vite\"",
