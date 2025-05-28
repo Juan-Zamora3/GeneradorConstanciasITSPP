@@ -6,6 +6,9 @@ import { db } from "../servicios/firebaseConfig";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { useCourses } from '../utilidades/useCourses';
+import EnviarCorreo from '../componentes/EnviarCorreo.jsx';
+
 
 
 
@@ -13,19 +16,14 @@ import { saveAs } from "file-saver";
 
 export default function Constancias() {
  // 1) Estados generales
- const [cursos, setCursos] = useState([]);
+ const { courses: cursos, loading: loadingCursos } = useCourses();
+
 const [selectedCurso, setSelectedCurso] = useState("");
 const [participantes, setParticipantes] = useState([]);
+const [showEnviarCorreo, setShowEnviarCorreo] = useState(false);
+
 
 // Carga de cursos al montar el componente
-useEffect(() => {
-  const loadCursos = async () => {
-    const snap = await getDocs(collection(db, "Cursos"));
-    const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    setCursos(arr);
-  };
-  loadCursos();
-}, []);
  // 2) Checkboxes de equipos
  const [checkedParticipantes, setCheckedParticipantes] = useState({});
  // Para coordinadores: cuál está seleccionado (radio)
@@ -50,7 +48,8 @@ const [mensajePersonalizado, setMensajePersonalizado] = useState('');
  const [loadingPreviews, setLoadingPreviews] = useState(false);
  const [progress, setProgress] = useState(0);
 
- const handleSeleccionCurso = async (e) => {
+
+const handleSeleccionCurso = async (e) => {
   const cursoId = e.target.value;
   setSelectedCurso(cursoId);
 
@@ -64,16 +63,45 @@ const [mensajePersonalizado, setMensajePersonalizado] = useState('');
   }
 
   const data = snap.data();
-  const lista = data.asistencia?.[0]?.estudiantes || [];
-  setParticipantes(lista);
+  // Extrae el arreglo de IDs (ajusta el path si tu estructura cambia)
+  const listaIds = data.listas || data.listas?.[0] || []; // A veces es arreglo dentro de arreglo, revisa eso
+  let idsParticipantes = [];
+
+  // Si es un arreglo dentro de arreglo (según tus screenshots)
+  if (Array.isArray(listaIds[0])) {
+    idsParticipantes = listaIds[0];
+  } else if (Array.isArray(listaIds)) {
+    idsParticipantes = listaIds;
+  }
+
+  if (!Array.isArray(idsParticipantes) || idsParticipantes.length === 0) {
+    setParticipantes([]);
+    setCheckedParticipantes({});
+    return;
+  }
+
+  // Traemos TODOS los alumnos y filtramos solo los necesarios
+  const alumnosSnap = await getDocs(collection(db, "Alumnos"));
+  const alumnosAll = alumnosSnap.docs.map(d => ({
+    id: d.id,
+    ...d.data(),
+  }));
+
+  // IDs en Firestore son siempre string, igualamos a string sí o sí
+  const participantesCurso = alumnosAll.filter(a =>
+    idsParticipantes.includes(a.id)
+  );
+
+  setParticipantes(participantesCurso);
 
   // Marca todos los participantes recién cargados
-  const checks = lista.reduce((acc, _, i) => {
+  const checks = participantesCurso.reduce((acc, _, i) => {
     acc[i] = true;
     return acc;
   }, {});
   setCheckedParticipantes(checks);
 };
+
 
 
 
@@ -143,15 +171,7 @@ const handlePreviewConstancias = () => {
   generatePreviews(sel);
 };
  
- // Ensure useEffect triggers correctly on checkbox changes
 
- 
- 
-
- // ------------------------------------------------------------------
- // Generar TODAS las constancias => descarga ZIP + previsualización
- // + si “enviar por correo” está marcado, enviar correos también
- // ------------------------------------------------------------------
 // 2) Generar ZIP y descarga
 const handleGenerarConstancias = async () => {
   if (!plantillaPDF) {
@@ -215,7 +235,7 @@ const handleGenerarConstancias = async () => {
   // 5) Dibuja el nombre centrado y subrayado
   const nameTXT = nombre.toUpperCase();
   const nameW   = fontBold.widthOfTextAtSize(nameTXT, SIZE_NAME);
-  const nameX   = (width - nameW) / 2;
+  const nameX   = (width - nameW) / 2.6;
   const nameY   = (height / 2) + 50;
   page.drawText(nameTXT, {
     x: nameX,
@@ -251,7 +271,7 @@ const handleGenerarConstancias = async () => {
     let cursorY = nameY - SIZE_NAME - 12;
     for (const l of lineas) {
       const w = fontReg.widthOfTextAtSize(l, SIZE_TEXT);
-      const x = (width - w) / 2;
+      const x = (width - w) / 2.6;
       page.drawText(l, {
         x,
         y: cursorY,
@@ -315,7 +335,7 @@ const handleGenerarConstancias = async () => {
       const base64Pdf = arrayBufferToBase64(pdfBytes);
 
       // Petición al servidor
-      const response = await fetch('http://localhost:3000/enviarConstancia', {
+      const response = await fetch('http://localhost:3000/EnviarConstancia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -384,23 +404,6 @@ const handleGenerarConstancias = async () => {
  const [tipoConstancia, setTipoConstancia] = useState('Eventos');
  // Estado para almacenar el ArrayBuffer del PDF
 const [plantillaPDF, setPlantillaPDF] = useState(null);
-
-
- 
- 
- 
-
-
-
-// justo después de tus otros useEffects:
-
-
-
-
-// Cuando cambias de coordinador, carga su mensaje
-
-
-
 // Y para guardar:
 const handleMensajeBlur = async () => {
  if (!selectedCurso) return;
@@ -413,7 +416,6 @@ const handleMensajeBlur = async () => {
  } else {
    docId = tipoConstancia; // 'equipos' o 'maestros'
  }
-
  try {
    const ref = doc(
      db,
@@ -454,7 +456,8 @@ const applyFormat = (type) => {
  // ------------------------------------------------------------------
  // Render principal
  // ------------------------------------------------------------------
-  
+ 
+
 
  return (
   <div className="flex h-full">
@@ -525,10 +528,10 @@ const applyFormat = (type) => {
           >
             <option value="" disabled hidden>Seleccionar</option>
             {cursos.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.asistencia?.[0]?.cursoNombre}
-              </option>
-            ))}
+  <option key={c.id} value={c.id}>
+    {c.titulo /* viene de useCourses() */ || "Sin nombre"}
+  </option>
+))}
           </select>
         </div>
 
@@ -608,27 +611,43 @@ const applyFormat = (type) => {
         </div>
 
         {/* 6. Enviar por correo */}
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            className="form-checkbox text-blue-600"
-            checked={sendByEmail}
-            onChange={() => setSendByEmail(!sendByEmail)}
-          />
-          <span className="text-gray-700">Enviar por correo</span>
-        </div>
+        <div className="flex items-center space-x-2 mb-6">
+  <input
+    type="checkbox"
+    className="form-checkbox text-blue-600"
+    checked={sendByEmail}
+    onChange={() => setSendByEmail(!sendByEmail)}
+    id="enviarCorreo"
+  />
+  <label className="text-gray-700 select-none">
+    Enviar por correo
+  </label>
+  
+  {/* Si está activado, aparece el botón justo aquí */}
+  {sendByEmail && (
+    <EnviarCorreo
+      participantes={participantes.filter((_, i) => checkedParticipantes[i])}
+      plantillaPDF={plantillaPDF}
+      mensajePersonalizado={mensajePersonalizado}
+      onClose={() => setSendByEmail(false)}
+      // Si quieres que solo muestre el botón, puedes ajustar tu EnviarCorreo.jsx a exportar solo el botón si es necesario
+    />
+  )}
+</div>
       </div>
 
       {/* Botones de acción */}
       <div className="space-y-2">
         <button
-          onClick={handleGenerarConstancias}
-          className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-        >
-          Generar Constancias
-        </button>
+  onClick={handleGenerarConstancias}
+  className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+>
+  Generar Constancias
+</button>
         
       </div>
+      
+
     </div>
 
    
