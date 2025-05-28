@@ -70,11 +70,9 @@ Saludos.`,
 // 1) Sirve estáticos de Vite build
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// 2) Fallback SPA — ¡ojo! usar '*' sin parámetros
-app.get('*', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
-
 // 3) Arranca servidor
 app.listen(port, () => {
   console.log(`Servidor corriendo en el puerto ${port}`);
