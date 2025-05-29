@@ -16,23 +16,26 @@ import AttendanceModal from '@/componentes/AttendanceModal';
 import { ToastContainer, toast } from 'react-toastify';
 import { FiLoader } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
+
 // Convierte ArrayBuffer → Base64 en el navegador
 function arrayBufferToBase64(buffer) {
   let binary = '';
-  const bytes  = new Uint8Array(buffer);
-  const len    = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   return window.btoa(binary);
 }
 
-// Usando la bandera que Vite expone al compilar
+// URL relativa en prod / localhost en dev
 const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
-// ───────── utilidades ─────────
+// Constantes PDF
 const PDF_W = 595, PDF_H = 842;
-const toRGB = hex => { const c = tiny(hex).toRgb(); return rgb(c.r/255,c.g/255,c.b/255); };
+const toRGB = hex => {
+  const c = tiny(hex).toRgb();
+  return rgb(c.r/255, c.g/255, c.b/255);
+};
 const fechaLarga = iso => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -40,7 +43,7 @@ const fechaLarga = iso => {
   return `${d.getDate()} de ${M[d.getMonth()]} de ${d.getFullYear()}`;
 };
 
-// ────────── fuentes ──────────
+// Fuentes pdf-lib
 const FONT_LOOKUP = {
   Helvetica: StandardFonts.Helvetica,
   'Helvetica-Bold': StandardFonts.HelveticaBold,
@@ -50,26 +53,23 @@ const FONT_LOOKUP = {
 };
 const FONT_OPTIONS = Object.keys(FONT_LOOKUP);
 
-// ────────── cajas por defecto ──────────
+// Cajas por defecto
 const defaultBoxes = {
   nombre:  { x:98,  y:260, w:400, h:40,  color:'#374151', size:26, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE'  },
   mensaje: { x:58,  y:320, w:480, h:100, color:'#374151', size:14, bold:false, align:'left',   font:'Helvetica',       preview:'MENSAJE' },
-  fecha:   { x:98,  y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA'   },
+  fecha:   { x:98,  y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA'    },
 };
 
-// helpers para normalizar los datos
-const getNombreCompleto = (part) => {
-  // Si viene de asistentes, es "nombre", si viene de alumnos, es "Nombres" + "ApellidoP"
-  if (part.Nombres && part.ApellidoP) return `${part.Nombres} ${part.ApellidoP}`.trim();
-  if (part.Nombres) return `${part.Nombres}`.trim();
-  if (part.nombre) return part.nombre.trim();
+// Helpers de texto
+const getNombreCompleto = part => {
+  if (part.Nombres && part.ApellidoP) return `${part.Nombres} ${part.ApellidoP}`;
+  if (part.Nombres) return part.Nombres;
+  if (part.nombre) return part.nombre;
   return '';
 };
-
-const getPuesto = (part) => part.Puesto || part.puesto || '';
+const getPuesto = part => part.puesto || part.Puesto || '';
 const getCursoTitulo = (curso, part) =>
   curso?.titulo || curso?.cursoNombre || part?.cursoNombre || 'Sin nombre';
-
 const getFechaInicio = (curso, part) =>
   curso?.fechaInicio || part?.fechaInicio || '';
 const getFechaFin = (curso, part) =>
@@ -81,11 +81,12 @@ const wrapText = (text, font, size, maxW) => {
     let current = '';
     line.split(' ').forEach(word => {
       const probe = current ? `${current} ${word}` : word;
-      const width = font.widthOfTextAtSize(probe, size);
-      if (width > maxW && current) {
+      if (font.widthOfTextAtSize(probe, size) > maxW && current) {
         out.push(current);
         current = word;
-      } else current = probe;
+      } else {
+        current = probe;
+      }
     });
     out.push(current);
   });
@@ -95,8 +96,8 @@ const wrapText = (text, font, size, maxW) => {
 export default function Constancias() {
   const { courses } = useCourses();
 
-  // estado
-  const [pdfSize, setPdfSize]             = useState({ w: PDF_W, h: PDF_H });
+  // Estados generales
+  const [pdfSize, setPdfSize]             = useState({ w:PDF_W, h:PDF_H });
   const [plantilla, setPlantilla]         = useState(null);
   const [plantillaUrl, setPlantillaUrl]   = useState(null);
   const [cursoId, setCursoId]             = useState('');
@@ -127,11 +128,10 @@ export default function Constancias() {
   const [attendanceData, setAttendanceData] = useState(null);
 
   const fileRef = useRef(null);
-
   const notify = (msg, type='info') =>
     toast[type](msg, { position:'top-right', theme:'colored', autoClose:3000 });
 
-  // Blob URL de plantilla
+  // Blob URL de la plantilla
   useEffect(() => {
     if (!plantilla) { setPlantillaUrl(null); return; }
     const url = URL.createObjectURL(new Blob([plantilla], { type:'application/pdf' }));
@@ -139,17 +139,17 @@ export default function Constancias() {
     return () => URL.revokeObjectURL(url);
   }, [plantilla]);
 
-  // tamaño real PDF
+  // Lee tamaño real del PDF
   useEffect(() => {
     if (!plantilla) return;
     (async () => {
-      const pdf = await PDFDocument.load(plantilla);
+      const pdf  = await PDFDocument.load(plantilla);
       const page = pdf.getPages()[0];
       setPdfSize({ w: page.getWidth(), h: page.getHeight() });
     })();
   }, [plantilla]);
 
-  // inicializar cfgMap
+  // Inicializa configuración de cajas
   useEffect(() => {
     if (plantilla && !cfgMap[plantillaKey]) {
       setCfgMap(m => ({
@@ -164,85 +164,62 @@ export default function Constancias() {
   }, [plantilla, plantillaKey, cfgMap]);
 
   const cfg   = cfgMap[plantillaKey] || {};
-  const boxes = cfg.boxes    || defaultBoxes;
+  const boxes = cfg.boxes || defaultBoxes;
 
-  // carga curso y listas
-  // ───────── carga curso y listas ─────────
-useEffect(() => {
-  if (!cursoId) {
-    setCurso(null);
-    setParticipantes([]);
-    setAsistencias([]);
-    return;
-  }
-  let alive = true;
-  (async () => {
-    const snap = await getDoc(doc(db, 'Cursos', cursoId));
-    if (!alive || !snap.exists()) return;
-    const data = snap.data();
-    setCurso(data);
-
-    // 1) Participantes iniciales (igual que antes)
-    const idsInit = Array.isArray(data.listas?.[0]) 
-      ? data.listas[0] 
-      : data.listas || [];
-    let iniciales = [];
-    if (idsInit.length) {
-      const batches = [];
-      for (let i = 0; i < idsInit.length; i += 30) {
-        batches.push(idsInit.slice(i, i + 30));
-      }
-      const snapsInit = await Promise.all(
-        batches.map(batch =>
-          getDocs(query(
-            collection(db, 'Alumnos'),
-            where(documentId(), 'in', batch)
-          ))
-        )
-      );
-      iniciales = snapsInit.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+  // ─── Hook: carga curso, listas y asistencias ───
+  useEffect(() => {
+    if (!cursoId) {
+      setCurso(null);
+      setParticipantes([]);
+      setAsistencias([]);
+      return;
     }
-    if (!alive) return;
-    setParticipantes(iniciales);
-    setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o),{}));
+    let alive = true;
+    (async () => {
+      const snap = await getDoc(doc(db, 'Cursos', cursoId));
+      if (!alive || !snap.exists()) return;
+      const data = snap.data();
+      setCurso(data);
 
-    // 2) Participantes por asistencia (trae sólo IDs en data.asistencias)
-    //    Ajusta esta linea si tus asistencias vienen con otra forma de ID.
-    const idsAsist = Array.isArray(data.asistencias)
-      ? data.asistencias.map(a => (typeof a === 'string' ? a : a.id))
-      : [];
-    let asistDocs = [];
-    if (idsAsist.length) {
-      const batchesA = [];
-      for (let i = 0; i < idsAsist.length; i += 30) {
-        batchesA.push(idsAsist.slice(i, i + 30));
+      // 1) Participantes iniciales
+      const idsInit = Array.isArray(data.listas?.[0]) 
+        ? data.listas[0] 
+        : data.listas || [];
+      let iniciales = [];
+      if (idsInit.length) {
+        const batches = [];
+        for (let i = 0; i < idsInit.length; i += 30) {
+          batches.push(idsInit.slice(i, i + 30));
+        }
+        const snapsInit = await Promise.all(
+          batches.map(batch =>
+            getDocs(query(
+              collection(db, 'Alumnos'),
+              where(documentId(), 'in', batch)
+            ))
+          )
+        );
+        iniciales = snapsInit.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
       }
-      const snapsAsist = await Promise.all(
-        batchesA.map(batch =>
-          getDocs(query(
-            collection(db, 'Alumnos'),
-            where(documentId(), 'in', batch)
-          ))
-        )
-      );
-      asistDocs = snapsAsist.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
-    }
-    if (!alive) return;
-    setAsistencias(asistDocs);
+      if (!alive) return;
+      setParticipantes(iniciales);
+      setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o), {}));
 
-  })();
-  return () => { alive = false; };
-}, [cursoId]);
+      // 2) Asistencias: ya vienen con todos los campos desde AsistenciaForm
+      const raw = Array.isArray(data.asistencias) ? data.asistencias : [];
+      setAsistencias(raw);
+    })();
+    return () => { alive = false; };
+  }, [cursoId]);
 
-
-  // mensajes por defecto
+  // Mensajes por defecto al seleccionar curso + plantilla
   useEffect(() => {
     if (!curso || !plantilla) return;
-    const cursoTitulo = getCursoTitulo(curso);
-    const fechaInicio = getFechaInicio(curso);
-    const fechaFin    = getFechaFin(curso);
-    const defPdf  = `Por su participación en “${cursoTitulo}”, del ${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)}.`;
-    const defMail = `Hola {nombre},\n\nAdjunto tu constancia de “${cursoTitulo}”.\n\nSaludos.`;
+    const titulo = getCursoTitulo(curso);
+    const ini    = getFechaInicio(curso);
+    const fin    = getFechaFin(curso);
+    const defPdf  = `Por su participación en “${titulo}”, del ${fechaLarga(ini)} al ${fechaLarga(fin)}.`;
+    const defMail = `Hola {nombre},\n\nAdjunto tu constancia de “${titulo}”.\n\nSaludos.`;
     setCfgMap(m => ({
       ...m,
       [plantillaKey]: {
@@ -253,7 +230,7 @@ useEffect(() => {
     }));
   }, [curso, plantilla, plantillaKey]);
 
-  // ajustar cajas
+  // Ajusta posición/tamaño cajas
   const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
   const patchBox = (id, patch, target='template') => {
     const fix = o => ({
@@ -263,52 +240,52 @@ useEffect(() => {
       w: Math.max(40, o.w),
       h: Math.max(20, o.h)
     });
-    if (target === 'edit') {
-      setBoxesEditing(b => ({ ...b, [id]: fix({ ...b[id], ...patch }) }));
+    if (target==='edit') {
+      setBoxesEditing(b => ({ ...b, [id]: fix({...b[id],...patch}) }));
     } else {
       setCfgMap(m => ({
         ...m,
         [plantillaKey]: {
           ...m[plantillaKey],
-          boxes: { ...m[plantillaKey].boxes, [id]: fix({ ...m[plantillaKey].boxes[id], ...patch }) }
+          boxes: { ...m[plantillaKey].boxes, [id]: fix({...m[plantillaKey].boxes[id],...patch}) }
         }
       }));
     }
   };
 
-  // generar PDF (CORREGIDO)
+  // Genera el PDF para un participante
   const genPDF = async part => {
-    const pdf = await PDFDocument.load(plantilla);
+    const pdf   = await PDFDocument.load(plantilla);
     pdf.registerFontkit(fontkit);
-    const page = pdf.getPages()[0];
+    const page  = pdf.getPages()[0];
+    const ov    = participantOverrides[part.id] || {};
+    const bx    = ov.boxes || boxes;
+    const txt   = ov.msgPdf ?? cfg.mensajePDF;
 
-    const ov = participantOverrides[part.id] || {};
-    const bx = ov.boxes || boxes;
-    const textoPDF = ov.msgPdf ?? cfg.mensajePDF;
-
-    const nombre = getNombreCompleto(part).toUpperCase();
-    const puesto = getPuesto(part);
-    const cursoTitulo = getCursoTitulo(curso, part);
-    const fechaInicio = getFechaInicio(curso, part);
-    const fechaFin = getFechaFin(curso, part);
+    const nombre      = getNombreCompleto(part).toUpperCase();
+    const puesto      = getPuesto(part);
+    const tituloCurso = getCursoTitulo(curso, part);
+    const ini         = getFechaInicio(curso, part);
+    const fin         = getFechaFin(curso, part);
 
     for (const [key, cfgBox] of Object.entries(bx)) {
       let texto = '';
-      if (key === 'nombre') texto = nombre;
-      else if (key === 'mensaje') {
-        texto = (textoPDF || '')
+      if (key==='nombre') texto = nombre;
+      else if (key==='mensaje') {
+        texto = txt
           .replace('{nombre}', nombre)
-          .replace('{curso}', cursoTitulo)
+          .replace('{curso}',  tituloCurso)
           .replace('{puesto}', puesto)
-          .replace('{fechainicio}', fechaLarga(fechaInicio))
-          .replace('{fechafin}', fechaLarga(fechaFin));
+          .replace('{fechainicio}', fechaLarga(ini))
+          .replace('{fechafin}',    fechaLarga(fin));
         if (!texto || texto.includes('{')) {
-          // fallback
-          texto = `Por su participación en “${cursoTitulo}”, del ${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)}.`;
+          texto = `Por su participación en “${tituloCurso}”, del ${fechaLarga(ini)} al ${fechaLarga(fin)}.`;
         }
-      } else if (key === 'fecha') texto = fechaLarga(fechaFin);
+      } else if (key==='fecha') {
+        texto = fechaLarga(fin);
+      }
 
-      const font  = await pdf.embedFont(FONT_LOOKUP[cfgBox.font] || StandardFonts.Helvetica);
+      const font  = await pdf.embedFont(FONT_LOOKUP[cfgBox.font]||StandardFonts.Helvetica);
       const color = toRGB(cfgBox.color);
       const size  = cfgBox.size;
       const maxW  = cfgBox.w;
@@ -316,36 +293,26 @@ useEffect(() => {
 
       const lines = wrapText(texto, font, size, maxW);
       lines.forEach(line => {
-        const width = font.widthOfTextAtSize(line, size);
-        let x = cfgBox.x;
-        if (cfgBox.align === 'center') x += (maxW - width) / 2;
-        else if (cfgBox.align === 'right') x += maxW - width;
-        else if (cfgBox.align === 'justify') {
-          const words = line.split(' ');
-          const tot = words.map(w=>font.widthOfTextAtSize(w,size)).reduce((a,b)=>a+b,0);
-          const extra = (maxW - tot)/(words.length-1||1);
-          let xj = cfgBox.x;
-          words.forEach(w => {
-            page.drawText(w, { x:xj, y, size, font, color });
-            xj += font.widthOfTextAtSize(w,size) + extra;
-          });
-          y -= size + 2;
-          return;
-        }
+        const w = font.widthOfTextAtSize(line, size);
+        let x   = cfgBox.x;
+        if      (cfgBox.align==='center') x += (maxW - w)/2;
+        else if (cfgBox.align==='right')  x += maxW - w;
         page.drawText(line, { x, y, size, font, color });
         y -= size + 2;
       });
     }
+
     return pdf.save();
   };
+
   const blobUrl = buf => URL.createObjectURL(new Blob([buf],{ type:'application/pdf' }));
 
-  // selecciones
+  // Selección union de iniciales + asistencias
   const selInit = participantes.filter((_,i)=>checkedInit[i]);
-  const selReal = asistencias; // todos siempre incluidos
+  const selReal = asistencias;
   const sel     = [...selInit, ...selReal];
 
-  // acciones
+  // Genera vista previa
   const handlePreview = async () => {
     if (!plantilla)  return notify('Sube una plantilla PDF','warning');
     if (!sel.length) return notify('Selecciona participantes','warning');
@@ -363,6 +330,7 @@ useEffect(() => {
     }
   };
 
+  // Descarga ZIP
   const handleZip = async () => {
     if (!plantilla)  return notify('Sube una plantilla PDF','warning');
     if (!sel.length) return notify('Selecciona participantes','warning');
@@ -381,81 +349,77 @@ useEffect(() => {
       setLoadingZip(false);
     }
   };
-const handleSend = async () => {
-  console.log('🔔 handleSend arrancado');
-  if (!plantilla)  return notify('Sube una plantilla PDF','warning');
-  if (!sel.length) return notify('Selecciona participantes','warning');
 
-  setLoadingSend(true);
-  try {
-    for (const p of sel) {
-      console.log('👉 Procesando participante:', p);
-      const buf = await genPDF(p);
-      console.log('✅ PDF generado, bytes:', buf.byteLength);
-console.log('🧐 participante completo:', p);
-console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.email);
+  // Envía correos
+  const handleSend = async () => {
+    if (!plantilla)  return notify('Sube una plantilla PDF','warning');
+    if (!sel.length) return notify('Selecciona participantes','warning');
+    setLoadingSend(true);
 
-      const nombre  = getNombreCompleto(p);
-      const base64  = arrayBufferToBase64(buf);               // ← aquí
-      const payload = {
-        Correo:        p.correo||p.email,
-        Nombres:       nombre,
-        Puesto:        getCursoTitulo(curso,p),
-        pdf:           base64,                                // ← y aquí
-        mensajeCorreo: (participantOverrides[p.id]?.msgMail || cfg.mensajeCorreo)
-                          .replace('{nombre}', nombre)
-      };
-      console.log('📨 Payload listo');
-
-      const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload)
-      });
-      console.log('📥 Respuesta fetch:', res.status, await res.text());
-      if (!res.ok) throw new Error('Fetch falló con status ' + res.status);
+    try {
+      for (const p of sel) {
+        const buf    = await genPDF(p);
+        const base64 = arrayBufferToBase64(buf);
+        const nombre = getNombreCompleto(p);
+        const payload = {
+          Correo:        p.correo,  // debe venir definido desde Alumnos
+          Nombres:       nombre,
+          Puesto:        getCursoTitulo(curso,p),
+          pdf:           base64,
+          mensajeCorreo: (participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo)
+                            .replace('{nombre}', nombre)
+        };
+        const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
+          method:  'POST',
+          headers: { 'Content-Type':'application/json' },
+          body:    JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+      }
+      notify('Correos enviados','success');
+    } catch (err) {
+      console.error(err);
+      notify('Error enviando correos','error');
+    } finally {
+      setLoadingSend(false);
     }
-    notify('Correos enviados','success');
-  } catch (err) {
-    console.error('❌ Error en handleSend:', err);
-    notify('Error enviando correos','error');
-  } finally {
-    setLoadingSend(false);
-  }
-};
+  };
 
-
-
-  // toggle inicial
-  const toggleInit = i =>
-    setCheckedInit(o => ({ ...o, [i]: !o[i] }));
+  const toggleInit = i => setCheckedInit(o => ({ ...o, [i]: !o[i] }));
 
   return (
     <div className="h-full flex bg-gray-50">
       {/* SIDEBAR */}
       <aside className="w-72 p-4 bg-white shadow space-y-6 overflow-auto">
-        {/* plantilla */}
+        {/* Plantilla PDF */}
         <div>
           <h4 className="font-semibold mb-2">Plantilla PDF</h4>
           <button
             className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
             onClick={()=>fileRef.current?.click()}
-          >{plantilla?'Cambiar plantilla':'Subir plantilla'}</button>
+          >
+            {plantilla ? 'Cambiar plantilla' : 'Subir plantilla'}
+          </button>
           <input
             ref={fileRef}
             type="file"
             accept=".pdf"
             className="hidden"
             onChange={async e=>{
-              const f = e.target.files?.[0]; e.target.value = '';
+              const f = e.target.files?.[0];
+              e.target.value = '';
               if (!f) return;
-              try { setPlantilla(await f.arrayBuffer()); setIsPreview(false); }
-              catch { notify('No se pudo abrir el PDF','error'); }
+              try {
+                setPlantilla(await f.arrayBuffer());
+                setIsPreview(false);
+              } catch {
+                notify('No se pudo abrir el PDF','error');
+              }
             }}
           />
         </div>
 
-        {/* evento */}
+        {/* Seleccionar Evento */}
         <div>
           <h4 className="font-semibold mb-2">Seleccionar Evento</h4>
           <select
@@ -464,11 +428,15 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
             onChange={e=>{ setCursoId(e.target.value); setIsPreview(false); }}
           >
             <option value="">-- Elige --</option>
-            {courses.map(c=> <option key={c.id} value={c.id}>{c.titulo || c.cursoNombre}</option> )}
+            {courses.map(c=> (
+              <option key={c.id} value={c.id}>
+                {c.titulo || c.cursoNombre}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* participantes iniciales */}
+        {/* Participantes Iniciales */}
         <div>
           <h4 className="font-semibold mb-1">Participantes Iniciales</h4>
           <div className="border rounded max-h-40 overflow-auto">
@@ -490,9 +458,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                         onChange={()=>toggleInit(i)}
                       />
                     </td>
-                    <td className="p-2 break-words">
-                      {getNombreCompleto(p)}
-                    </td>
+                    <td className="p-2 break-words">{getNombreCompleto(p)}</td>
                     <td className="p-2 break-words">{getPuesto(p)}</td>
                   </tr>
                 ))}
@@ -501,7 +467,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
           </div>
         </div>
 
-        {/* asistencias (siempre marcadas) */}
+        {/* Asistencias Registradas */}
         <div>
           <h4 className="font-semibold mb-1">Asistencias Registradas</h4>
           <div className="border rounded max-h-40 overflow-auto">
@@ -520,15 +486,15 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                     <td className="text-center p-2">
                       <input type="checkbox" checked disabled />
                     </td>
-                    <td className="p-2 break-words">
-                      {getNombreCompleto(p)}
-                    </td>
+                    <td className="p-2 break-words">{getNombreCompleto(p)}</td>
                     <td className="p-2 break-words">{getPuesto(p)}</td>
                     <td className="text-center p-2">
                       <button
                         className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
                         onClick={()=>{ setAttendanceData(p); setShowAttendance(true); }}
-                      >Detalles</button>
+                      >
+                        Detalles
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -537,7 +503,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
           </div>
         </div>
 
-        {/* mensajes */}
+        {/* Mensajes */}
         <div>
           <h4 className="font-semibold mb-1">Mensaje PDF</h4>
           <textarea
@@ -563,7 +529,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
           />
         </div>
 
-        {/* acciones */}
+        {/* Acciones */}
         <div className="space-y-2">
           <button
             className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded flex justify-center items-center"
@@ -578,7 +544,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
             onClick={handleZip}
             disabled={loadingZip}
           >
-            {loadingZip&&<FiLoader className="animate-spin mr-2"/>}
+            {loadingZip && <FiLoader className="animate-spin mr-2"/>}
             Descargar ZIP
           </button>
           <button
@@ -586,7 +552,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
             onClick={handleSend}
             disabled={loadingSend}
           >
-            {loadingSend&&<FiLoader className="animate-spin mr-2"/>}
+            {loadingSend && <FiLoader className="animate-spin mr-2"/>}
             Enviar por correo
           </button>
         </div>
@@ -600,7 +566,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
           </div>
         )}
 
-        {/* editor de plantilla */}
+        {/* Editor de plantilla */}
         {!isPreview && !editId && plantillaUrl && (
           <div
             className="mx-auto bg-white shadow relative"
@@ -625,9 +591,9 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                 lockAspectRatio={id==='nombre'}
                 grid={[4,4]}
                 style={{
-                  border: activeBox===id?'2px dashed #2563eb':'none',
-                  cursor:'move',
-                  position:'absolute'
+                  border: activeBox===id ? '2px dashed #2563eb' : 'none',
+                  cursor: 'move',
+                  position: 'absolute'
                 }}
                 onClick={e=>{ e.stopPropagation(); setActiveBox(id); setPanelOpen(true); }}
               >
@@ -635,25 +601,29 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                   style={{
                     fontFamily: cfg.font,
                     fontSize: cfg.size,
-                    fontWeight: cfg.bold?700:400,
+                    fontWeight: cfg.bold ? 700 : 400,
                     color: cfg.color,
-                    textAlign: cfg.align==='justify'? 'justify' : cfg.align
+                    textAlign: cfg.align==='justify' ? 'justify' : cfg.align
                   }}
-                >{cfg.preview}</div>
+                >
+                  {cfg.preview}
+                </div>
               </Rnd>
             ))}
           </div>
         )}
 
-        {/* edición individual */}
+        {/* Edición individual */}
         {!isPreview && editId && boxesEditing && plantillaUrl && (
           <>
-            {/* encabezado */}
             <div className="text-center font-semibold mb-2">
               Editando:&nbsp;
-              {getNombreCompleto(participantes.find(p=>p.id===editId) || asistencias.find(a=>a.id===editId) || {})}
+              {getNombreCompleto(
+                participantes.find(p=>p.id===editId)
+                || asistencias.find(a=>a.id===editId)
+                || {}
+              )}
             </div>
-            {/* lienzo movible */}
             <div
               className="mx-auto bg-white shadow relative"
               style={{ width: pdfSize.w, height: pdfSize.h }}
@@ -677,9 +647,9 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                   lockAspectRatio={id==='nombre'}
                   grid={[4,4]}
                   style={{
-                    border: activeBox===id?'2px dashed #2563eb':'none',
-                    cursor:'move',
-                    position:'absolute'
+                    border: activeBox===id ? '2px dashed #2563eb' : 'none',
+                    cursor: 'move',
+                    position: 'absolute'
                   }}
                   onClick={e=>{ e.stopPropagation(); setActiveBox(id); setPanelOpen(true); }}
                 >
@@ -687,15 +657,16 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                     style={{
                       fontFamily: cfg.font,
                       fontSize: cfg.size,
-                      fontWeight: cfg.bold?700:400,
+                      fontWeight: cfg.bold ? 700 : 400,
                       color: cfg.color,
-                      textAlign: cfg.align==='justify'? 'justify' : cfg.align
+                      textAlign: cfg.align==='justify' ? 'justify' : cfg.align
                     }}
-                  >{cfg.preview}</div>
+                  >
+                    {cfg.preview}
+                  </div>
                 </Rnd>
               ))}
             </div>
-            {/* botones */}
             <div className="flex justify-center gap-4 mt-4">
               <button
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
@@ -713,7 +684,9 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                   setPanelOpen(false);
                   await handlePreview();
                 }}
-              >Guardar</button>
+              >
+                Guardar
+              </button>
               <button
                 className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded"
                 onClick={()=>{
@@ -721,9 +694,10 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                   setBoxesEditing(null);
                   setPanelOpen(false);
                 }}
-              >Cancelar</button>
+              >
+                Cancelar
+              </button>
             </div>
-            {/* mensajes específicos */}
             <div className="max-w-lg mx-auto mt-4 space-y-2">
               <textarea
                 rows={3}
@@ -743,7 +717,7 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
           </>
         )}
 
-        {/* preview carrusel */}
+        {/* Preview carrusel */}
         {isPreview && prevURLs.length>0 && (
           <div className="mx-auto">
             <div className="flex justify-center items-center gap-4 mb-2">
@@ -751,13 +725,17 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                 disabled={prevIdx===0}
                 className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-40"
                 onClick={()=>setPrevIdx(i=>i-1)}
-              >← Anterior</button>
+              >
+                ← Anterior
+              </button>
               <span>{prevIdx+1}/{prevURLs.length}</span>
               <button
                 disabled={prevIdx===prevURLs.length-1}
                 className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-40"
                 onClick={()=>setPrevIdx(i=>i+1)}
-              >Siguiente →</button>
+              >
+                Siguiente →
+              </button>
             </div>
             <iframe
               src={prevURLs[prevIdx]}
@@ -776,13 +754,15 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
                   setEditId(p.id);
                   setIsPreview(false);
                 }}
-              >Editar esta constancia</button>
+              >
+                Editar esta constancia
+              </button>
             </div>
           </div>
         )}
       </main>
 
-      {/* panel propiedades */}
+      {/* Panel propiedades */}
       {panelOpen && activeBox && (() => {
         const editing = Boolean(editId);
         const boxCfg  = editing ? boxesEditing[activeBox] : boxes[activeBox];
@@ -831,12 +811,14 @@ console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.emai
             <button
               className="w-full mt-4 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
               onClick={()=>{ setPanelOpen(false); setActiveBox(null); }}
-            >Cerrar</button>
+            >
+              Cerrar
+            </button>
           </aside>
         );
       })()}
 
-      {/* modal asistencia */}
+      {/* Modal asistencia */}
       {showAttendance && (
         <AttendanceModal
           asistencia={attendanceData}

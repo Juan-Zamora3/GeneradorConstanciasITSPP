@@ -45,45 +45,71 @@ export default function AsistenciaForm() {
   const onChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
   const onFile   = e => setForm(f => ({ ...f, foto: e.target.files[0] }));
 
-  const submit = async e => {
-    e.preventDefault();
-    const fails = validateForm(form);
-    if (fails.length) { toast.error(fails.join('\n')); return; }
-    if (!curso || curso.error) { toast.error(curso?.error || 'Error al cargar curso'); return; }
+  
+const submit = async e => {
+  e.preventDefault();
+  const fails = validateForm(form);
+  if (fails.length) { toast.error(fails.join('\n')); return; }
+  if (!curso || curso.error) { toast.error(curso?.error || 'Error al cargar curso'); return; }
 
-    const hoy = new Date();
-    const fin = new Date(curso.fechaFin + 'T23:59:59');
-    if (hoy > fin) { toast.warn('El registro ya no está disponible (curso finalizado).'); return; }
+  // comprueba que el curso no esté ya cerrado
+  const hoy = new Date();
+  const fin = new Date(curso.fechaFin + 'T23:59:59');
+  if (hoy > fin) { toast.warn('El registro ya no está disponible (curso finalizado).'); return; }
 
-    setSending(true);
-    try {
-      // Valida nombre
-      const ids = curso.listas || [];
-      const nombres = await Promise.all(ids.map(id =>
-        getDoc(doc(db, 'Alumnos', id)).then(s => s.exists() ? `${s.data().Nombres} ${s.data().ApellidoP} ${s.data().ApellidoM}` : null)
-      )).then(arr => arr.filter(Boolean));
-      const autorizado = nombres.some(n => levenshtein(normalize(form.nombre), normalize(n)) <= 2);
-      if (!autorizado) { toast.error('Tu nombre no coincide con la lista de este curso.'); return; }
-
-      // Sube foto
-      const imgRef = ref(storage, `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`);
-      await uploadBytes(imgRef, form.foto);
-      const fotoURL = await getDownloadURL(imgRef);
-
-      // Guarda asistencia
-      await updateDoc(doc(db, 'Cursos', cursoId), {
-        asistencias: arrayUnion({ nombre: form.nombre, puesto: form.puesto, fotoURL, timestamp: new Date() })
-      });
-
-      toast.success('¡Asistencia registrada!');
-      setDone(true);
-    } catch (err) {
-      console.error(err);
-      toast.error('Error al guardar asistencia');
-    } finally {
-      setSending(false);
+  setSending(true);
+  try {
+    // 1) Busca qué ID de alumno en curso.listas coincide con el nombre
+    const ids = curso.listas || [];
+    let matchedId = null;
+    for (const id of ids) {
+      const snapA = await getDoc(doc(db, 'Alumnos', id));
+      if (!snapA.exists()) continue;
+      const dataA = snapA.data();
+      const full  = `${dataA.Nombres} ${dataA.ApellidoP} ${dataA.ApellidoM}`;
+      if (levenshtein(normalize(full), normalize(form.nombre)) <= 2) {
+        matchedId = id;
+        break;
+      }
     }
-  };
+    if (!matchedId) {
+      toast.error('Tu nombre no coincide con la lista de este curso.');
+      return;
+    }
+
+    // 2) Trae el correo del alumno para guardarlo
+    const snapAlumno = await getDoc(doc(db, 'Alumnos', matchedId));
+    const alumno     = snapAlumno.exists() ? snapAlumno.data() : {};
+
+    // 3) Sube la foto
+    const imgRef  = ref(storage, `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`);
+    await uploadBytes(imgRef, form.foto);
+    const fotoURL = await getDownloadURL(imgRef);
+
+    // 4) Guarda en Cursos/{cursoId}.asistencias
+    await updateDoc(doc(db, 'Cursos', cursoId), {
+      asistencias: arrayUnion({
+        id:        matchedId,
+        Nombres:   alumno.Nombres,
+        ApellidoP: alumno.ApellidoP,
+        ApellidoM: alumno.ApellidoM,
+        correo:    alumno.Correo || alumno.email,
+        puesto:    form.puesto,
+        fotoURL,
+        timestamp: new Date()
+      })
+    });
+
+    toast.success('¡Asistencia registrada!');
+    setDone(true);
+
+  } catch (err) {
+    console.error(err);
+    toast.error('Error al guardar asistencia');
+  } finally {
+    setSending(false);
+  }
+};
 
   // Estados de carga y error
   if (!curso) return <p className="p-6 text-center text-gray-600">Cargando curso…</p>;
