@@ -12,11 +12,9 @@ const __dirname  = path.dirname(__filename);
 const app  = express();
 const port = process.env.PORT || 3000;
 
-// Middlewares
 app.use(cors());
-app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.json({ limit: '20mb' }));
 
-// Transporter Mailjet
 const transporter = nodemailer.createTransport({
   host: 'in-v3.mailjet.com',
   port: 587,
@@ -27,53 +25,48 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Función de logging
 function registrarEnvio(Correo, Nombres, Puesto) {
   const entry = { Correo, Nombres, Puesto, fecha: new Date().toISOString() };
-  fs.appendFileSync(path.join(__dirname, 'envios.log'),
-                    JSON.stringify(entry) + "\n",
-                    'utf8');
+  fs.appendFileSync(
+    path.join(__dirname, 'envios.log'),
+    JSON.stringify(entry) + "\n",
+    'utf8'
+  );
 }
 
-// API endpoint
 app.post('/EnviarCorreo', async (req, res) => {
   try {
-    const { Correo, Nombres, Puesto, pdf } = req.body;
-    if (!Correo || !Nombres || !Puesto || !pdf) {
+    const { Correo, Nombres, Puesto, pdf, mensajeCorreo } = req.body;
+    if (!Correo || !Nombres || !Puesto || !pdf || !mensajeCorreo) {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
     const pdfBuffer = Buffer.from(pdf, 'base64');
+
     await transporter.sendMail({
       from: 'ConstanciasISCITSPP@outlook.com',
       to: Correo,
-      subject: 'Constancia de Participación',
-      text: `Hola ${Nombres},
-
-Buen día:
-A través de este medio se le hace llegar la constancia de participación Innova TecNM 2025.
-
-Saludos.`,
+      subject: 'Tu constancia de participación',
+      text: `Hola ${Nombres},\n\n${mensajeCorreo}\n\n¡Gracias por tu participación!`,
       attachments: [{
         filename: `Constancia_${Puesto.replace(/\s/g,'_')}_${Nombres.replace(/\s/g,'_')}.pdf`,
         content: pdfBuffer,
         contentType: 'application/pdf'
       }]
     });
+
     registrarEnvio(Correo, Nombres, Puesto);
-    res.json({ message: 'Correo enviado y registro guardado' });
+    return res.json({ message: 'Correo enviado y registro guardado' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error al enviar correo' });
+    return res.status(500).json({ error: 'Error al enviar correo' });
   }
 });
 
-// 1) Sirve estáticos de Vite build
 app.use(express.static(path.join(__dirname, 'dist')));
-
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
-// 3) Arranca servidor
+
 app.listen(port, () => {
   console.log(`Servidor corriendo en el puerto ${port}`);
 });

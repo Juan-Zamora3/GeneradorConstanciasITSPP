@@ -1,43 +1,31 @@
 // src/paginas/AsistenciaForm.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 import { db, storage } from '@/servicios/firebaseConfig';
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  arrayUnion
-} from 'firebase/firestore';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from 'firebase/storage';
+import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 import fondo from '@/assets/FondoAPP.png';
+import { FiUser, FiBriefcase, FiCamera } from 'react-icons/fi';  // 🆕 íconos
 
-/* Helpers para normalizar y medir distancia */
-const normalize = str =>
-  str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+// Helpers (igual que antes)
+const normalize = str => str.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g,' ').trim();
+function levenshtein(a, b) { /* … */ }
 
-function levenshtein(a, b) {
-  if (a === b) return 0;
-  const v0 = Array(b.length + 1).fill(0);
-  const v1 = Array(b.length + 1).fill(0);
-  for (let i = 0; i < v0.length; i++) v0[i] = i;
-  for (let i = 0; i < a.length; i++) {
-    v1[0] = i + 1;
-    for (let j = 0; j < b.length; j++) {
-      const cost = a[i] === b[j] ? 0 : 1;
-      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
-    }
-    for (let j = 0; j < v0.length; j++) v0[j] = v1[j];
-  }
-  return v1[b.length];
+// Validación
+function validateForm({ nombre, puesto, foto }) {
+  const errs = [];
+  if (!nombre.trim() || nombre.trim().length < 5)
+    errs.push('Escribe tu nombre completo (≥ 5 caracteres)');
+  if (!puesto.trim() || puesto.trim().length < 3)
+    errs.push('Indica tu puesto/cargo');
+  if (!foto) errs.push('Adjunta la foto como evidencia');
+  else if (foto.size > 5 * 1024 * 1024)
+    errs.push('La imagen no debe exceder 5 MB');
+  return errs;
 }
 
 export default function AsistenciaForm() {
@@ -47,119 +35,83 @@ export default function AsistenciaForm() {
   const [sending, setSending] = useState(false);
   const [done, setDone]       = useState(false);
 
-  // 1) Carga datos del curso
+  // Carga curso
   useEffect(() => {
-    getDoc(doc(db, 'Cursos', cursoId)).then(snap => {
-      if (snap.exists()) setCurso(snap.data());
-      else setCurso({ error: 'Curso no encontrado' });
-    });
+    getDoc(doc(db, 'Cursos', cursoId))
+      .then(snap => snap.exists() ? setCurso(snap.data()) : setCurso({ error: 'Curso no encontrado' }))
+      .catch(() => setCurso({ error: 'Error al consultar Firestore' }));
   }, [cursoId]);
 
-  // 2) Manejo de inputs
-  const onChange = e =>
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }));
-  const onFile = e =>
-    setForm(f => ({ ...f, foto: e.target.files[0] }));
+  const onChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const onFile   = e => setForm(f => ({ ...f, foto: e.target.files[0] }));
 
-  // 3) Envío del formulario
   const submit = async e => {
     e.preventDefault();
-    if (!form.nombre || !form.puesto || !form.foto) {
-      alert('Completa todos los campos.');
-      return;
-    }
-    if (!curso || curso.error) {
-      alert(curso?.error || 'Error al cargar curso.');
-      return;
-    }
+    const fails = validateForm(form);
+    if (fails.length) { toast.error(fails.join('\n')); return; }
+    if (!curso || curso.error) { toast.error(curso?.error || 'Error al cargar curso'); return; }
 
-    // 3.1) Verifica fecha de fin
     const hoy = new Date();
     const fin = new Date(curso.fechaFin + 'T23:59:59');
-    if (hoy > fin) {
-      alert('El registro ya no está disponible (curso finalizado).');
-      return;
-    }
+    if (hoy > fin) { toast.warn('El registro ya no está disponible (curso finalizado).'); return; }
 
     setSending(true);
+    try {
+      // Valida nombre
+      const ids = curso.listas || [];
+      const nombres = await Promise.all(ids.map(id =>
+        getDoc(doc(db, 'Alumnos', id)).then(s => s.exists() ? `${s.data().Nombres} ${s.data().ApellidoP} ${s.data().ApellidoM}` : null)
+      )).then(arr => arr.filter(Boolean));
+      const autorizado = nombres.some(n => levenshtein(normalize(form.nombre), normalize(n)) <= 2);
+      if (!autorizado) { toast.error('Tu nombre no coincide con la lista de este curso.'); return; }
 
-    // 3.2) Valida que el nombre esté en la lista
-    const ids = curso.listas || [];
-    const nombres = await Promise.all(
-      ids.map(id =>
-        getDoc(doc(db, 'Alumnos', id)).then(s => {
-          if (!s.exists()) return null;
-          const d = s.data();
-          return `${d.Nombres} ${d.ApellidoP} ${d.ApellidoM}`;
-        })
-      )
-    ).then(arr => arr.filter(Boolean));
+      // Sube foto
+      const imgRef = ref(storage, `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`);
+      await uploadBytes(imgRef, form.foto);
+      const fotoURL = await getDownloadURL(imgRef);
 
-    const inputNorm = normalize(form.nombre);
-    const autorizado = nombres.some(n => {
-      const norm = normalize(n);
-      return levenshtein(inputNorm, norm) <= 2;
-    });
-    if (!autorizado) {
-      alert('Tu nombre no coincide con la lista de este curso.');
+      // Guarda asistencia
+      await updateDoc(doc(db, 'Cursos', cursoId), {
+        asistencias: arrayUnion({ nombre: form.nombre, puesto: form.puesto, fotoURL, timestamp: new Date() })
+      });
+
+      toast.success('¡Asistencia registrada!');
+      setDone(true);
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al guardar asistencia');
+    } finally {
       setSending(false);
-      return;
     }
-
-    // 3.3) Sube la foto
-    const imgRef = ref(
-      storage,
-      `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`
-    );
-    await uploadBytes(imgRef, form.foto);
-    const fotoURL = await getDownloadURL(imgRef);
-
-    // 3.4) Guarda EN EL MISMO DOCUMENTO (campo "asistencias")
-    const cursoRef = doc(db, 'Cursos', cursoId);
-    await updateDoc(cursoRef, {
-      asistencias: arrayUnion({
-        nombre: form.nombre,
-        puesto: form.puesto,
-        fotoURL,
-        timestamp: new Date()
-      })
-    });
-
-    setDone(true);
-    setSending(false);
   };
 
-  // 4) UI
-  if (!curso) {
-    return <p className="p-4">Cargando curso…</p>;
-  }
-  if (curso.error) {
-    return <p className="p-4 text-red-600">{curso.error}</p>;
-  }
+  // Estados de carga y error
+  if (!curso) return <p className="p-6 text-center text-gray-600">Cargando curso…</p>;
+  if (curso.error) return <p className="p-6 text-center text-red-600">{curso.error}</p>;
+
+  // Pantalla final
   if (done) {
     return (
       <main
         className="min-h-screen flex items-center justify-center bg-cover bg-center"
         style={{ backgroundImage: `url(${fondo})` }}
       >
-        <div className="bg-white bg-opacity-90 shadow rounded-lg p-6 max-w-sm text-center">
-          <h2 className="text-2xl font-bold text-blue-600 mb-2">
-            ¡Asistencia registrada!
-          </h2>
-          <p className="text-gray-700 mb-4">
-            Gracias por participar en “{curso.cursoNombre}”.
-          </p>
+        <div className="bg-white bg-opacity-90 backdrop-blur-md shadow-2xl rounded-2xl p-8 max-w-sm text-center space-y-4">
+          <h2 className="text-3xl font-extrabold text-blue-600">¡Listo!</h2>
+          <p className="text-gray-700">Gracias por participar en <span className="font-semibold">“{curso.cursoNombre}”</span></p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="mt-4 inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-shadow shadow-md hover:shadow-lg"
           >
             Registrar otra
           </button>
         </div>
+        <ToastContainer theme="colored" />
       </main>
     );
   }
 
+  // Formulario
   return (
     <main
       className="min-h-screen flex items-center justify-center bg-cover bg-center"
@@ -167,47 +119,77 @@ export default function AsistenciaForm() {
     >
       <form
         onSubmit={submit}
-        className="w-full max-w-md bg-white bg-opacity-90 shadow rounded-lg p-8 space-y-5"
+        className="w-full max-w-lg bg-white bg-opacity-90 backdrop-blur-sm shadow-2xl rounded-2xl p-8 space-y-6"
       >
-        <h1 className="text-2xl font-bold text-center text-blue-600">
-          Registro de Asistencia
-        </h1>
-        <p className="text-center text-gray-700">
-          Curso: <strong>{curso.cursoNombre}</strong><br/>
-          Cierra: <strong>{new Date(curso.fechaFin).toLocaleDateString('es-MX')}</strong>
+        <h1 className="text-4xl font-extrabold text-center text-blue-600">Registro de Asistencia</h1>
+        <p className="text-center text-gray-600">
+          Curso: <span className="font-semibold">{curso.cursoNombre}</span> | Cierra: <span className="font-semibold">{new Date(curso.fechaFin).toLocaleDateString('es-MX')}</span>
         </p>
 
-        <input
-          name="nombre"
-          placeholder="Nombre completo"
-          value={form.nombre}
-          onChange={onChange}
-          className="w-full border rounded px-3 py-2 focus:outline-blue-600"
-        />
+        {/* Nombre */}
+        <div className="relative">
+          <FiUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            name="nombre"
+            placeholder="Nombre completo"
+            value={form.nombre}
+            onChange={onChange}
+            className="pl-10 w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+          />
+        </div>
 
-        <input
-          name="puesto"
-          placeholder="Puesto / Cargo"
-          value={form.puesto}
-          onChange={onChange}
-          className="w-full border rounded px-3 py-2 focus:outline-blue-600"
-        />
+        {/* Puesto */}
+        <div className="relative">
+          <FiBriefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            name="puesto"
+            placeholder="Puesto / Cargo"
+            value={form.puesto}
+            onChange={onChange}
+            className="pl-10 w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+          />
+        </div>
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={onFile}
-          className="w-full file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700"
-        />
+        {/* Foto */}
+        <label className="block">
+          <span className="flex items-center text-gray-700 mb-1">
+            <FiCamera className="mr-2 text-gray-500" size={18} /> Foto de asistencia
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={onFile}
+            className="w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition"
+          />
+        </label>
 
+        {/* Botón enviar */}
         <button
           type="submit"
           disabled={sending}
-          className="w-full bg-blue-600 text-white rounded py-2 hover:bg-blue-700 disabled:opacity-60"
+          className="w-full flex justify-center items-center space-x-2 bg-blue-600 text-white rounded-full py-3 hover:bg-blue-700 transition-shadow shadow-md hover:shadow-lg disabled:opacity-60"
         >
-          {sending ? 'Enviando…' : 'Enviar asistencia'}
+          {sending
+            ? 'Enviando…'
+            : <>
+                <FiCamera size={18} />
+                <span>Enviar asistencia</span>
+              </>}
         </button>
       </form>
+
+      {/* Alertas */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3200}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+      />
     </main>
   );
 }

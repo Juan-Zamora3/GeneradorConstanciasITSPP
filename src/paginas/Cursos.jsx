@@ -1,18 +1,37 @@
+// src/paginas/Cursos.jsx
 import React, { useState, useMemo, useContext, useEffect, useRef } from 'react';
-import { saveAs }                   from 'file-saver';
-import * as XLSX                    from 'xlsx';
+import { saveAs } from 'file-saver';
+import * as XLSX   from 'xlsx';
+import { toast, ToastContainer } from 'react-toastify';   // 🆕
+import 'react-toastify/dist/ReactToastify.css';           // 🆕
 import { listToWorkbook, fileToList } from '../utilidades/excelHelpers';
 
-import { useCourses }  from '../utilidades/useCourses';
-import { useReports }  from '../utilidades/useReports';
+import { useCourses } from '../utilidades/useCourses';
+import { useReports } from '../utilidades/useReports';
 
-import CourseListItem  from '../componentes/PantallaCursos/CourseListItem';
-import ReportListItem  from '../componentes/PantallaCursos/ReportListItem';
-import CourseModal     from '../componentes/PantallaCursos/CourseModal';
-import ReportModal     from '../componentes/PantallaCursos/ReportModal';
-import DetailsModal    from '../componentes/PantallaCursos/DetailsModal';
+import CourseListItem from '../componentes/PantallaCursos/CourseListItem';
+import ReportListItem from '../componentes/PantallaCursos/ReportListItem';
+import CourseModal    from '../componentes/PantallaCursos/CourseModal';
+import ReportModal    from '../componentes/PantallaCursos/ReportModal';
+import DetailsModal   from '../componentes/PantallaCursos/DetailsModal';
 
 import { AuthContext } from '../contexto/AuthContext';
+
+/* ---------------- VALIDADORES BÁSICOS ---------------- */
+function validateCourse(c) {
+  const errs = [];
+  if (!c.titulo?.trim())        errs.push('Título obligatorio');
+  if (!c.instructor?.trim())    errs.push('Instructor obligatorio');
+  if (!c.fechaInicio?.trim())   errs.push('Fecha de inicio obligatoria');
+  return errs;
+}
+function validateReport(r) {
+  const errs = [];
+  if (!r.titulo?.trim())        errs.push('Título obligatorio');
+  if (!r.tipo?.trim())          errs.push('Tipo obligatorio');
+  if (!r.cursoId?.trim())       errs.push('Curso asociado obligatorio');
+  return errs;
+}
 
 /* -------------------------------------------------------------- */
 export default function Cursos() {
@@ -20,20 +39,13 @@ export default function Cursos() {
   const canManageCourses = usuario?.role !== 'user';
 
   /* ----------- data hooks ----------- */
-  const {
-    courses,  loading:lc,
-    createCourse, updateCourse, deleteCourse,
-  } = useCourses();
-
-  const {
-    reports,  loading:lr,
-    createReport, updateReport, deleteReport,
-  } = useReports();
+  const { courses,  loading:lc, createCourse, updateCourse, deleteCourse } = useCourses();
+  const { reports,  loading:lr, createReport, updateReport, deleteReport } = useReports();
 
   /* ----------- UI state ----------- */
-  const [view, setView] = useState('courses');  // courses | reports
-  const [search, setSearch]   = useState('');
-  const [sortBy, setSortBy]   = useState('titulo');
+  const [view, setView]        = useState('courses'); // courses | reports
+  const [search, setSearch]    = useState('');
+  const [sortBy, setSortBy]    = useState('titulo');
   const [filterCat, setFilterCat] = useState('');
 
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -72,33 +84,43 @@ export default function Cursos() {
     const today = new Date();
     const file = `${view === 'courses' ? 'Cursos' : 'Reportes'}-${today.toISOString().slice(0,10)}.xlsx`;
     saveAs(new Blob([wbout], {type:'application/octet-stream'}), file);
+    toast.success('Excel exportado');             // 🆕 feedback
   };
 
   const handleImport = async e => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     try {
       const rows = await fileToList(file);
 
+      let nuevos=0, actualizados=0, errores=0;
       if (view === 'courses') {
-        // criterio -> título + fechaInicio para detectar existentes
         for (const r of rows) {
+          const fails = validateCourse(r);
+          if (fails.length) { errores++; continue; }
+
           const match = courses.find(c =>
             c.titulo === r.titulo && c.fechaInicio === r.fechaInicio);
-          if (match) await updateCourse(match.id, r, r.imagen);
-          else       await createCourse(r, r.imagen);
+          if (match) { await updateCourse(match.id, r, r.imagen); actualizados++; }
+          else       { await createCourse(r, r.imagen);           nuevos++; }
         }
       } else {
         for (const r of rows) {
+          const fails = validateReport(r);
+          if (fails.length) { errores++; continue; }
+
           const match = reports.find(rep => rep.id === r.id);
-          if (match) await updateReport(match.id, r, r.imagenes);
-          else       await createReport(r.cursoId, r, r.imagenes || []);
+          if (match) { await updateReport(match.id, r, r.imagenes); actualizados++; }
+          else       { await createReport(r.cursoId, r, r.imagenes || []); nuevos++; }
         }
       }
-      alert('Importación completada');
+
+      toast.success(`Importado • ${nuevos} nuevos • ${actualizados} actualizados${errores?` • ${errores} con error`:''}`);
+      if (errores) toast.warn('Revisa filas con datos faltantes');
     } catch(err){
       console.error(err);
-      alert('Error al importar');
+      toast.error('Error al importar');
     }
     e.target.value = '';
   };
@@ -113,32 +135,34 @@ export default function Cursos() {
 
     const key = `lastExport-${view}`;
     const tag = `${today.getFullYear()}-${today.getMonth()}`;
-    if (localStorage.getItem(key) === tag) return; // ya respaldado este mes
+    if (localStorage.getItem(key) === tag) return;
 
     exportList();
     localStorage.setItem(key, tag);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courses, reports]);   // se re-calcula si cambia alguno de los arrays
+  }, [courses, reports]);
 
   /* ----------- handlers ----------- */
   const handleSaveReport = async (data, imgs) => {
+    const fails = validateReport(data);
+    if (fails.length) { toast.error(fails.join('\n')); return; }
+
     try {
-      if (editReport) {
-        await updateReport(editReport.id, data, imgs);
-      } else {
-        await createReport(data.cursoId, data, imgs);
-      }
+      if (editReport) await updateReport(editReport.id, data, imgs);
+      else            await createReport(data.cursoId, data, imgs);
+      toast.success('Reporte guardado');
       setShowReportModal(false);
       setEditReport(null);
     } catch (err) {
       console.error(err);
-      alert('Error al guardar el reporte');
+      toast.error('Error al guardar el reporte');
     }
   };
 
   const handleDeleteReport = async rep => {
     if (!window.confirm('¿Eliminar reporte?')) return;
     await deleteReport(rep.id);
+    toast.info('Reporte eliminado');
     setShowDetail(false);
   };
 
@@ -234,7 +258,7 @@ export default function Cursos() {
                   course={c}
                   onView={()=>{ setDetailData(c); setDetailType('course'); setShowDetail(true); }}
                   onEdit={canManageCourses ? ()=>{ setEditCourse(c); setShowCourseModal(true);} : undefined}
-                  onDelete={canManageCourses ? async ()=>{ if(window.confirm('¿Eliminar curso?')) await deleteCourse(c.id);} : undefined}
+                  onDelete={canManageCourses ? async ()=>{ if(window.confirm('¿Eliminar curso?')) { await deleteCourse(c.id); toast.info('Curso eliminado'); }} : undefined}
                   canManage={canManageCourses}
                 />
               ))}
@@ -267,9 +291,15 @@ export default function Cursos() {
         initialData={editCourse||{}}
         onClose={()=>setShowCourseModal(false)}
         onSubmit={async (data,img)=>{
-          if (editCourse) await updateCourse(editCourse.id, data, img);
-          else            await createCourse(data, img);
-          setShowCourseModal(false);
+          const fails = validateCourse(data);
+          if (fails.length) { toast.error(fails.join('\n')); return; }
+
+          try {
+            if (editCourse) await updateCourse(editCourse.id, data, img);
+            else            await createCourse(data, img);
+            toast.success('Curso guardado');
+            setShowCourseModal(false);
+          } catch(e){ toast.error('Error al guardar el curso'); }
         }}
       />
 
@@ -289,6 +319,19 @@ export default function Cursos() {
         onDelete={detailType==='report'
           ? ()=>handleDeleteReport(detailData)
           : undefined}
+      />
+
+      {/* ALERTAS GLOBALES */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3200}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
       />
     </div>
   );

@@ -1,15 +1,31 @@
+// src/paginas/Personal.jsx
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { useNavigate }              from 'react-router-dom';
-import { saveAs }                   from 'file-saver';
-import * as XLSX                    from 'xlsx';          // 👉 directo para export
-import { AuthContext }              from '../contexto/AuthContext';
-import { useParticipants }          from '../utilidades/useParticipants';
+import { useNavigate } from 'react-router-dom';
+import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
+import { toast, ToastContainer } from 'react-toastify';   // 🆕
+import 'react-toastify/dist/ReactToastify.css';           // 🆕 estilos rápidos
+import { AuthContext } from '../contexto/AuthContext';
+import { useParticipants } from '../utilidades/useParticipants';
 import { listToWorkbook, fileToList } from '../utilidades/excelHelpers';
 
-import ParticipantList          from '../componentes/PantallaPersonal/ParticipantList';
-import NewEditParticipantModal  from '../componentes/PantallaPersonal/NewEditParticipantModal';
-import DetailsParticipantModal  from '../componentes/PantallaPersonal/DetailsParticipantModal';
-import DeleteParticipantModal   from '../componentes/PantallaPersonal/DeleteParticipantModal';
+import ParticipantList from '../componentes/PantallaPersonal/ParticipantList';
+import NewEditParticipantModal from '../componentes/PantallaPersonal/NewEditParticipantModal';
+import DetailsParticipantModal from '../componentes/PantallaPersonal/DetailsParticipantModal';
+import DeleteParticipantModal from '../componentes/PantallaPersonal/DeleteParticipantModal';
+
+/* ------------------ VALIDACIÓN REUTILIZABLE ------------------ */
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function validateParticipant(part) {
+  const errs = [];
+  if (!part.nombre?.trim())       errs.push('El nombre es obligatorio');
+  if (!part.apellidos?.trim())    errs.push('Los apellidos son obligatorios');
+  if (!emailRegex.test(part.correo || ''))
+    errs.push('El correo no es válido');
+  if (!part.area?.trim())         errs.push('El área es obligatoria');
+  // agrega más reglas si lo necesitas (teléfono, etc.)
+  return errs;
+}
 
 export default function Personal() {
   const { usuario } = useContext(AuthContext);
@@ -34,6 +50,7 @@ export default function Personal() {
     const wb = listToWorkbook(list);
     const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
     saveAs(new Blob([wbout], { type: 'application/octet-stream' }), fileName);
+    toast.success('Excel exportado');    // 🆕 feedback
   };
 
   const handleImport = async e => {
@@ -41,31 +58,39 @@ export default function Personal() {
     if (!file) return;
     try {
       const rows = await fileToList(file);
+
+      let errores = 0, nuevos = 0, actualizados = 0;
       for (const row of rows) {
-        // *** criterio: correo único, actualiza si existe, crea si no
+        const fails = validateParticipant(row);
+        if (fails.length) { errores++; continue; }
+
         const exists = participants.find(p => p.correo === row.correo);
         if (exists) {
           await updateParticipant(exists.id, row);
+          actualizados++;
         } else {
           await addParticipant(row);
+          nuevos++;
         }
       }
-      alert('Importación completada');
+
+      toast.success(`Importación lista • ${nuevos} nuevos • ${actualizados} actualizados${errores ? ` • ${errores} con error` : ''}`);
+      if (errores) toast.warn('Revisa el archivo, hay filas con datos faltantes o correo inválido');
     } catch (err) {
       console.error(err);
-      alert('Error al importar archivo');
+      toast.error('Error al importar archivo');
     }
     e.target.value = ''; // reset input
   };
 
   /* ---------- export automático mensual ---------- */
   useEffect(() => {
-    if (!participants.length) return;           // nada que exportar
+    if (!participants.length) return;
     const today = new Date();
-    if (today.getDate() !== 1) return;          // solo día 1
+    if (today.getDate() !== 1) return;
     const key = 'lastParticipantExport';
-    const currentKeyVal = `${today.getFullYear()}-${today.getMonth()}`; // ej 2025-4
-    if (localStorage.getItem(key) === currentKeyVal) return; // ya exportado
+    const currentKeyVal = `${today.getFullYear()}-${today.getMonth()}`;
+    if (localStorage.getItem(key) === currentKeyVal) return;
 
     const fileName = `Participantes-${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}.xlsx`;
     exportFile(fileName);
@@ -80,15 +105,26 @@ export default function Personal() {
   const close = ()            =>{ setSelected(null); setModalType(null); };
 
   const handleSubmit = async data => {
+    const fails = validateParticipant(data);
+    if (fails.length) { toast.error(fails.join('\n')); return; }
+
     try {
       if (modalType==='new')  await addParticipant(data);
       if (modalType==='edit') await updateParticipant(selected.id,data);
+      toast.success('Participante guardado');
       close();
-    } catch(err){ alert(err.message); }
+    } catch(err){
+      toast.error(err.message);
+    }
   };
   const handleDelete = async () => {
-    try { await deleteParticipant(selected.id); close(); }
-    catch(err){ alert(err.message); }
+    try {
+      await deleteParticipant(selected.id);
+      toast.info('Participante eliminado');
+      close();
+    } catch(err){
+      toast.error(err.message);
+    }
   };
 
   /* ---------- filtrado y orden ---------- */
@@ -115,7 +151,7 @@ export default function Personal() {
         <h2 className="text-2xl font-semibold">Gestión de Participantes</h2>
 
         <div className="flex flex-wrap gap-3">
-          {/* IMPORTAR ⬇️ */}
+          {/* IMPORTAR */}
           <button
             onClick={()=>importInput.current?.click()}
             className="bg-amber-500 text-white px-4 py-2 rounded hover:bg-amber-600 flex items-center"
@@ -127,7 +163,7 @@ export default function Personal() {
             onChange={handleImport} className="hidden"
           />
 
-          {/* EXPORTAR ⬆️ */}
+          {/* EXPORTAR */}
           <button
             onClick={()=>exportFile()}
             className="bg-teal-500 text-white px-4 py-2 rounded hover:bg-teal-600 flex items-center"
@@ -205,6 +241,19 @@ export default function Personal() {
         participant={selected}
         onCancel={close}
         onConfirm={handleDelete}
+      />
+
+      {/* ALERTAS GLOBAL */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3200}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"   // 🌈 ligero contraste
       />
     </div>
   );

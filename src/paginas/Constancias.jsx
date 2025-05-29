@@ -1,443 +1,792 @@
 // src/paginas/Constancias.jsx
-import React, { useState, useRef } from "react";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import { db } from "../servicios/firebaseConfig";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
-import { useCourses } from '../utilidades/useCourses';
-import EnviarCorreo from '../componentes/EnviarCorreo.jsx';
-import AttendanceModal from '../componentes/AttendanceModal';
+import React, { useState, useEffect, useRef } from 'react';
+import { Rnd } from 'react-rnd';
+import tiny from 'tinycolor2';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import {
+  doc, getDoc, collection, getDocs,
+  query, where, documentId,
+} from 'firebase/firestore';
+import { db } from '@/servicios/firebaseConfig';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { useCourses } from '@/utilidades/useCourses';
+import AttendanceModal from '@/componentes/AttendanceModal';
+import { ToastContainer, toast } from 'react-toastify';
+import { FiLoader } from 'react-icons/fi';
+import 'react-toastify/dist/ReactToastify.css';
+
+// ───────── utilidades ─────────
+const PDF_W = 595, PDF_H = 842;
+const toRGB = hex => { const c = tiny(hex).toRgb(); return rgb(c.r/255,c.g/255,c.b/255); };
+const fechaLarga = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const M = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  return `${d.getDate()} de ${M[d.getMonth()]} de ${d.getFullYear()}`;
+};
+
+// ────────── fuentes ──────────
+const FONT_LOOKUP = {
+  Helvetica: StandardFonts.Helvetica,
+  'Helvetica-Bold': StandardFonts.HelveticaBold,
+  TimesRoman: StandardFonts.TimesRoman,
+  'Times-Bold': StandardFonts.TimesBold,
+  Courier: StandardFonts.Courier,
+};
+const FONT_OPTIONS = Object.keys(FONT_LOOKUP);
+
+// ────────── cajas por defecto ──────────
+const defaultBoxes = {
+  nombre:  { x:98,  y:260, w:400, h:40,  color:'#374151', size:26, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE'  },
+  mensaje: { x:58,  y:320, w:480, h:100, color:'#374151', size:14, bold:false, align:'left',   font:'Helvetica',       preview:'MENSAJE' },
+  fecha:   { x:98,  y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA'   },
+};
+
+// helpers para normalizar los datos
+const getNombreCompleto = (part) => {
+  // Si viene de asistentes, es "nombre", si viene de alumnos, es "Nombres" + "ApellidoP"
+  if (part.Nombres && part.ApellidoP) return `${part.Nombres} ${part.ApellidoP}`.trim();
+  if (part.Nombres) return `${part.Nombres}`.trim();
+  if (part.nombre) return part.nombre.trim();
+  return '';
+};
+
+const getPuesto = (part) => part.Puesto || part.puesto || '';
+const getCursoTitulo = (curso, part) =>
+  curso?.titulo || curso?.cursoNombre || part?.cursoNombre || 'Sin nombre';
+
+const getFechaInicio = (curso, part) =>
+  curso?.fechaInicio || part?.fechaInicio || '';
+const getFechaFin = (curso, part) =>
+  curso?.fechaFin || part?.fechaFin || '';
+
+const wrapText = (text, font, size, maxW) => {
+  const out = [];
+  text.split('\n').forEach(line => {
+    let current = '';
+    line.split(' ').forEach(word => {
+      const probe = current ? `${current} ${word}` : word;
+      const width = font.widthOfTextAtSize(probe, size);
+      if (width > maxW && current) {
+        out.push(current);
+        current = word;
+      } else current = probe;
+    });
+    out.push(current);
+  });
+  return out;
+};
 
 export default function Constancias() {
-  // 1) Cursos disponibles
-  const { courses: cursos } = useCourses();
+  const { courses } = useCourses();
 
-  // 2) Estado de selección y datos
-  const [selectedCurso, setSelectedCurso]             = useState("");
-  const [participantes, setParticipantes]             = useState([]);
-  const [checkedParticipantes, setCheckedParticipantes] = useState({});
-  const [mensajePersonalizado, setMensajePersonalizado] = useState("");
-  const [sendByEmail, setSendByEmail]                 = useState(false);
-  const [plantillaPDF, setPlantillaPDF]               = useState(null);
-  const fileInputRef                                  = useRef(null);
+  // estado
+  const [pdfSize, setPdfSize]             = useState({ w: PDF_W, h: PDF_H });
+  const [plantilla, setPlantilla]         = useState(null);
+  const [plantillaUrl, setPlantillaUrl]   = useState(null);
+  const [cursoId, setCursoId]             = useState('');
+  const [curso, setCurso]                 = useState(null);
+  const [participantes, setParticipantes] = useState([]);
+  const [asistencias, setAsistencias]     = useState([]);
+  const [checkedInit, setCheckedInit]     = useState({});
+  const [cfgMap, setCfgMap]               = useState({});
+  const plantillaKey = plantilla ? `${plantilla.byteLength}` : 'none';
 
-  // 3) Previsualización de PDF
-  const [pdfPreviews, setPdfPreviews]                 = useState([]);
-  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
-  const [loadingPreviews, setLoadingPreviews]         = useState(false);
-  const [progress, setProgress]                       = useState(0);
+  const [activeBox, setActiveBox]         = useState(null);
+  const [panelOpen, setPanelOpen]         = useState(false);
 
-  // 4) Asistencias reales + modal
-  const [asistenciasList, setAsistenciasList]         = useState([]);
-  const [showRealList, setShowRealList]               = useState(false);
-  const [showAttModal, setShowAttModal]               = useState(false);
-  const [selectedAtt, setSelectedAtt]                 = useState(null);
+  const [participantOverrides, setParticipantOverrides] = useState({});
+  const [editId, setEditId]               = useState(null);
+  const [boxesEditing, setBoxesEditing]   = useState(null);
+  const [msgPdfEditing, setMsgPdfEditing] = useState('');
+  const [msgMailEditing, setMsgMailEditing] = useState('');
 
-  // A) Selección de curso
-  const handleSeleccionCurso = async e => {
-    const cursoId = e.target.value;
-    setSelectedCurso(cursoId);
+  const [isPreview, setIsPreview]         = useState(false);
+  const [prevURLs, setPrevURLs]           = useState([]);
+  const [prevIdx, setPrevIdx]             = useState(0);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [loadingZip, setLoadingZip]       = useState(false);
+  const [loadingSend, setLoadingSend]     = useState(false);
 
-    // Cargo el documento de curso
-    const cursoRef = doc(db, "Cursos", cursoId);
-    const snap = await getDoc(cursoRef);
-    if (!snap.exists()) {
-      setParticipantes([]);
-      setCheckedParticipantes({});
-      setAsistenciasList([]);
-      return;
-    }
-    const data = snap.data();
+  const [showAttendance, setShowAttendance] = useState(false);
+  const [attendanceData, setAttendanceData] = useState(null);
 
-    // Cargo participantes iniciales
-    let ids = Array.isArray(data.listas?.[0])
-      ? data.listas[0]
-      : data.listas || [];
-    const alumnosSnap = await getDocs(collection(db, "Alumnos"));
-    const alumnosAll = alumnosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const cursoParts = alumnosAll.filter(a => ids.includes(a.id));
-    setParticipantes(cursoParts);
-    setCheckedParticipantes(
-      cursoParts.reduce((acc, _, i) => ({ ...acc, [i]: true }), {})
-    );
+  const fileRef = useRef(null);
 
-    // Cargo asistencias reales (campo array en el doc)
-    setAsistenciasList(data.asistencias || []);
-  };
+  const notify = (msg, type='info') =>
+    toast[type](msg, { position:'top-right', theme:'colored', autoClose:3000 });
 
-  // B) Subida de plantilla PDF
-  const handlePlantillaUpload = async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const buf = await file.arrayBuffer();
-    if (String.fromCharCode(...new Uint8Array(buf.slice(0,5))) !== '%PDF-') {
-      alert("El archivo no es un PDF válido");
-      return;
-    }
-    setPlantillaPDF(buf);
-  };
+  // Blob URL de plantilla
+  useEffect(() => {
+    if (!plantilla) { setPlantillaUrl(null); return; }
+    const url = URL.createObjectURL(new Blob([plantilla], { type:'application/pdf' }));
+    setPlantillaUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [plantilla]);
 
-  // C) Generar vistas previas
-  const generatePreviewsForSelectedParticipantes = async () => {
-    if (!plantillaPDF) return alert("Sube primero la plantilla");
-    const sel = participantes.filter((_,i) => checkedParticipantes[i]);
-    if (sel.length === 0) return alert("Selecciona al menos un participante");
+  // tamaño real PDF
+  useEffect(() => {
+    if (!plantilla) return;
+    (async () => {
+      const pdf = await PDFDocument.load(plantilla);
+      const page = pdf.getPages()[0];
+      setPdfSize({ w: page.getWidth(), h: page.getHeight() });
+    })();
+  }, [plantilla]);
 
-    setLoadingPreviews(true);
-    setPdfPreviews([]); setCurrentPreviewIndex(0); setProgress(0);
-
-    const blobs = [];
-    for (let i = 0; i < sel.length; i++) {
-      const bytes = await generarPDFpara(sel[i], plantillaPDF, mensajePersonalizado);
-      blobs.push(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })));
-      setProgress(Math.round(((i+1)/sel.length)*100));
-    }
-    setPdfPreviews(blobs);
-    setTimeout(() => setLoadingPreviews(false), 300);
-  };
-
-  // D) Descargar ZIP de constancias
-  const handleGenerarConstancias = async () => {
-    if (!plantillaPDF) return alert("Sube primero la plantilla");
-    const sel = participantes.filter((_,i) => checkedParticipantes[i]);
-    if (sel.length === 0) return alert("Selecciona al menos un participante");
-
-    const zip = new JSZip();
-    for (const p of sel) {
-      const bytes = await generarPDFpara(p, plantillaPDF, mensajePersonalizado);
-      const name = `Constancia_${p.Nombres}_${p.ApellidoP}_${p.ApellidoM}`
-        .replace(/\s+/g,'_')
-        .replace(/[^\w\-\.]/g,'');
-      zip.file(name + '.pdf', bytes);
-    }
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, "Constancias.zip");
-  };
-
-  // E) Función PDF-lib
-  const generarPDFpara = async (participante, pdfTemplate, mensaje) => {
-    const pdfDoc = await PDFDocument.load(pdfTemplate);
-    pdfDoc.registerFontkit(fontkit);
-    const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const page = pdfDoc.getPages()[0];
-    const { width, height } = page.getSize();
-
-    const nombre = `${participante.Nombres} ${participante.ApellidoP} ${participante.ApellidoM}`
-      .trim()
-      .toUpperCase();
-
-    // Dibujo del nombre
-    const sizeName = 24;
-    const nameW = fontBold.widthOfTextAtSize(nombre, sizeName);
-    const xName = (width - nameW)/2.6;
-    const yName = height/2 + 50;
-    page.drawText(nombre, {
-      x: xName, y: yName, size: sizeName,
-      font: fontBold, color: rgb(0.29,0.29,0.29)
-    });
-    page.drawLine({
-      start: { x: xName, y: yName - 4 },
-      end:   { x: xName + nameW, y: yName - 4 },
-      thickness: 1, color: rgb(0.29,0.29,0.29)
-    });
-
-    // Dibujo del mensaje
-    if (mensaje.trim()) {
-      const fontSize = 13.5;
-      const maxW = width * 0.8;
-      const words = mensaje.split(/\s+/);
-      const lines = [];
-      let line = "";
-
-      for (const w of words) {
-        const test = line ? `${line} ${w}` : w;
-        if (fontReg.widthOfTextAtSize(test, fontSize) <= maxW) {
-          line = test;
-        } else {
-          lines.push(line);
-          line = w;
+  // inicializar cfgMap
+  useEffect(() => {
+    if (plantilla && !cfgMap[plantillaKey]) {
+      setCfgMap(m => ({
+        ...m,
+        [plantillaKey]: {
+          boxes: JSON.parse(JSON.stringify(defaultBoxes)),
+          mensajePDF: '',
+          mensajeCorreo: ''
         }
-      }
-      if (line) lines.push(line);
-
-      let cursorY = yName - sizeName - 12;
-      for (const l of lines) {
-        const w = fontReg.widthOfTextAtSize(l, fontSize);
-        const x = (width - w)/2.6;
-        page.drawText(l, {
-          x, y: cursorY,
-          size: fontSize, font: fontReg,
-          color: rgb(0.2,0.2,0.2)
-        });
-        cursorY -= 18.5;
-      }
+      }));
     }
+  }, [plantilla, plantillaKey, cfgMap]);
 
-    return await pdfDoc.save();
+  const cfg   = cfgMap[plantillaKey] || {};
+  const boxes = cfg.boxes    || defaultBoxes;
+
+  // carga curso y listas
+  useEffect(() => {
+    if (!cursoId) {
+      setCurso(null);
+      setParticipantes([]);
+      setAsistencias([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const snap = await getDoc(doc(db,'Cursos',cursoId));
+      if (!alive || !snap.exists()) return;
+      const data = snap.data();
+      setCurso(data);
+
+      // participantes iniciales
+      const ids = Array.isArray(data.listas?.[0]) ? data.listas[0] : (data.listas||[]);
+      let iniciales = [];
+      if (ids.length) {
+        const batches = [];
+        for (let i = 0; i < ids.length; i += 30) batches.push(ids.slice(i, i+30));
+        const qs = await Promise.all(
+          batches.map(b => getDocs(query(collection(db,'Alumnos'), where(documentId(),'in',b))))
+        );
+        iniciales = qs.flatMap(q => q.docs.map(d => ({ id:d.id, ...d.data() })));
+      }
+      if (!alive) return;
+      setParticipantes(iniciales);
+      setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o),{}));
+
+      // asistencias (siempre incluidas)
+      const reales = data.asistencias || [];
+      setAsistencias(reales);
+    })();
+    return () => { alive = false; };
+  }, [cursoId]);
+
+  // mensajes por defecto
+  useEffect(() => {
+    if (!curso || !plantilla) return;
+    const cursoTitulo = getCursoTitulo(curso);
+    const fechaInicio = getFechaInicio(curso);
+    const fechaFin    = getFechaFin(curso);
+    const defPdf  = `Por su participación en “${cursoTitulo}”, del ${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)}.`;
+    const defMail = `Hola {nombre},\n\nAdjunto tu constancia de “${cursoTitulo}”.\n\nSaludos.`;
+    setCfgMap(m => ({
+      ...m,
+      [plantillaKey]: {
+        ...m[plantillaKey],
+        mensajePDF:    m[plantillaKey].mensajePDF || defPdf,
+        mensajeCorreo: m[plantillaKey].mensajeCorreo || defMail
+      }
+    }));
+  }, [curso, plantilla, plantillaKey]);
+
+  // ajustar cajas
+  const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
+  const patchBox = (id, patch, target='template') => {
+    const fix = o => ({
+      ...o,
+      x: clamp(o.x, 0, pdfSize.w-20),
+      y: clamp(o.y, 0, pdfSize.h-20),
+      w: Math.max(40, o.w),
+      h: Math.max(20, o.h)
+    });
+    if (target === 'edit') {
+      setBoxesEditing(b => ({ ...b, [id]: fix({ ...b[id], ...patch }) }));
+    } else {
+      setCfgMap(m => ({
+        ...m,
+        [plantillaKey]: {
+          ...m[plantillaKey],
+          boxes: { ...m[plantillaKey].boxes, [id]: fix({ ...m[plantillaKey].boxes[id], ...patch }) }
+        }
+      }));
+    }
   };
 
-  // F) Helpers UI
-  const prevPreview = () =>
-    setCurrentPreviewIndex(i => Math.max(0, i-1));
-  const nextPreview = () =>
-    setCurrentPreviewIndex(i => Math.min(pdfPreviews.length-1, i+1));
+  // generar PDF (CORREGIDO)
+  const genPDF = async part => {
+    const pdf = await PDFDocument.load(plantilla);
+    pdf.registerFontkit(fontkit);
+    const page = pdf.getPages()[0];
 
-  // Render
+    const ov = participantOverrides[part.id] || {};
+    const bx = ov.boxes || boxes;
+    const textoPDF = ov.msgPdf ?? cfg.mensajePDF;
+
+    const nombre = getNombreCompleto(part).toUpperCase();
+    const puesto = getPuesto(part);
+    const cursoTitulo = getCursoTitulo(curso, part);
+    const fechaInicio = getFechaInicio(curso, part);
+    const fechaFin = getFechaFin(curso, part);
+
+    for (const [key, cfgBox] of Object.entries(bx)) {
+      let texto = '';
+      if (key === 'nombre') texto = nombre;
+      else if (key === 'mensaje') {
+        texto = (textoPDF || '')
+          .replace('{nombre}', nombre)
+          .replace('{curso}', cursoTitulo)
+          .replace('{puesto}', puesto)
+          .replace('{fechainicio}', fechaLarga(fechaInicio))
+          .replace('{fechafin}', fechaLarga(fechaFin));
+        if (!texto || texto.includes('{')) {
+          // fallback
+          texto = `Por su participación en “${cursoTitulo}”, del ${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)}.`;
+        }
+      } else if (key === 'fecha') texto = fechaLarga(fechaFin);
+
+      const font  = await pdf.embedFont(FONT_LOOKUP[cfgBox.font] || StandardFonts.Helvetica);
+      const color = toRGB(cfgBox.color);
+      const size  = cfgBox.size;
+      const maxW  = cfgBox.w;
+      let   y     = page.getHeight() - cfgBox.y - size;
+
+      const lines = wrapText(texto, font, size, maxW);
+      lines.forEach(line => {
+        const width = font.widthOfTextAtSize(line, size);
+        let x = cfgBox.x;
+        if (cfgBox.align === 'center') x += (maxW - width) / 2;
+        else if (cfgBox.align === 'right') x += maxW - width;
+        else if (cfgBox.align === 'justify') {
+          const words = line.split(' ');
+          const tot = words.map(w=>font.widthOfTextAtSize(w,size)).reduce((a,b)=>a+b,0);
+          const extra = (maxW - tot)/(words.length-1||1);
+          let xj = cfgBox.x;
+          words.forEach(w => {
+            page.drawText(w, { x:xj, y, size, font, color });
+            xj += font.widthOfTextAtSize(w,size) + extra;
+          });
+          y -= size + 2;
+          return;
+        }
+        page.drawText(line, { x, y, size, font, color });
+        y -= size + 2;
+      });
+    }
+    return pdf.save();
+  };
+  const blobUrl = buf => URL.createObjectURL(new Blob([buf],{ type:'application/pdf' }));
+
+  // selecciones
+  const selInit = participantes.filter((_,i)=>checkedInit[i]);
+  const selReal = asistencias; // todos siempre incluidos
+  const sel     = [...selInit, ...selReal];
+
+  // acciones
+  const handlePreview = async () => {
+    if (!plantilla)  return notify('Sube una plantilla PDF','warning');
+    if (!sel.length) return notify('Selecciona participantes','warning');
+    setLoadingPreview(true);
+    try {
+      const bufs = await Promise.all(sel.map(genPDF));
+      prevURLs.forEach(URL.revokeObjectURL);
+      setPrevURLs(bufs.map(blobUrl));
+      setPrevIdx(0);
+      setIsPreview(true);
+    } catch {
+      notify('Error generando vista previa','error');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleZip = async () => {
+    if (!plantilla)  return notify('Sube una plantilla PDF','warning');
+    if (!sel.length) return notify('Selecciona participantes','warning');
+    setLoadingZip(true);
+    try {
+      const zip = new JSZip();
+      for (const p of sel) {
+        const buf = await genPDF(p);
+        const nm  = getNombreCompleto(p).replace(/\s+/g,'_');
+        zip.file(`Constancia_${getCursoTitulo(curso,p)}_${nm}.pdf`, buf);
+      }
+      saveAs(await zip.generateAsync({ type:'blob' }), `Constancias_${getCursoTitulo(curso)}.zip`);
+    } catch {
+      notify('Error creando ZIP','error');
+    } finally {
+      setLoadingZip(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!plantilla)  return notify('Sube una plantilla PDF','warning');
+    if (!sel.length) return notify('Selecciona participantes','warning');
+    setLoadingSend(true);
+    try {
+      for (const p of sel) {
+        const buf = await genPDF(p);
+        const nombre = getNombreCompleto(p);
+        const payload = {
+          Correo: p.correo||p.email,
+          Nombres: nombre,
+          Puesto: getCursoTitulo(curso,p),
+          pdf: Buffer.from(buf).toString('base64'),
+          mensajeCorreo: (participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo)
+                           .replace('{nombre}', nombre)
+        };
+        const res = await fetch('/EnviarCorreo',{
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body:JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error();
+      }
+      notify('Correos enviados','success');
+    } catch {
+      notify('Error enviando correos','error');
+    } finally {
+      setLoadingSend(false);
+    }
+  };
+
+  // toggle inicial
+  const toggleInit = i =>
+    setCheckedInit(o => ({ ...o, [i]: !o[i] }));
+
   return (
-    <div className="flex h-full">
-
-      {/* PANEL IZQUIERDO */}
-      <div className="w-[400px] min-w-[320px] bg-gray-50 p-5 overflow-y-auto flex flex-col">
-
-        {/* Plantilla PDF */}
-        <div className="space-y-4 mb-6">
-          <h3 className="flex justify-between items-center text-lg font-medium text-gray-800">
-            <span>Plantilla PDF</span>
-            <button
-              onClick={generatePreviewsForSelectedParticipantes}
-              className="inline-flex items-center text-green-600 hover:text-green-800"
-            >
-              {/* icono recargar */}
-              <svg className="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-              </svg>
-              Recargar
-            </button>
-          </h3>
+    <div className="h-full flex bg-gray-50">
+      {/* SIDEBAR */}
+      <aside className="w-72 p-4 bg-white shadow space-y-6 overflow-auto">
+        {/* plantilla */}
+        <div>
+          <h4 className="font-semibold mb-2">Plantilla PDF</h4>
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            {plantillaPDF ? "Plantilla cargada" : "Cargar Plantilla"}
-          </button>
+            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
+            onClick={()=>fileRef.current?.click()}
+          >{plantilla?'Cambiar plantilla':'Subir plantilla'}</button>
           <input
-            type="file" accept=".pdf"
-            ref={fileInputRef}
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
             className="hidden"
-            onChange={handlePlantillaUpload}
+            onChange={async e=>{
+              const f = e.target.files?.[0]; e.target.value = '';
+              if (!f) return;
+              try { setPlantilla(await f.arrayBuffer()); setIsPreview(false); }
+              catch { notify('No se pudo abrir el PDF','error'); }
+            }}
           />
         </div>
 
-        {/* Selector de Evento */}
-        <div className="space-y-4 mb-6">
-          <h3 className="text-lg font-medium text-gray-800">Seleccionar Evento</h3>
+        {/* evento */}
+        <div>
+          <h4 className="font-semibold mb-2">Seleccionar Evento</h4>
           <select
-            value={selectedCurso}
-            onChange={handleSeleccionCurso}
-            className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 border rounded"
+            value={cursoId}
+            onChange={e=>{ setCursoId(e.target.value); setIsPreview(false); }}
           >
-            <option value="" disabled hidden>Seleccionar</option>
-            {cursos.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.titulo || "Sin título"}
-              </option>
-            ))}
+            <option value="">-- Elige --</option>
+            {courses.map(c=> <option key={c.id} value={c.id}>{c.titulo || c.cursoNombre}</option> )}
           </select>
         </div>
 
-        {/* Toggle Listas */}
-        <div className="mb-4">
-          <button
-            onClick={() => setShowRealList(s => !s)}
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            {showRealList
-              ? "Ver Participantes Iniciales"
-              : "Ver Asistencias Registradas"}
-          </button>
-        </div>
-
-        {/* TABLA SIEMPRE VISIBLE */}
-        <div className="mb-6">
-          <h4 className="text-md font-semibold text-gray-700 mb-2">
-            {showRealList ? "Asistencias Registradas" : "Participantes (inicial)"}
-          </h4>
-          <div className="max-h-40 overflow-y-auto border rounded">
-            <table className="min-w-full text-sm text-left">
-              <thead className="bg-purple-200 text-purple-800">
+        {/* participantes iniciales */}
+        <div>
+          <h4 className="font-semibold mb-1">Participantes Iniciales</h4>
+          <div className="border rounded max-h-40 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-200">
                 <tr>
-                  {!showRealList && <th className="px-4 py-2">Sel</th>}
-                  <th className="px-4 py-2">Nombre</th>
-                  <th className="px-4 py-2">Puesto</th>
-                  {showRealList && <th className="px-4 py-2">Acción</th>}
+                  <th className="w-8 p-2">Sel</th>
+                  <th className="p-2">Nombre</th>
+                  <th className="p-2">Puesto</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {showRealList
-                  ? (
-                    asistenciasList.map((a, idx) => {
-                      const date = a.timestamp?.toDate
-                        ? a.timestamp.toDate()
-                        : new Date(a.timestamp);
-                      return (
-                        <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-2">
-                            {a.nombre}
-                          </td>
-                          <td className="px-4 py-2">
-                            {a.puesto}
-                          </td>
-                       
-<td className="px-4 py-2">
-  <button
-    onClick={() => { setSelectedAtt(a); setShowAttModal(true); }}
-    className="
-      inline-flex items-center space-x-1
-      px-2 py-1
-      text-xs font-medium
-      text-blue-600
-      border border-blue-600
-      rounded-md
-      hover:bg-blue-600 hover:text-white
-      transition-colors duration-150
-    "
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none"
-         viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round"
-            d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-    <span>Ver detalles</span>
-  </button>
-</td>
-
-
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    participantes.map((p,i) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">
-                          <input
-                            type="checkbox"
-                            checked={!!checkedParticipantes[i]}
-                            onChange={() =>
-                              setCheckedParticipantes(old => ({
-                                ...old, [i]: !old[i]
-                              }))
-                            }
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          {p.Nombres} {p.ApellidoP} {p.ApellidoM}
-                        </td>
-                        <td className="px-4 py-2">
-                          {p.Puesto}
-                        </td>
-                      </tr>
-                    ))
-                  )
-                }
-                {/* fila placeholder si no hay datos */}
-                {!showRealList && participantes.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-2 text-center text-gray-500">
-                      Selecciona un evento para ver participantes
+              <tbody>
+                {participantes.map((p,i)=>(
+                  <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
+                    <td className="text-center p-2">
+                      <input
+                        type="checkbox"
+                        checked={checkedInit[i]||false}
+                        onChange={()=>toggleInit(i)}
+                      />
                     </td>
-                  </tr>
-                )}
-                {showRealList && asistenciasList.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-2 text-center text-gray-500">
-                      No hay asistencias registradas
+                    <td className="p-2 break-words">
+                      {getNombreCompleto(p)}
                     </td>
+                    <td className="p-2 break-words">{getPuesto(p)}</td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Mensaje personalizado */}
-        <div className="space-y-2 mb-6">
-          <h3 className="text-lg font-medium text-gray-800">
-            Mensaje personalizado
-          </h3>
+        {/* asistencias (siempre marcadas) */}
+        <div>
+          <h4 className="font-semibold mb-1">Asistencias Registradas</h4>
+          <div className="border rounded max-h-40 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-200">
+                <tr>
+                  <th className="w-8 p-2">Sel</th>
+                  <th className="p-2">Nombre</th>
+                  <th className="p-2">Puesto</th>
+                  <th className="p-2">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {asistencias.map((p,i)=>(
+                  <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
+                    <td className="text-center p-2">
+                      <input type="checkbox" checked disabled />
+                    </td>
+                    <td className="p-2 break-words">
+                      {getNombreCompleto(p)}
+                    </td>
+                    <td className="p-2 break-words">{getPuesto(p)}</td>
+                    <td className="text-center p-2">
+                      <button
+                        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+                        onClick={()=>{ setAttendanceData(p); setShowAttendance(true); }}
+                      >Detalles</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* mensajes */}
+        <div>
+          <h4 className="font-semibold mb-1">Mensaje PDF</h4>
           <textarea
-            rows="4"
-            className="w-full p-3 border rounded resize-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Mensaje para el PDF…"
-            value={mensajePersonalizado}
-            onChange={e => setMensajePersonalizado(e.target.value)}
+            rows={3}
+            className="w-full p-2 border rounded"
+            value={cfg.mensajePDF}
+            onChange={e=>setCfgMap(m=>({
+              ...m,
+              [plantillaKey]:{...m[plantillaKey], mensajePDF:e.target.value}
+            }))}
+          />
+        </div>
+        <div>
+          <h4 className="font-semibold mb-1">Mensaje Correo</h4>
+          <textarea
+            rows={3}
+            className="w-full p-2 border rounded"
+            value={cfg.mensajeCorreo}
+            onChange={e=>setCfgMap(m=>({
+              ...m,
+              [plantillaKey]:{...m[plantillaKey], mensajeCorreo:e.target.value}
+            }))}
           />
         </div>
 
-        {/* Enviar por correo */}
-        <div className="flex items-center mb-6 space-x-2">
-          <input
-            type="checkbox"
-            className="form-checkbox text-blue-600"
-            checked={sendByEmail}
-            onChange={() => setSendByEmail(s => !s)}
-          />
-          <label className="text-gray-700 select-none">Enviar por correo</label>
-          {sendByEmail && (
-            <EnviarCorreo
-              participantes={participantes.filter((_, i) => checkedParticipantes[i])}
-              plantillaPDF={plantillaPDF}
-              mensajePersonalizado={mensajePersonalizado}
-              onClose={() => setSendByEmail(false)}
+        {/* acciones */}
+        <div className="space-y-2">
+          <button
+            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded flex justify-center items-center"
+            onClick={handlePreview}
+            disabled={loadingPreview}
+          >
+            {loadingPreview && <FiLoader className="animate-spin mr-2"/>}
+            Generar constancias
+          </button>
+          <button
+            className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded flex justify-center items-center"
+            onClick={handleZip}
+            disabled={loadingZip}
+          >
+            {loadingZip&&<FiLoader className="animate-spin mr-2"/>}
+            Descargar ZIP
+          </button>
+          <button
+            className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded flex justify-center items-center"
+            onClick={handleSend}
+            disabled={loadingSend}
+          >
+            {loadingSend&&<FiLoader className="animate-spin mr-2"/>}
+            Enviar por correo
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <main className="flex-1 p-4 overflow-auto relative">
+        {!plantillaUrl && (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            Sube una plantilla PDF para comenzar
+          </div>
+        )}
+
+        {/* editor de plantilla */}
+        {!isPreview && !editId && plantillaUrl && (
+          <div
+            className="mx-auto bg-white shadow relative"
+            style={{ width: pdfSize.w, height: pdfSize.h }}
+            onClick={()=>{ setActiveBox(null); setPanelOpen(false); }}
+          >
+            <object
+              data={`${plantillaUrl}#toolbar=0`}
+              type="application/pdf"
+              width={pdfSize.w}
+              height={pdfSize.h}
+              className="pointer-events-none absolute top-0 left-0"
             />
-          )}
-        </div>
-
-        {/* Botón Generar Constancias */}
-        <button
-          onClick={handleGenerarConstancias}
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition"
-        >
-          Generar Constancias
-        </button>
-      </div>
-
-      {/* PANEL DERECHO: Previews */}
-      <div className="flex-1 bg-gray-100 p-5 flex flex-col">
-        {pdfPreviews.length > 0 && (
-          <div className="flex justify-center items-center mb-4 space-x-4">
-            <button
-              onClick={prevPreview}
-              disabled={currentPreviewIndex === 0}
-              className="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
-            >
-              ← Anterior
-            </button>
-            <span className="font-medium text-gray-700">
-              {currentPreviewIndex + 1} / {pdfPreviews.length}
-            </span>
-            <button
-              onClick={nextPreview}
-              disabled={currentPreviewIndex === pdfPreviews.length - 1}
-              className="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
-            >
-              Siguiente →
-            </button>
+            {Object.entries(boxes).map(([id,cfg])=>(
+              <Rnd
+                key={id}
+                bounds="parent"
+                position={{ x:cfg.x, y:cfg.y }}
+                size={{ width:cfg.w, height:cfg.h }}
+                onDragStop={(_,d)=>patchBox(id,{ x:d.x, y:d.y })}
+                onResizeStop={(_,__,r)=>patchBox(id,{ w:r.offsetWidth, h:r.offsetHeight })}
+                lockAspectRatio={id==='nombre'}
+                grid={[4,4]}
+                style={{
+                  border: activeBox===id?'2px dashed #2563eb':'none',
+                  cursor:'move',
+                  position:'absolute'
+                }}
+                onClick={e=>{ e.stopPropagation(); setActiveBox(id); setPanelOpen(true); }}
+              >
+                <div className="w-full h-full overflow-hidden break-all whitespace-pre-wrap"
+                  style={{
+                    fontFamily: cfg.font,
+                    fontSize: cfg.size,
+                    fontWeight: cfg.bold?700:400,
+                    color: cfg.color,
+                    textAlign: cfg.align==='justify'? 'justify' : cfg.align
+                  }}
+                >{cfg.preview}</div>
+              </Rnd>
+            ))}
           </div>
         )}
 
-        {pdfPreviews.length > 0 ? (
-          <iframe
-            src={pdfPreviews[currentPreviewIndex]}
-            className="flex-1 border rounded"
-            title="Vista previa PDF"
-          />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            Aquí aparecerá la vista previa…
+        {/* edición individual */}
+        {!isPreview && editId && boxesEditing && plantillaUrl && (
+          <>
+            {/* encabezado */}
+            <div className="text-center font-semibold mb-2">
+              Editando:&nbsp;
+              {getNombreCompleto(participantes.find(p=>p.id===editId) || asistencias.find(a=>a.id===editId) || {})}
+            </div>
+            {/* lienzo movible */}
+            <div
+              className="mx-auto bg-white shadow relative"
+              style={{ width: pdfSize.w, height: pdfSize.h }}
+              onClick={()=>{ setActiveBox(null); setPanelOpen(false); }}
+            >
+              <object
+                data={`${plantillaUrl}#toolbar=0`}
+                type="application/pdf"
+                width={pdfSize.w}
+                height={pdfSize.h}
+                className="pointer-events-none absolute top-0 left-0"
+              />
+              {Object.entries(boxesEditing).map(([id,cfg])=>(
+                <Rnd
+                  key={id}
+                  bounds="parent"
+                  position={{ x:cfg.x, y:cfg.y }}
+                  size={{ width:cfg.w, height:cfg.h }}
+                  onDragStop={(_,d)=>patchBox(id,{ x:d.x, y:d.y },'edit')}
+                  onResizeStop={(_,__,r)=>patchBox(id,{ w:r.offsetWidth, h:r.offsetHeight },'edit')}
+                  lockAspectRatio={id==='nombre'}
+                  grid={[4,4]}
+                  style={{
+                    border: activeBox===id?'2px dashed #2563eb':'none',
+                    cursor:'move',
+                    position:'absolute'
+                  }}
+                  onClick={e=>{ e.stopPropagation(); setActiveBox(id); setPanelOpen(true); }}
+                >
+                  <div className="w-full h-full overflow-hidden break-all whitespace-pre-wrap"
+                    style={{
+                      fontFamily: cfg.font,
+                      fontSize: cfg.size,
+                      fontWeight: cfg.bold?700:400,
+                      color: cfg.color,
+                      textAlign: cfg.align==='justify'? 'justify' : cfg.align
+                    }}
+                  >{cfg.preview}</div>
+                </Rnd>
+              ))}
+            </div>
+            {/* botones */}
+            <div className="flex justify-center gap-4 mt-4">
+              <button
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
+                onClick={async ()=>{
+                  setParticipantOverrides(o=>({
+                    ...o,
+                    [editId]: {
+                      boxes: boxesEditing,
+                      msgPdf: msgPdfEditing,
+                      msgMail: msgMailEditing
+                    }
+                  }));
+                  setEditId(null);
+                  setBoxesEditing(null);
+                  setPanelOpen(false);
+                  await handlePreview();
+                }}
+              >Guardar</button>
+              <button
+                className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded"
+                onClick={()=>{
+                  setEditId(null);
+                  setBoxesEditing(null);
+                  setPanelOpen(false);
+                }}
+              >Cancelar</button>
+            </div>
+            {/* mensajes específicos */}
+            <div className="max-w-lg mx-auto mt-4 space-y-2">
+              <textarea
+                rows={3}
+                className="w-full p-2 border rounded"
+                placeholder="Mensaje PDF específico"
+                value={msgPdfEditing}
+                onChange={e=>setMsgPdfEditing(e.target.value)}
+              />
+              <textarea
+                rows={3}
+                className="w-full p-2 border rounded"
+                placeholder="Mensaje Correo específico"
+                value={msgMailEditing}
+                onChange={e=>setMsgMailEditing(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
+        {/* preview carrusel */}
+        {isPreview && prevURLs.length>0 && (
+          <div className="mx-auto">
+            <div className="flex justify-center items-center gap-4 mb-2">
+              <button
+                disabled={prevIdx===0}
+                className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-40"
+                onClick={()=>setPrevIdx(i=>i-1)}
+              >← Anterior</button>
+              <span>{prevIdx+1}/{prevURLs.length}</span>
+              <button
+                disabled={prevIdx===prevURLs.length-1}
+                className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-40"
+                onClick={()=>setPrevIdx(i=>i+1)}
+              >Siguiente →</button>
+            </div>
+            <iframe
+              src={prevURLs[prevIdx]}
+              title="prev"
+              className="w-full bg-gray-50"
+              style={{ height: pdfSize.h }}
+            />
+            <div className="flex justify-center mt-3">
+              <button
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded"
+                onClick={()=>{
+                  const p = sel[prevIdx];
+                  setBoxesEditing(JSON.parse(JSON.stringify(participantOverrides[p.id]?.boxes||boxes)));
+                  setMsgPdfEditing(participantOverrides[p.id]?.msgPdf||cfg.mensajePDF);
+                  setMsgMailEditing(participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo);
+                  setEditId(p.id);
+                  setIsPreview(false);
+                }}
+              >Editar esta constancia</button>
+            </div>
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Modal de asistencia real */}
-      {showAttModal && (
+      {/* panel propiedades */}
+      {panelOpen && activeBox && (() => {
+        const editing = Boolean(editId);
+        const boxCfg  = editing ? boxesEditing[activeBox] : boxes[activeBox];
+        const tgt     = editing ? 'edit' : 'template';
+        return (
+          <aside className="fixed top-0 right-0 w-64 h-full bg-white border-l shadow-lg p-4 overflow-auto z-20">
+            <h4 className="font-semibold mb-2">Propiedades “{activeBox}”</h4>
+            <label className="block text-xs">Tamaño</label>
+            <input
+              type="number" min={6} max={60}
+              value={boxCfg.size}
+              onChange={e=>patchBox(activeBox,{ size:+e.target.value }, tgt)}
+              className="w-full p-1 border rounded text-sm"
+            />
+            <label className="block text-xs mt-2">Color</label>
+            <input
+              type="color"
+              value={boxCfg.color}
+              onChange={e=>patchBox(activeBox,{ color:e.target.value }, tgt)}
+              className="w-full h-8 p-0"
+            />
+            <label className="block text-xs mt-2">Fuente</label>
+            <select
+              value={boxCfg.font}
+              onChange={e=>patchBox(activeBox,{ font:e.target.value }, tgt)}
+              className="w-full p-1 border rounded text-sm"
+            >
+              {FONT_OPTIONS.map(f=> <option key={f} value={f}>{f}</option>)}
+            </select>
+            <label className="block text-xs mt-2">Alineado</label>
+            <select
+              value={boxCfg.align}
+              onChange={e=>patchBox(activeBox,{ align:e.target.value }, tgt)}
+              className="w-full p-1 border rounded text-sm"
+            >
+              {['left','center','right','justify'].map(a=> <option key={a} value={a}>{a}</option>)}
+            </select>
+            <label className="inline-flex items-center mt-2 text-sm">
+              <input
+                type="checkbox"
+                checked={boxCfg.bold}
+                onChange={e=>patchBox(activeBox,{ bold:e.target.checked }, tgt)}
+              />
+              <span className="ml-2">Negritas</span>
+            </label>
+            <button
+              className="w-full mt-4 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+              onClick={()=>{ setPanelOpen(false); setActiveBox(null); }}
+            >Cerrar</button>
+          </aside>
+        );
+      })()}
+
+      {/* modal asistencia */}
+      {showAttendance && (
         <AttendanceModal
-          asistencia={selectedAtt}
-          onClose={() => setShowAttModal(false)}
+          asistencia={attendanceData}
+          onClose={()=>setShowAttendance(false)}
         />
       )}
+
+      <ToastContainer/>
     </div>
   );
 }
