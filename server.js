@@ -1,4 +1,4 @@
-// server/index.js ─ ejemplo compacto
+// server.js
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -13,23 +13,27 @@ const __dirname  = path.dirname(__filename);
 const app  = express();
 const port = process.env.PORT || 3000;
 
-// middlewares
+// ───────── middlewares ─────────
 app.use(cors());
-app.use(bodyParser.json({ limit: '25mb' }));   // ↑ un poco más por si acaso
+app.use(bodyParser.json({ limit: '25mb' }));
 
-/* ───────── Mailjet API client ───────── */
+// ───────── Mailjet API client ─────────
 const mailjet = Mailjet.apiConnect(
   process.env.MJ_API_KEY    || '***dev_key***',
   process.env.MJ_API_SECRET || '***dev_secret***'
 );
 
-/* ───────── util ───────── */
+// ───────── util ─────────
 function registrarEnvio(Correo, Nombres, Puesto) {
-  const line = JSON.stringify({ Correo, Nombres, Puesto, fecha: new Date().toISOString() });
-  fs.appendFileSync(path.join(__dirname, 'envios.log'), line + '\n', 'utf8');
+  const entrada = { Correo, Nombres, Puesto, fecha: new Date().toISOString() };
+  fs.appendFileSync(
+    path.join(__dirname, 'envios.log'),
+    JSON.stringify(entrada) + '\n',
+    'utf8'
+  );
 }
 
-/* ───────── endpoint ───────── */
+// ───────── endpoint: enviar correo ─────────
 app.post('/EnviarCorreo', async (req, res) => {
   try {
     const { Correo, Nombres, Puesto, pdf, mensajeCorreo } = req.body;
@@ -41,14 +45,20 @@ app.post('/EnviarCorreo', async (req, res) => {
       .post('send', { version: 'v3.1' })
       .request({
         Messages: [{
-          From:    { Email: 'ConstanciasISCITSPP@outlook.com', Name: 'Constancias ISC-ITSPP' },
-          To:      [{ Email: Correo, Name: Nombres }],
-          Subject: 'Tu constancia de participación',
+          From: {
+            Email: 'ConstanciasISCITSPP@outlook.com',
+            Name:  'Constancias ISC-ITSPP'
+          },
+          To: [{
+            Email: Correo,
+            Name:  Nombres
+          }],
+          Subject:  'Tu constancia de participación',
           TextPart: `Hola ${Nombres},\n\n${mensajeCorreo}\n\n¡Gracias por tu participación!`,
           Attachments: [{
-            ContentType: 'application/pdf',
-            Filename:    `Constancia_${Puesto.replace(/\s/g,'_')}_${Nombres.replace(/\s/g,'_')}.pdf`,
-            Base64Content: pdf               // ya viene base-64 desde el front
+            ContentType:   'application/pdf',
+            Filename:      `Constancia_${Puesto.replace(/\s/g,'_')}_${Nombres.replace(/\s/g,'_')}.pdf`,
+            Base64Content: pdf
           }]
         }]
       });
@@ -61,8 +71,16 @@ app.post('/EnviarCorreo', async (req, res) => {
   }
 });
 
-/* ───────── static + fallback ───────── */
-app.use(express.static(path.join(__dirname, 'dist')));
-app.get('*', (_, res) => res.sendFile(path.join(__dirname,'dist','index.html')));
+// ───────── servir el build de Vite ─────────
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
 
-app.listen(port, () => console.log(`Servidor listo en ${port}`));
+// ───────── fallback para SPA (¡sin usar path-to-regexp!) ─────────
+app.use((req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+// ───────── arranque ─────────
+app.listen(port, () => {
+  console.log(`Servidor listo en ${port}`);
+});

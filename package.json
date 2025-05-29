@@ -26,7 +26,6 @@
     "jspdf": "^3.0.1",
     "jszip": "^3.10.1",
     "node-mailjet": "^6.0.8",
-    "nodemailer": "^7.0.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "prop-types": "^15.8.1",
