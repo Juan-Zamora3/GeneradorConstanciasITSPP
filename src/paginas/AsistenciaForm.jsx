@@ -1,4 +1,3 @@
-// src/paginas/AsistenciaForm.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
@@ -9,13 +8,22 @@ import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import fondo from '@/assets/FondoAPP.png';
-import { FiUser, FiBriefcase, FiCamera } from 'react-icons/fi';  // 🆕 íconos
+import { FiUser, FiBriefcase, FiCamera } from 'react-icons/fi';
 
-// Helpers (igual que antes)
-const normalize = str => str.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g,' ').trim();
-function levenshtein(a, b) { /* … */ }
+// Helpers de normalización y distancia Levenshtein
+const normalize = str =>
+  str.toLowerCase()
+     .normalize('NFD')
+     .replace(/\p{Diacritic}/gu, '')
+     .replace(/\s+/g, ' ')
+     .trim();
 
-// Validación
+// Implementa o importa tu propia versión de Levenshtein
+function levenshtein(a, b) { 
+  // … tu implementación aquí …
+}
+
+// Validación del formulario
 function validateForm({ nombre, puesto, foto }) {
   const errs = [];
   if (!nombre.trim() || nombre.trim().length < 5)
@@ -35,7 +43,7 @@ export default function AsistenciaForm() {
   const [sending, setSending] = useState(false);
   const [done, setDone]       = useState(false);
 
-  // Carga curso
+  // Carga datos del curso
   useEffect(() => {
     getDoc(doc(db, 'Cursos', cursoId))
       .then(snap => snap.exists() ? setCurso(snap.data()) : setCurso({ error: 'Curso no encontrado' }))
@@ -45,71 +53,73 @@ export default function AsistenciaForm() {
   const onChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
   const onFile   = e => setForm(f => ({ ...f, foto: e.target.files[0] }));
 
-  
-const submit = async e => {
-  e.preventDefault();
-  const fails = validateForm(form);
-  if (fails.length) { toast.error(fails.join('\n')); return; }
-  if (!curso || curso.error) { toast.error(curso?.error || 'Error al cargar curso'); return; }
+  const submit = async e => {
+    e.preventDefault();
+    const fails = validateForm(form);
+    if (fails.length) { toast.error(fails.join('\n')); return; }
+    if (!curso || curso.error) { toast.error(curso?.error || 'Error al cargar curso'); return; }
 
-  // comprueba que el curso no esté ya cerrado
-  const hoy = new Date();
-  const fin = new Date(curso.fechaFin + 'T23:59:59');
-  if (hoy > fin) { toast.warn('El registro ya no está disponible (curso finalizado).'); return; }
+    // Comprueba que el curso no esté cerrado
+    const hoy = new Date();
+    const fin = new Date(curso.fechaFin + 'T23:59:59');
+    if (hoy > fin) { toast.warn('El registro ya no está disponible (curso finalizado).'); return; }
 
-  setSending(true);
-  try {
-    // 1) Busca qué ID de alumno en curso.listas coincide con el nombre
-    const ids = curso.listas || [];
-    let matchedId = null;
-    for (const id of ids) {
-      const snapA = await getDoc(doc(db, 'Alumnos', id));
-      if (!snapA.exists()) continue;
-      const dataA = snapA.data();
-      const full  = `${dataA.Nombres} ${dataA.ApellidoP} ${dataA.ApellidoM}`;
-      if (levenshtein(normalize(full), normalize(form.nombre)) <= 2) {
-        matchedId = id;
-        break;
+    setSending(true);
+    try {
+      // 1) Busca el ID de alumno cuyo nombre coincida
+      const ids = curso.listas || [];
+      let matchedId = null;
+      for (const id of ids) {
+        const snapA = await getDoc(doc(db, 'Alumnos', id));
+        if (!snapA.exists()) continue;
+        const dataA = snapA.data();
+        // Monta el nombre completo sólo con campos existentes
+        const full = [dataA.Nombres, dataA.ApellidoP, dataA.ApellidoM]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        if (levenshtein(normalize(full), normalize(form.nombre)) <= 2) {
+          matchedId = id;
+          break;
+        }
       }
+      if (!matchedId) {
+        toast.error('Tu nombre no coincide con la lista de este curso.');
+        return;
+      }
+
+      // 2) Recupera datos del alumno
+      const snapAlumno = await getDoc(doc(db, 'Alumnos', matchedId));
+      const alumno     = snapAlumno.exists() ? snapAlumno.data() : {};
+
+      // 3) Sube la foto
+      const imgRef  = ref(storage, `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`);
+      await uploadBytes(imgRef, form.foto);
+      const fotoURL = await getDownloadURL(imgRef);
+
+      // 4) Guarda asistencia en Cursos/{cursoId}.asistencias
+      await updateDoc(doc(db, 'Cursos', cursoId), {
+        asistencias: arrayUnion({
+          id:        matchedId,
+          Nombres:   alumno.Nombres   || '',
+          ApellidoP: alumno.ApellidoP || '',
+          ApellidoM: alumno.ApellidoM || '',
+          correo:    alumno.Correo     || alumno.email || '',
+          puesto:    form.puesto,
+          fotoURL,
+          timestamp: new Date()
+        })
+      });
+
+      toast.success('¡Asistencia registrada!');
+      setDone(true);
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al guardar asistencia');
+    } finally {
+      setSending(false);
     }
-    if (!matchedId) {
-      toast.error('Tu nombre no coincide con la lista de este curso.');
-      return;
-    }
-
-    // 2) Trae el correo del alumno para guardarlo
-    const snapAlumno = await getDoc(doc(db, 'Alumnos', matchedId));
-    const alumno     = snapAlumno.exists() ? snapAlumno.data() : {};
-
-    // 3) Sube la foto
-    const imgRef  = ref(storage, `asistencias/${cursoId}/${Date.now()}_${form.foto.name}`);
-    await uploadBytes(imgRef, form.foto);
-    const fotoURL = await getDownloadURL(imgRef);
-
-    // 4) Guarda en Cursos/{cursoId}.asistencias
-    await updateDoc(doc(db, 'Cursos', cursoId), {
-      asistencias: arrayUnion({
-        id:        matchedId,
-        Nombres:   alumno.Nombres,
-        ApellidoP: alumno.ApellidoP,
-        ApellidoM: alumno.ApellidoM,
-        correo:    alumno.Correo || alumno.email,
-        puesto:    form.puesto,
-        fotoURL,
-        timestamp: new Date()
-      })
-    });
-
-    toast.success('¡Asistencia registrada!');
-    setDone(true);
-
-  } catch (err) {
-    console.error(err);
-    toast.error('Error al guardar asistencia');
-  } finally {
-    setSending(false);
-  }
-};
+  };
 
   // Estados de carga y error
   if (!curso) return <p className="p-6 text-center text-gray-600">Cargando curso…</p>;
@@ -124,7 +134,9 @@ const submit = async e => {
       >
         <div className="bg-white bg-opacity-90 backdrop-blur-md shadow-2xl rounded-2xl p-8 max-w-sm text-center space-y-4">
           <h2 className="text-3xl font-extrabold text-blue-600">¡Listo!</h2>
-          <p className="text-gray-700">Gracias por participar en <span className="font-semibold">“{curso.cursoNombre}”</span></p>
+          <p className="text-gray-700">
+            Gracias por participar en <span className="font-semibold">“{curso.cursoNombre}”</span>
+          </p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-shadow shadow-md hover:shadow-lg"
@@ -149,7 +161,10 @@ const submit = async e => {
       >
         <h1 className="text-4xl font-extrabold text-center text-blue-600">Registro de Asistencia</h1>
         <p className="text-center text-gray-600">
-          Curso: <span className="font-semibold">{curso.cursoNombre}</span> | Cierra: <span className="font-semibold">{new Date(curso.fechaFin).toLocaleDateString('es-MX')}</span>
+          Curso: <span className="font-semibold">{curso.cursoNombre}</span> | Cierra: 
+          <span className="font-semibold">
+            {new Date(curso.fechaFin).toLocaleDateString('es-MX')}
+          </span>
         </p>
 
         {/* Nombre */}
@@ -189,7 +204,7 @@ const submit = async e => {
           />
         </label>
 
-        {/* Botón enviar */}
+        {/* Enviar */}
         <button
           type="submit"
           disabled={sending}
@@ -204,7 +219,6 @@ const submit = async e => {
         </button>
       </form>
 
-      {/* Alertas */}
       <ToastContainer
         position="top-right"
         autoClose={3200}
