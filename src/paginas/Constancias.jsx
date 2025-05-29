@@ -167,41 +167,73 @@ export default function Constancias() {
   const boxes = cfg.boxes    || defaultBoxes;
 
   // carga curso y listas
-  useEffect(() => {
-    if (!cursoId) {
-      setCurso(null);
-      setParticipantes([]);
-      setAsistencias([]);
-      return;
-    }
-    let alive = true;
-    (async () => {
-      const snap = await getDoc(doc(db,'Cursos',cursoId));
-      if (!alive || !snap.exists()) return;
-      const data = snap.data();
-      setCurso(data);
+  // ───────── carga curso y listas ─────────
+useEffect(() => {
+  if (!cursoId) {
+    setCurso(null);
+    setParticipantes([]);
+    setAsistencias([]);
+    return;
+  }
+  let alive = true;
+  (async () => {
+    const snap = await getDoc(doc(db, 'Cursos', cursoId));
+    if (!alive || !snap.exists()) return;
+    const data = snap.data();
+    setCurso(data);
 
-      // participantes iniciales
-      const ids = Array.isArray(data.listas?.[0]) ? data.listas[0] : (data.listas||[]);
-      let iniciales = [];
-      if (ids.length) {
-        const batches = [];
-        for (let i = 0; i < ids.length; i += 30) batches.push(ids.slice(i, i+30));
-        const qs = await Promise.all(
-          batches.map(b => getDocs(query(collection(db,'Alumnos'), where(documentId(),'in',b))))
-        );
-        iniciales = qs.flatMap(q => q.docs.map(d => ({ id:d.id, ...d.data() })));
+    // 1) Participantes iniciales (igual que antes)
+    const idsInit = Array.isArray(data.listas?.[0]) 
+      ? data.listas[0] 
+      : data.listas || [];
+    let iniciales = [];
+    if (idsInit.length) {
+      const batches = [];
+      for (let i = 0; i < idsInit.length; i += 30) {
+        batches.push(idsInit.slice(i, i + 30));
       }
-      if (!alive) return;
-      setParticipantes(iniciales);
-      setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o),{}));
+      const snapsInit = await Promise.all(
+        batches.map(batch =>
+          getDocs(query(
+            collection(db, 'Alumnos'),
+            where(documentId(), 'in', batch)
+          ))
+        )
+      );
+      iniciales = snapsInit.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+    }
+    if (!alive) return;
+    setParticipantes(iniciales);
+    setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o),{}));
 
-      // asistencias (siempre incluidas)
-      const reales = data.asistencias || [];
-      setAsistencias(reales);
-    })();
-    return () => { alive = false; };
-  }, [cursoId]);
+    // 2) Participantes por asistencia (trae sólo IDs en data.asistencias)
+    //    Ajusta esta linea si tus asistencias vienen con otra forma de ID.
+    const idsAsist = Array.isArray(data.asistencias)
+      ? data.asistencias.map(a => (typeof a === 'string' ? a : a.id))
+      : [];
+    let asistDocs = [];
+    if (idsAsist.length) {
+      const batchesA = [];
+      for (let i = 0; i < idsAsist.length; i += 30) {
+        batchesA.push(idsAsist.slice(i, i + 30));
+      }
+      const snapsAsist = await Promise.all(
+        batchesA.map(batch =>
+          getDocs(query(
+            collection(db, 'Alumnos'),
+            where(documentId(), 'in', batch)
+          ))
+        )
+      );
+      asistDocs = snapsAsist.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+    }
+    if (!alive) return;
+    setAsistencias(asistDocs);
+
+  })();
+  return () => { alive = false; };
+}, [cursoId]);
+
 
   // mensajes por defecto
   useEffect(() => {
@@ -360,6 +392,8 @@ const handleSend = async () => {
       console.log('👉 Procesando participante:', p);
       const buf = await genPDF(p);
       console.log('✅ PDF generado, bytes:', buf.byteLength);
+console.log('🧐 participante completo:', p);
+console.log('→ p.correo=', p.correo, 'p.Correo=', p.Correo, 'p.email=', p.email);
 
       const nombre  = getNombreCompleto(p);
       const base64  = arrayBufferToBase64(buf);               // ← aquí
