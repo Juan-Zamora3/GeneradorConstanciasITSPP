@@ -17,9 +17,8 @@ import { ToastContainer, toast } from 'react-toastify';
 import { FiLoader } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
 
-const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://generadorconstanciasitspp.onrender.com' // <-- pon aquí tu dominio de Render backend
-  : '';
+// Usando la bandera que Vite expone al compilar
+const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
 // ───────── utilidades ─────────
 const PDF_W = 595, PDF_H = 842;

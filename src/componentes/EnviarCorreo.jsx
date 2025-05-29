@@ -13,10 +13,7 @@ function arrayBufferToBase64(buffer) {
   return window.btoa(binary);
 }
 
-// Determina la URL base del backend
-const API_BASE_URL = process.env.NODE_ENV === "production"
-  ? "" // en Render, usa ruta relativa porque frontend+backend están juntos
-  : "http://localhost:3000"; // en local, usa la ruta local
+const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
 export default function EnviarCorreo({
   participantes,
