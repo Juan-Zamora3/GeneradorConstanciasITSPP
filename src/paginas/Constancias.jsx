@@ -17,6 +17,10 @@ import { ToastContainer, toast } from 'react-toastify';
 import { FiLoader } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
 
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? 'https://generadorconstanciasitspp.onrender.com' // <-- pon aquí tu dominio de Render backend
+  : '';
+
 // ───────── utilidades ─────────
 const PDF_W = 595, PDF_H = 842;
 const toRGB = hex => { const c = tiny(hex).toRgb(); return rgb(c.r/255,c.g/255,c.b/255); };
@@ -336,37 +340,37 @@ export default function Constancias() {
       setLoadingZip(false);
     }
   };
-
-  const handleSend = async () => {
-    if (!plantilla)  return notify('Sube una plantilla PDF','warning');
-    if (!sel.length) return notify('Selecciona participantes','warning');
-    setLoadingSend(true);
-    try {
-      for (const p of sel) {
-        const buf = await genPDF(p);
-        const nombre = getNombreCompleto(p);
-        const payload = {
-          Correo: p.correo||p.email,
-          Nombres: nombre,
-          Puesto: getCursoTitulo(curso,p),
-          pdf: Buffer.from(buf).toString('base64'),
-          mensajeCorreo: (participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo)
-                           .replace('{nombre}', nombre)
-        };
-        const res = await fetch('/EnviarCorreo',{
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body:JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error();
-      }
-      notify('Correos enviados','success');
-    } catch {
-      notify('Error enviando correos','error');
-    } finally {
-      setLoadingSend(false);
+const handleSend = async () => {
+  if (!plantilla)  return notify('Sube una plantilla PDF','warning');
+  if (!sel.length) return notify('Selecciona participantes','warning');
+  setLoadingSend(true);
+  try {
+    for (const p of sel) {
+      const buf = await genPDF(p);
+      const nombre = getNombreCompleto(p);
+      const payload = {
+        Correo: p.correo||p.email,
+        Nombres: nombre,
+        Puesto: getCursoTitulo(curso,p),
+        pdf: Buffer.from(buf).toString('base64'),
+        mensajeCorreo: (participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo)
+                         .replace('{nombre}', nombre)
+      };
+      const res = await fetch(`${API_BASE_URL}/EnviarCorreo`,{
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body:JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error();
     }
-  };
+    notify('Correos enviados','success');
+  } catch {
+    notify('Error enviando correos','error');
+  } finally {
+    setLoadingSend(false);
+  }
+};
+
 
   // toggle inicial
   const toggleInit = i =>
