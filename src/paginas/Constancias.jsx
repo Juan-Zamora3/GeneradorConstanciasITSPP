@@ -340,30 +340,51 @@ export default function Constancias() {
     }
   };
 const handleSend = async () => {
-  if (!plantilla)  return notify('Sube una plantilla PDF','warning');
-  if (!sel.length) return notify('Selecciona participantes','warning');
+  console.log('🔔 handleSend arrancado');
+  if (!plantilla) {
+    console.log('⚠️ No hay plantilla');
+    return notify('Sube una plantilla PDF','warning');
+  }
+  if (!sel.length) {
+    console.log('⚠️ No hay participantes seleccionados');
+    return notify('Selecciona participantes','warning');
+  }
+
   setLoadingSend(true);
   try {
     for (const p of sel) {
+      console.log('👉 Procesando participante:', p);
+      // 1) Generar PDF
       const buf = await genPDF(p);
-      const nombre = getNombreCompleto(p);
+      console.log('✅ PDF generado, bytes:', buf.byteLength);
+
+      // 2) Preparar payload
+      const nombre  = getNombreCompleto(p);
       const payload = {
         Correo: p.correo||p.email,
         Nombres: nombre,
         Puesto: getCursoTitulo(curso,p),
         pdf: Buffer.from(buf).toString('base64'),
-        mensajeCorreo: (participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo)
+        mensajeCorreo: (participantOverrides[p.id]?.msgMail || cfg.mensajeCorreo)
                          .replace('{nombre}', nombre)
       };
-      const res = await fetch(`${API_BASE_URL}/EnviarCorreo`,{
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body:JSON.stringify(payload)
+      console.log('📨 Payload:', payload);
+
+      // 3) Llamar al servidor
+      const url = `${API_BASE_URL}/EnviarCorreo`;
+      console.log('🌐 Fetch a:', url);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error();
+      console.log('📥 Respuesta fetch:', res.status, await res.text());
+      if (!res.ok) throw new Error('Fetch falló con status ' + res.status);
     }
+
     notify('Correos enviados','success');
-  } catch {
+  } catch (err) {
+    console.error('❌ Error en handleSend:', err);
     notify('Error enviando correos','error');
   } finally {
     setLoadingSend(false);
