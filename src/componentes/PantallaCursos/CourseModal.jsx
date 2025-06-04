@@ -21,8 +21,8 @@ export default function CourseModal({
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [alumnos, setAlumnos] = useState([]);
-  const [searchAlumnos, setSearchAlumnos] = useState('');
+  const [personalList, setPersonalList] = useState([]);
+  const [searchPersonal, setSearchPersonal] = useState('');
   const [filterArea, setFilterArea] = useState('');
 
   // Cargar datos iniciales si estamos editando
@@ -59,19 +59,19 @@ export default function CourseModal({
     }
   }, [initialData]);
 
-  // Traer lista de alumnos al abrir el modal
+  // Traer lista de personal al abrir el modal
   useEffect(() => {
-    const fetchAlumnos = async () => {
+    const fetchPersonal = async () => {
       try {
-        const snap = await getDocs(collection(db, 'Alumnos'));
-        setAlumnos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const snap = await getDocs(collection(db, 'Personal'));
+        setPersonalList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (err) {
-        console.error('Error fetching alumnos:', err);
+        console.error('Error fetching personal:', err);
       }
     };
     if (isOpen) {
-      fetchAlumnos();
-      setSearchAlumnos('');
+      fetchPersonal();
+      setSearchPersonal('');
       setFilterArea('');
     }
   }, [isOpen]);
@@ -81,7 +81,7 @@ export default function CourseModal({
     setForm(f => ({ ...f, [name]: value }));
   };
 
-  const handleAlumnoToggle = id => {
+  const handlePersonalToggle = id => {
     setForm(f => ({
       ...f,
       lista: f.lista.includes(id)
@@ -105,10 +105,10 @@ export default function CourseModal({
     setImagePreview(null);
   };
 
-  // Filtrar alumnos por búsqueda y área
-  const alumnosFiltrados = alumnos.filter(a => {
+  // Filtrar personal por búsqueda y área
+  const personalFiltrado = personalList.filter(a => {
     const nombre = `${a.Nombres} ${a.ApellidoP} ${a.ApellidoM}`.toLowerCase();
-    const matchSearch = !searchAlumnos || nombre.includes(searchAlumnos.toLowerCase());
+    const matchSearch = !searchPersonal || nombre.includes(searchPersonal.toLowerCase());
     const matchArea = !filterArea || a.Puesto.toLowerCase().includes(filterArea.toLowerCase());
     return matchSearch && matchArea;
   });
@@ -244,15 +244,15 @@ export default function CourseModal({
             </div>
           </div>
 
-          {/* Gestión de Alumnos */}
+          {/* Gestión de Personal */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <h4 className="text-lg font-semibold text-gray-700 mb-4">Gestión de Personal</h4>
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <input
                 type="text"
                 placeholder="Buscar personal..."
-                value={searchAlumnos}
-                onChange={e => setSearchAlumnos(e.target.value)}
+                value={searchPersonal}
+                onChange={e => setSearchPersonal(e.target.value)}
                 className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <select
@@ -261,7 +261,7 @@ export default function CourseModal({
                 className="w-full sm:w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todas las áreas</option>
-                {[...new Set(alumnos.map(a => a.Puesto).filter(Boolean))].map(p => (
+                {[...new Set(personalList.map(a => a.Puesto).filter(Boolean))].map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
@@ -271,10 +271,10 @@ export default function CourseModal({
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">Selección</span>
-                  <span className="text-xs text-gray-500">{alumnosFiltrados.length} disponibles</span>
+                  <span className="text-xs text-gray-500">{personalFiltrado.length} disponibles</span>
                 </div>
                 <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto bg-white">
-                  {alumnosFiltrados.length > 0 ? alumnosFiltrados.map(a => (
+                  {personalFiltrado.length > 0 ? personalFiltrado.map(a => (
                     <label
                       key={a.id}
                       className="flex items-center p-3 hover:bg-gray-50 border-b last:border-b-0"
@@ -282,7 +282,7 @@ export default function CourseModal({
                       <input
                         type="checkbox"
                         checked={form.lista.includes(a.id)}
-                        onChange={() => handleAlumnoToggle(a.id)}
+                        onChange={() => handlePersonalToggle(a.id)}
                         className="mr-3"
                       />
                       <div>
@@ -292,7 +292,7 @@ export default function CourseModal({
                     </label>
                   )) : (
                     <div className="p-4 text-center text-gray-500 text-sm">
-                      {alumnos.length === 0 ? 'No hay personal' : 'No encontrados'}
+                      {personalList.length === 0 ? 'No hay personal' : 'No encontrados'}
                     </div>
                   )}
                 </div>
@@ -305,7 +305,7 @@ export default function CourseModal({
                 </div>
                 <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto bg-blue-50">
                   {form.lista.length > 0 ? form.lista.map(id => {
-                    const a = alumnos.find(x => x.id === id);
+                    const a = personalList.find(x => x.id === id);
                     return a ? (
                       <div key={id} className="flex items-center justify-between p-3 border-b last:border-b-0">
                         <div>
@@ -314,7 +314,7 @@ export default function CourseModal({
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleAlumnoToggle(id)}
+                          onClick={() => handlePersonalToggle(id)}
                           className="text-red-500"
                         >
                           ×

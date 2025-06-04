@@ -8,12 +8,12 @@ import { db, storage } from '@/servicios/firebaseConfig';
 import {
   doc,
   getDoc,
-  updateDoc,
-  arrayUnion,
+  addDoc,
   collection,
   getDocs,
   query,
-  where
+  where,
+  serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -96,7 +96,7 @@ export default function AsistenciaForm() {
     try {
       const listas = Array.isArray(curso.listas) ? curso.listas : [];
 
-      // 3) intento buscar en Alumnos con campos exactos
+      // 3) intento buscar en Personal con campos exactos
       const partes = normalize(form.nombre).split(' ');
       // asumimos apellidoP como penúltima palabra
       const apellidoP = partes.length > 1 ? partes[partes.length - 2] : '';
@@ -106,7 +106,7 @@ export default function AsistenciaForm() {
       if (nombres && apellidoP) {
         // query exacto
         const q = query(
-          collection(db, 'Alumnos'),
+          collection(db, 'Personal'),
           where('Nombres', '==', nombres),
           where('ApellidoP', '==', apellidoP)
         );
@@ -116,7 +116,7 @@ export default function AsistenciaForm() {
 
       // 4) si no hay ninguno exacto, bajamos todos y filtramos por Levenshtein
       if (!candidatos.length) {
-        const todos = await getDocs(collection(db, 'Alumnos'));
+        const todos = await getDocs(collection(db, 'Personal'));
         candidatos = todos.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(a => {
@@ -138,18 +138,15 @@ export default function AsistenciaForm() {
       await uploadBytes(imgRef, form.foto);
       const fotoURL = await getDownloadURL(imgRef);
 
-      // 7) guardo en Firestore
-      await updateDoc(doc(db, 'Cursos', cursoId), {
-        asistencias: arrayUnion({
-          id:        match.id,
-          Nombres:   match.Nombres   || '',
-          ApellidoP: match.ApellidoP || '',
-          ApellidoM: match.ApellidoM || '',
-          correo:    match.Correo     || match.email || '',
-          puesto:    form.puesto,
-          fotoURL,
-          timestamp: new Date()
-        })
+      // 7) guardo en Firestore en colección Asistencias
+      await addDoc(collection(db, 'Asistencias'), {
+        cursoId,
+        personalId: match.id,
+        nombre: `${match.Nombres || ''} ${match.ApellidoP || ''} ${match.ApellidoM || ''}`.trim(),
+        correo: match.Correo || match.email || '',
+        puesto: form.puesto,
+        fotoURL,
+        timestamp: serverTimestamp()
       });
 
       toast.success('¡Asistencia registrada!');

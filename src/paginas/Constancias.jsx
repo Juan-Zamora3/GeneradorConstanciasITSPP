@@ -194,7 +194,7 @@ export default function Constancias() {
         const snapsInit = await Promise.all(
           batches.map(batch =>
             getDocs(query(
-              collection(db, 'Alumnos'),
+              collection(db, 'Personal'),
               where(documentId(), 'in', batch)
             ))
           )
@@ -205,8 +205,11 @@ export default function Constancias() {
       setParticipantes(iniciales);
       setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o), {}));
 
-      // 2) Asistencias: ya vienen con todos los campos desde AsistenciaForm
-      const raw = Array.isArray(data.asistencias) ? data.asistencias : [];
+      // 2) Asistencias registradas en colección independiente
+      const snapAsis = await getDocs(
+        query(collection(db, 'Asistencias'), where('cursoId', '==', cursoId))
+      );
+      const raw = snapAsis.docs.map(d => ({ id: d.id, ...d.data() }));
       setAsistencias(raw);
     })();
     return () => { alive = false; };
@@ -362,7 +365,7 @@ export default function Constancias() {
         const base64 = arrayBufferToBase64(buf);
         const nombre = getNombreCompleto(p);
         const payload = {
-          Correo:        p.correo,  // debe venir definido desde Alumnos
+          Correo:        p.correo,  // debe venir definido desde Personal
           Nombres:       nombre,
           Puesto:        getCursoTitulo(curso,p),
           pdf:           base64,

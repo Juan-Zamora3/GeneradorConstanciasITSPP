@@ -40,7 +40,7 @@ export default function Inicio() {
   useEffect(() => {
     if (!usuario) return
 
-    const alumnosRef = collection(db, 'Alumnos')
+    const alumnosRef = collection(db, 'Personal')
     const q = query(alumnosRef, orderBy('Nombres', 'asc'))
 
     const unsubscribe = onSnapshot(q, (snap) => {
