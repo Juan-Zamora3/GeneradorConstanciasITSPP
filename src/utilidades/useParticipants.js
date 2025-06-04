@@ -14,7 +14,7 @@ export function useParticipants() {
   const [error, setError]         = useState(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'Alumnos'), orderBy('Nombres','asc'));
+    const q = query(collection(db, 'Personal'), orderBy('Nombres','asc'));
     const unsub = onSnapshot(q,
       snap => {
         const data = snap.docs.map(d => {
@@ -38,7 +38,7 @@ export function useParticipants() {
   }, []);
 
   const addParticipant = async data => {
-    await addDoc(collection(db,'Alumnos'), {
+    await addDoc(collection(db,'Personal'), {
       Nombres: data.nombre,
       ApellidoP: data.apellidos.split(' ')[0]||'',
       ApellidoM: data.apellidos.split(' ')[1]||'',
@@ -70,7 +70,7 @@ export function useParticipants() {
   };
 
   const updateParticipant = (id,data) =>
-    updateDoc(doc(db,'Alumnos',id),{
+    updateDoc(doc(db,'Personal',id),{
       Nombres: data.nombre,
       ApellidoP: data.apellidos.split(' ')[0]||'',
       ApellidoM: data.apellidos.split(' ')[1]||'',
@@ -80,7 +80,7 @@ export function useParticipants() {
     });
 
   const deleteParticipant = id =>
-    deleteDoc(doc(db,'Alumnos',id));
+    deleteDoc(doc(db,'Personal',id));
 
   return { participants, loading, error, addParticipant, updateParticipant, deleteParticipant };
 }

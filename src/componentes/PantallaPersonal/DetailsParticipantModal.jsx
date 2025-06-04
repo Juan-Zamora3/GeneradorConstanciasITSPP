@@ -37,7 +37,7 @@ export default function DetailsParticipantModal({
         const asistidos = []
         const noAsistidos = []
 
-        todosCursos.forEach(curso => {
+        for (const curso of todosCursos) {
           // Verificar en el array 'listas' - puede ser un array de arrays o un array simple
           const listas = curso.listas || []
           let participantesIds = []
@@ -56,7 +56,7 @@ export default function DetailsParticipantModal({
           const estaEnLista = participantesIds.includes(participant.id)
 
           if (!estaEnLista) {
-            return // Saltar este curso si el participante no está en la lista
+            continue // Saltar este curso si el participante no está en la lista
           }
 
           const cursoConNombre = {
@@ -64,31 +64,22 @@ export default function DetailsParticipantModal({
             nombre: curso.cursoNombre || curso.titulo || 'Sin nombre'
           }
 
-          // Verificar si realmente asistió usando el campo 'asistencias'
-          const asistencias = curso.asistencias || []
-          let yaAsistio = false
-
-          if (Array.isArray(asistencias) && asistencias.length > 0) {
-            // Buscar en las asistencias por nombre del participante
-            const nombreCompleto = `${participant.nombre} ${participant.apellidos}`.toLowerCase().trim()
-
-            yaAsistio = asistencias.some(asistencia => {
-              if (!asistencia.nombre) return false
-              const nombreAsistencia = asistencia.nombre.toLowerCase().trim()
-
-              // Verificar coincidencia exacta o muy cercana
-              return nombreAsistencia === nombreCompleto || 
-                     nombreCompleto.includes(nombreAsistencia) ||
-                     nombreAsistencia.includes(nombreCompleto.split(' ')[0]) // Al menos el primer nombre
-            })
-          }
+          // Verificar si realmente asistió consultando colección Asistencias
+          const asisSnap = await getDocs(
+            query(
+              collection(db, 'Asistencias'),
+              where('cursoId', '==', curso.id),
+              where('personalId', '==', participant.id)
+            )
+          )
+          const yaAsistio = !asisSnap.empty
 
           if (yaAsistio) {
             asistidos.push(cursoConNombre)
           } else {
             noAsistidos.push(cursoConNombre)
           }
-        })
+        }
 
         setCursosData({
           asistidos,
