@@ -18,7 +18,7 @@ export default function Layout({ children }) {
         <Topbar isOpen={isOpen} />  {/* comparte el mismo estado */}
         <main
           className={`
-            flex-1 pt-16 transition-all duration-200
+            flex-1 pt-16 transition-all duration-200 fade-in
             ${isOpen ? 'pl-64' : 'pl-20'}
           `}
         >

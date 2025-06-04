@@ -58,7 +58,7 @@ export default function TopbarCompact({ isOpen }) {
 
  return (
   <header
-    className={`fixed top-0 right-0 h-16 bg-white shadow flex items-center px-4 z-20 transition-all ${isOpen ? 'left-64' : 'left-20'}`}
+    className={`fixed top-0 right-0 h-16 bg-white/80 backdrop-blur shadow-md flex items-center px-4 z-20 transition-all duration-300 ${isOpen ? 'left-64' : 'left-20'}`}
   >
     {/* Avatar + nombre + rol */}
     <div className="flex items-center space-x-3">

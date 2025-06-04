@@ -87,7 +87,7 @@ export default function Login() {
       className="min-h-screen flex items-center justify-center bg-cover bg-center"
       style={{ backgroundImage: `url(${FondoAPP})` }}
     >
-      <div className="bg-white max-w-3xl w-full mx-4 mt-16 mb-16 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
+      <div className="bg-white max-w-3xl w-full mx-4 mt-16 mb-16 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row slide-in">
         {/* Formulario */}
         <div className="w-full md:w-1/2 p-8 md:p-12">
           <h2 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-8 uppercase text-center">

@@ -40,8 +40,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={`
-        fixed top-0 left-0 h-screen bg-gray-900 text-gray-300
-        flex flex-col transition-[width] duration-200 ease-in-out z-30
+        fixed top-0 left-0 h-screen bg-gradient-to-b from-indigo-900 to-purple-900 text-gray-200
+        flex flex-col transition-[width] duration-300 ease-out shadow-lg z-30
         ${isOpen ? 'w-64' : 'w-20'}
       `}
     >
@@ -71,7 +71,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                       to={path}
                       end
                       className={({ isActive }) => `
-                        flex items-center rounded-lg transition-colors duration-200
+                        flex items-center rounded-lg transition-all duration-200 hover:scale-105
                         ${isActive ? 'bg-gray-800 text-teal-300' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}
                         ${isOpen ? 'px-4 py-3 justify-start' : 'p-4 justify-center'}
                       `}
