@@ -1,7 +1,8 @@
 // src/paginas/Constancias.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Rnd } from 'react-rnd';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import tiny from 'tinycolor2';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {
   doc, getDoc, collection, getDocs,
@@ -15,20 +16,42 @@ import AttendanceModal from '@/componentes/AttendanceModal';
 import { ToastContainer, toast } from 'react-toastify';
 import { FiLoader } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
-import {
-  arrayBufferToBase64,
-  PDF_W,
-  PDF_H,
-  FONT_LOOKUP,
-  FONT_OPTIONS,
-  toRGB,
-  fechaLarga,
-  wrapText
-} from '@/utilidades/pdfHelpers';
 
 // Convierte ArrayBuffer → Base64 en el navegador
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
 // URL relativa en prod / localhost en dev
 const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
+
+// Constantes PDF
+const PDF_W = 595, PDF_H = 842;
+const toRGB = hex => {
+  const c = tiny(hex).toRgb();
+  return rgb(c.r/255, c.g/255, c.b/255);
+};
+const fechaLarga = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const M = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  return `${d.getDate()} de ${M[d.getMonth()]} de ${d.getFullYear()}`;
+};
+
+// Fuentes pdf-lib
+const FONT_LOOKUP = {
+  Helvetica: StandardFonts.Helvetica,
+  'Helvetica-Bold': StandardFonts.HelveticaBold,
+  TimesRoman: StandardFonts.TimesRoman,
+  'Times-Bold': StandardFonts.TimesBold,
+  Courier: StandardFonts.Courier,
+};
+const FONT_OPTIONS = Object.keys(FONT_LOOKUP);
 
 // Cajas por defecto
 const defaultBoxes = {
@@ -52,6 +75,23 @@ const getFechaInicio = (curso, part) =>
 const getFechaFin = (curso, part) =>
   curso?.fechaFin || part?.fechaFin || '';
 
+const wrapText = (text, font, size, maxW) => {
+  const out = [];
+  text.split('\n').forEach(line => {
+    let current = '';
+    line.split(' ').forEach(word => {
+      const probe = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(probe, size) > maxW && current) {
+        out.push(current);
+        current = word;
+      } else {
+        current = probe;
+      }
+    });
+    out.push(current);
+  });
+  return out;
+};
 
 export default function Constancias() {
   const { courses } = useCourses();
