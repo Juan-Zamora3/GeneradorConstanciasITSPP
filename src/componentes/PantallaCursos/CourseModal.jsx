@@ -17,12 +17,28 @@ export default function CourseModal({
     ubicacion: '',
     categoria: '',
     descripcion: '',
-    tipoCurso: 'personal', // 'personal' o 'cursos'
+    tipoCurso: 'personal', // 'personal' o 'grupos'
     lista: [],
+    // Campos para gestión de grupos
+    formularioGrupos: {
+      camposPreestablecidos: {
+        nombreEquipo: true,
+        nombreLider: true,
+        contactoEquipo: true
+      },
+      preguntasPersonalizadas: []
+    }
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [personalList, setPersonalList] = useState([]);
+  const [editandoPregunta, setEditandoPregunta] = useState(null);
+  const [nuevaPregunta, setNuevaPregunta] = useState({
+    titulo: '',
+    tipo: 'abierta',
+    requerida: false,
+    opciones: []
+  });
   const [searchPersonal, setSearchPersonal] = useState('');
   const [filterArea, setFilterArea] = useState('');
 
@@ -40,6 +56,14 @@ export default function CourseModal({
         descripcion: initialData.descripcion || '',
         tipoCurso: initialData.tipoCurso || 'personal',
         lista: existentes,
+        formularioGrupos: initialData.formularioGrupos || {
+          camposPreestablecidos: {
+            nombreEquipo: true,
+            nombreLider: true,
+            contactoEquipo: true
+          },
+          preguntasPersonalizadas: []
+        }
       });
       if (initialData.imageUrl) {
         setImagePreview(initialData.imageUrl);
@@ -56,6 +80,14 @@ export default function CourseModal({
         descripcion: '',
         tipoCurso: 'personal',
         lista: [],
+        formularioGrupos: {
+          camposPreestablecidos: {
+            nombreEquipo: true,
+            nombreLider: true,
+            contactoEquipo: true
+          },
+          preguntasPersonalizadas: []
+        }
       });
       setImageFile(null);
       setImagePreview(null);
@@ -275,15 +307,15 @@ export default function CourseModal({
                   <input
                     type="radio"
                     name="tipoCurso"
-                    value="cursos"
-                    checked={form.tipoCurso === 'cursos'}
+                    value="grupos"
+                    checked={form.tipoCurso === 'grupos'}
                     onChange={handleChange}
                     className="mr-3 text-green-600"
                   />
                   <div>
-                    <div className="font-medium text-gray-900">Por Cursos</div>
+                    <div className="font-medium text-gray-900">Por Grupos</div>
                     <div className="text-sm text-gray-600">
-                      Gestión por lotes o grupos de cursos relacionados
+                      Gestión por grupos o lotes de participantes
                     </div>
                   </div>
                 </label>
@@ -378,18 +410,346 @@ export default function CourseModal({
           </div>
           )}
 
-          {/* Gestión por Cursos */}
-          {form.tipoCurso === 'cursos' && (
+          {/* Gestión por Grupos */}
+          {form.tipoCurso === 'grupos' && (
           <div className="bg-gray-50 p-4 rounded-lg">
-            <h4 className="text-lg font-semibold text-gray-700 mb-4">Gestión por Cursos</h4>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-center mb-2">
-                <i className="ri-information-line text-yellow-600 mr-2"></i>
-                <span className="font-medium text-yellow-800">Funcionalidad en Desarrollo</span>
+            <h4 className="text-lg font-semibold text-gray-700 mb-4">Configuración del Formulario de Grupos</h4>
+            
+            {/* Campos Preestablecidos */}
+            <div className="mb-6">
+              <h5 className="text-md font-medium text-gray-700 mb-3">Campos Preestablecidos</h5>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.formularioGrupos.camposPreestablecidos.nombreEquipo}
+                    onChange={(e) => setForm(prev => ({
+                      ...prev,
+                      formularioGrupos: {
+                        ...prev.formularioGrupos,
+                        camposPreestablecidos: {
+                          ...prev.formularioGrupos.camposPreestablecidos,
+                          nombreEquipo: e.target.checked
+                        }
+                      }
+                    }))}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Nombre del Equipo</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.formularioGrupos.camposPreestablecidos.nombreLider}
+                    onChange={(e) => setForm(prev => ({
+                      ...prev,
+                      formularioGrupos: {
+                        ...prev.formularioGrupos,
+                        camposPreestablecidos: {
+                          ...prev.formularioGrupos.camposPreestablecidos,
+                          nombreLider: e.target.checked
+                        }
+                      }
+                    }))}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Nombre del Líder del Equipo</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={form.formularioGrupos.camposPreestablecidos.contactoEquipo}
+                    onChange={(e) => setForm(prev => ({
+                      ...prev,
+                      formularioGrupos: {
+                        ...prev.formularioGrupos,
+                        camposPreestablecidos: {
+                          ...prev.formularioGrupos.camposPreestablecidos,
+                          contactoEquipo: e.target.checked
+                        }
+                      }
+                    }))}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Contacto del Equipo</span>
+                </label>
               </div>
-              <p className="text-sm text-yellow-700">
-                La gestión por cursos estará disponible próximamente. Esta opción permitirá administrar grupos de cursos relacionados de manera más eficiente.
-              </p>
+            </div>
+
+            {/* Preguntas Personalizadas */}
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-3">
+                <h5 className="text-md font-medium text-gray-700">Preguntas Personalizadas</h5>
+                <span className="text-xs text-gray-500">
+                  {form.formularioGrupos.preguntasPersonalizadas.length}/10
+                </span>
+              </div>
+              
+              {/* Lista de preguntas existentes */}
+              <div className="space-y-3 mb-4">
+                {form.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => (
+                  <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
+                     <div className="flex justify-between items-start mb-2">
+                       <div className="flex-1">
+                         <div className="font-medium text-sm text-gray-800">{pregunta.titulo}</div>
+                         <div className="text-xs text-gray-500 capitalize">
+                           {pregunta.tipo} {pregunta.requerida && '(requerido)'}
+                         </div>
+                       </div>
+                       <div className="flex gap-2">
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setNuevaPregunta({ ...pregunta });
+                             setEditandoPregunta(index);
+                           }}
+                           className="text-blue-500 hover:text-blue-700 text-sm"
+                           title="Editar pregunta"
+                         >
+                           ✏️
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setForm(prev => ({
+                               ...prev,
+                               formularioGrupos: {
+                                 ...prev.formularioGrupos,
+                                 preguntasPersonalizadas: prev.formularioGrupos.preguntasPersonalizadas.filter((_, i) => i !== index)
+                               }
+                             }));
+                           }}
+                           className="text-red-500 hover:text-red-700 text-sm"
+                           title="Eliminar pregunta"
+                         >
+                           ×
+                         </button>
+                       </div>
+                     </div>
+                    {pregunta.opciones && pregunta.opciones.length > 0 && (
+                      <div className="text-xs text-gray-600">
+                        Opciones: {pregunta.opciones.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Formulario para agregar/editar pregunta */}
+              {form.formularioGrupos.preguntasPersonalizadas.length < 10 && (
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <h6 className="text-sm font-medium text-gray-700 mb-3">
+                    {editandoPregunta !== null ? 'Editar Pregunta' : 'Nueva Pregunta'}
+                  </h6>
+                  
+                  <div className="space-y-3">
+                    {/* Título de la pregunta */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Título de la pregunta *
+                      </label>
+                      <input
+                        type="text"
+                        value={nuevaPregunta.titulo}
+                        onChange={(e) => setNuevaPregunta(prev => ({ ...prev, titulo: e.target.value }))}
+                        placeholder="Escribe tu pregunta aquí..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* Tipo de pregunta */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Tipo de respuesta
+                      </label>
+                      <select
+                        value={nuevaPregunta.tipo}
+                        onChange={(e) => {
+                          setNuevaPregunta(prev => ({ 
+                            ...prev, 
+                            tipo: e.target.value,
+                            opciones: ['combobox', 'multiple', 'checklist'].includes(e.target.value) ? ['Opción 1'] : []
+                          }));
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="abierta">Respuesta Abierta</option>
+                        <option value="combobox">Lista Desplegable (Combobox)</option>
+                        <option value="multiple">Opción Múltiple (Radio)</option>
+                        <option value="checklist">Lista de Verificación (Checkbox)</option>
+                      </select>
+                    </div>
+
+                    {/* Opciones para tipos que las requieren */}
+                    {['combobox', 'multiple', 'checklist'].includes(nuevaPregunta.tipo) && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Opciones
+                        </label>
+                        <div className="space-y-2">
+                          {nuevaPregunta.opciones.map((opcion, index) => (
+                            <div key={index} className="flex gap-2">
+                              <input
+                                type="text"
+                                value={opcion}
+                                onChange={(e) => {
+                                  const nuevasOpciones = [...nuevaPregunta.opciones];
+                                  nuevasOpciones[index] = e.target.value;
+                                  setNuevaPregunta(prev => ({ ...prev, opciones: nuevasOpciones }));
+                                }}
+                                placeholder={`Opción ${index + 1}`}
+                                className="flex-1 px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              {nuevaPregunta.opciones.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nuevasOpciones = nuevaPregunta.opciones.filter((_, i) => i !== index);
+                                    setNuevaPregunta(prev => ({ ...prev, opciones: nuevasOpciones }));
+                                  }}
+                                  className="px-2 py-1 text-red-500 hover:text-red-700 text-sm"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {nuevaPregunta.opciones.length < 10 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNuevaPregunta(prev => ({ 
+                                  ...prev, 
+                                  opciones: [...prev.opciones, `Opción ${prev.opciones.length + 1}`] 
+                                }));
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                              + Agregar opción
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Campo requerido */}
+                    <div>
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={nuevaPregunta.requerida}
+                          onChange={(e) => setNuevaPregunta(prev => ({ ...prev, requerida: e.target.checked }))}
+                          className="mr-2"
+                        />
+                        <span className="text-xs text-gray-700">Campo requerido</span>
+                      </label>
+                    </div>
+
+                    {/* Botones de acción */}
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (nuevaPregunta.titulo.trim()) {
+                            if (editandoPregunta !== null) {
+                              // Editar pregunta existente
+                              setForm(prev => {
+                                const nuevasPreguntas = [...prev.formularioGrupos.preguntasPersonalizadas];
+                                nuevasPreguntas[editandoPregunta] = { ...nuevaPregunta };
+                                return {
+                                  ...prev,
+                                  formularioGrupos: {
+                                    ...prev.formularioGrupos,
+                                    preguntasPersonalizadas: nuevasPreguntas
+                                  }
+                                };
+                              });
+                              setEditandoPregunta(null);
+                            } else {
+                              // Agregar nueva pregunta
+                              setForm(prev => ({
+                                ...prev,
+                                formularioGrupos: {
+                                  ...prev.formularioGrupos,
+                                  preguntasPersonalizadas: [...prev.formularioGrupos.preguntasPersonalizadas, { ...nuevaPregunta }]
+                                }
+                              }));
+                            }
+                            // Resetear formulario
+                            setNuevaPregunta({
+                              titulo: '',
+                              tipo: 'abierta',
+                              requerida: false,
+                              opciones: []
+                            });
+                          }
+                        }}
+                        disabled={!nuevaPregunta.titulo.trim()}
+                        className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      >
+                        {editandoPregunta !== null ? 'Actualizar' : 'Agregar'}
+                      </button>
+                      {editandoPregunta !== null && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditandoPregunta(null);
+                            setNuevaPregunta({
+                              titulo: '',
+                              tipo: 'abierta',
+                              requerida: false,
+                              opciones: []
+                            });
+                          }}
+                          className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Vista previa del formulario */}
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <h6 className="text-sm font-medium text-gray-700 mb-3">Vista Previa del Formulario</h6>
+              <div className="space-y-3 text-sm">
+                {form.formularioGrupos.camposPreestablecidos.nombreEquipo && (
+                  <div className="flex items-center text-gray-600">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    Nombre del Equipo (requerido)
+                  </div>
+                )}
+                {form.formularioGrupos.camposPreestablecidos.nombreLider && (
+                  <div className="flex items-center text-gray-600">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    Nombre del Líder del Equipo (requerido)
+                  </div>
+                )}
+                {form.formularioGrupos.camposPreestablecidos.contactoEquipo && (
+                  <div className="flex items-center text-gray-600">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                    Contacto del Equipo (requerido)
+                  </div>
+                )}
+                {form.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => (
+                   <div key={index} className="flex items-center text-gray-600">
+                     <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                     {pregunta.titulo} ({pregunta.tipo}){pregunta.requerida && ' *'}
+                     {pregunta.opciones && pregunta.opciones.length > 0 && (
+                       <span className="ml-2 text-xs text-gray-400">({pregunta.opciones.length} opciones)</span>
+                     )}
+                   </div>
+                 ))}
+                {form.formularioGrupos.camposPreestablecidos.nombreEquipo === false && 
+                 form.formularioGrupos.camposPreestablecidos.nombreLider === false && 
+                 form.formularioGrupos.camposPreestablecidos.contactoEquipo === false && 
+                 form.formularioGrupos.preguntasPersonalizadas.length === 0 && (
+                  <div className="text-gray-400 italic">No hay campos configurados</div>
+                )}
+              </div>
             </div>
           </div>
           )}
