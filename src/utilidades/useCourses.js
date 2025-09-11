@@ -40,6 +40,16 @@ export function useCourses() {
               estado: data.estado || '',
               reportes: data.reportes || [],
               imageUrl: data.imageUrl || '',
+              tipoCurso: data.tipoCurso || 'personal',
+              formularioGrupos: data.formularioGrupos || {
+                camposPreestablecidos: {
+                  nombreEquipo: true,
+                  nombreLider: true,
+                  contactoEquipo: true
+                },
+                preguntasPersonalizadas: []
+              },
+              grupos: data.grupos || []
             };
           })
         );
@@ -78,6 +88,16 @@ export function useCourses() {
         estado: 'proximo',
         reportes: [],
         imageUrl,
+        tipoCurso: courseData.tipoCurso || 'personal',
+        formularioGrupos: courseData.formularioGrupos || {
+          camposPreestablecidos: {
+            nombreEquipo: true,
+            nombreLider: true,
+            contactoEquipo: true
+          },
+          preguntasPersonalizadas: []
+        },
+        grupos: []
       });
 
       // Crear notificación
@@ -115,6 +135,15 @@ export function useCourses() {
       categoria: courseData.categoria,
       descripcion: courseData.descripcion,
       listas: Array.isArray(courseData.lista) ? courseData.lista : [],
+      tipoCurso: courseData.tipoCurso || 'personal',
+      formularioGrupos: courseData.formularioGrupos || {
+        camposPreestablecidos: {
+          nombreEquipo: true,
+          nombreLider: true,
+          contactoEquipo: true
+        },
+        preguntasPersonalizadas: []
+      }
     };
 
     if (imageFile) {
