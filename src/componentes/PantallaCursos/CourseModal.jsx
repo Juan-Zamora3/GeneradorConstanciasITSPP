@@ -17,6 +17,7 @@ export default function CourseModal({
     ubicacion: '',
     categoria: '',
     descripcion: '',
+    tipoCurso: 'personal', // 'personal' o 'cursos'
     lista: [],
   });
   const [imageFile, setImageFile] = useState(null);
@@ -37,6 +38,7 @@ export default function CourseModal({
         ubicacion: initialData.ubicacion || '',
         categoria: initialData.categoria || '',
         descripcion: initialData.descripcion || '',
+        tipoCurso: initialData.tipoCurso || 'personal',
         lista: existentes,
       });
       if (initialData.imageUrl) {
@@ -52,6 +54,7 @@ export default function CourseModal({
         ubicacion: '',
         categoria: '',
         descripcion: '',
+        tipoCurso: 'personal',
         lista: [],
       });
       setImageFile(null);
@@ -244,7 +247,52 @@ export default function CourseModal({
             </div>
           </div>
 
+          {/* Tipo de Curso */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="text-lg font-semibold text-gray-700 mb-4">Tipo de Curso</h4>
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 mb-4">
+                Selecciona cómo se administrará este curso:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-blue-50 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                  <input
+                    type="radio"
+                    name="tipoCurso"
+                    value="personal"
+                    checked={form.tipoCurso === 'personal'}
+                    onChange={handleChange}
+                    className="mr-3 text-blue-600"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-900">Por Personal</div>
+                    <div className="text-sm text-gray-600">
+                      Gestión individual de participantes del personal existente
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-green-50 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
+                  <input
+                    type="radio"
+                    name="tipoCurso"
+                    value="cursos"
+                    checked={form.tipoCurso === 'cursos'}
+                    onChange={handleChange}
+                    className="mr-3 text-green-600"
+                  />
+                  <div>
+                    <div className="font-medium text-gray-900">Por Cursos</div>
+                    <div className="text-sm text-gray-600">
+                      Gestión por lotes o grupos de cursos relacionados
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
           {/* Gestión de Personal */}
+          {form.tipoCurso === 'personal' && (
           <div className="bg-gray-50 p-4 rounded-lg">
             <h4 className="text-lg font-semibold text-gray-700 mb-4">Gestión de Personal</h4>
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
@@ -328,6 +376,23 @@ export default function CourseModal({
               </div>
             </div>
           </div>
+          )}
+
+          {/* Gestión por Cursos */}
+          {form.tipoCurso === 'cursos' && (
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="text-lg font-semibold text-gray-700 mb-4">Gestión por Cursos</h4>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center mb-2">
+                <i className="ri-information-line text-yellow-600 mr-2"></i>
+                <span className="font-medium text-yellow-800">Funcionalidad en Desarrollo</span>
+              </div>
+              <p className="text-sm text-yellow-700">
+                La gestión por cursos estará disponible próximamente. Esta opción permitirá administrar grupos de cursos relacionados de manera más eficiente.
+              </p>
+            </div>
+          </div>
+          )}
 
           {/* Acciones */}
           <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
