@@ -108,7 +108,9 @@ export default function DetailsModal({
         const res = await createForCourse({
           cursoId: data.id,
           titulo: `Registro de Grupos – ${data.titulo || ''}`,
+          descripcion: data.descripcion || '',
           preguntas,
+          theme,
           user: null,
         });
         id = res.id;
@@ -125,6 +127,8 @@ export default function DetailsModal({
           link,
           linkSlug: slug,
           theme,
+          titulo: `Registro de Grupos – ${data.titulo || ''}`,
+          descripcion: data.descripcion || '',
           updatedAt: new Date(),
         });
       } catch (e) {

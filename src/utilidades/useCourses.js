@@ -9,6 +9,8 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../servicios/firebaseConfig';
@@ -41,6 +43,9 @@ export function useCourses() {
               reportes: data.reportes || [],
               imageUrl: data.imageUrl || '',
               tipoCurso: data.tipoCurso || 'personal',
+              theme: data.theme || {},
+              encuestaId: data.encuestaId || '',
+              encuestaLink: data.encuestaLink || '',
               formularioGrupos: data.formularioGrupos || {
                 camposPreestablecidos: {
                   nombreEquipo: true,
@@ -89,6 +94,9 @@ export function useCourses() {
         reportes: [],
         imageUrl,
         tipoCurso: courseData.tipoCurso || 'personal',
+        theme: courseData.theme || {},
+        encuestaId: courseData.encuestaId || '',
+        encuestaLink: courseData.encuestaLink || '',
         formularioGrupos: courseData.formularioGrupos || {
           camposPreestablecidos: {
             nombreEquipo: true,
@@ -136,6 +144,9 @@ export function useCourses() {
       descripcion: courseData.descripcion,
       listas: Array.isArray(courseData.lista) ? courseData.lista : [],
       tipoCurso: courseData.tipoCurso || 'personal',
+      theme: courseData.theme || {},
+      encuestaId: courseData.encuestaId || '',
+      encuestaLink: courseData.encuestaLink || '',
       formularioGrupos: courseData.formularioGrupos || {
         camposPreestablecidos: {
           nombreEquipo: true,
@@ -156,6 +167,19 @@ export function useCourses() {
 
   const deleteCourse = async (id) => {
     const cRef = doc(db, 'Cursos', id);
+
+    // Eliminar encuestas asociadas al curso
+    const q = query(collection(db, 'encuestas'), where('cursoId', '==', id));
+    const encuestasSnap = await getDocs(q);
+    for (const encDoc of encuestasSnap.docs) {
+      // Eliminar respuestas de la encuesta
+      const respSnap = await getDocs(collection(encDoc.ref, 'respuestas'));
+      for (const r of respSnap.docs) {
+        await deleteDoc(r.ref);
+      }
+      await deleteDoc(encDoc.ref);
+    }
+
     await deleteDoc(cRef);
   };
 
