@@ -49,7 +49,7 @@ app.post('/EnviarCorreo', async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
 
-    // Límite conservador para adjunto
+    // Límite conservador para adjunto (Mailjet ~15MB total; base64 +33%)
     const approxBytes = (pdf.length * 3) / 4;
     if (approxBytes > 10 * 1024 * 1024) {
       return res.status(413).json({ error: 'PDF demasiado grande para enviar por correo' });
@@ -82,12 +82,12 @@ app.post('/EnviarCorreo', async (req, res) => {
 // Healthcheck
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// Static
+// Static (build de Vite)
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// Fallback SPA SOLO GET
-app.get('(.*)', (_req, res) => {
+// Fallback SPA SOLO para GET (Express v5 usa path-to-regexp v6 → usar regex)
+app.get(/.*/, (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
