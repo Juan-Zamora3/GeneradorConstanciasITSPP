@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 
-// Import estático (recomendado)
+// Import estático
 import { saveResponse } from '../utilidades/useSurveys';
 
 function clamp01(n) {
@@ -88,7 +88,7 @@ export default function RegistroGrupo() {
     return () => unsub();
   }, [encuestaId, slug]);
 
-  // Al cambiar de encuesta, limpia estados de usuario/OK
+  // Al cambiar de encuesta, limpia estados visibles
   useEffect(() => {
     setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
     setOk(false);
@@ -110,7 +110,7 @@ export default function RegistroGrupo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(preguntas.map((p) => `${p.id}:${p.tipo}`))]);
 
-  // Normaliza theme/appearance (quita vacíos, limita overlay y hace cache-bust del fondo)
+  // Normaliza theme/appearance
   const theme = useMemo(() => {
     const raw =
       (encuesta?.theme || encuesta?.appearance || encuesta?.apariencia || {});
@@ -125,11 +125,20 @@ export default function RegistroGrupo() {
       bgVersion:        raw.bgVersion || 0,
     };
 
-    // cache-bust para backgroundImage
-    let bgUrl;
+    // URL final del fondo:
+    // - si es http(s) => se aplica cache-buster ?v=
+    // - si es data: o blob: => se deja intacta (no añadir query)
+    let bgUrl = undefined;
     if (t.backgroundImage) {
-      const hasQ = String(t.backgroundImage).includes('?');
-      bgUrl = `${t.backgroundImage}${hasQ ? '&' : '?'}v=${t.bgVersion}`;
+      const s = String(t.backgroundImage);
+      if (/^https?:\/\//i.test(s)) {
+        bgUrl = `${s}${s.includes('?') ? '&' : '?'}v=${t.bgVersion}`;
+      } else if (/^(data:|blob:)/i.test(s)) {
+        bgUrl = s; // NO tocar
+      } else {
+        // Valor no reconocido -> mejor no usarlo
+        bgUrl = undefined;
+      }
     }
 
     return { ...t, _bgUrl: bgUrl };
@@ -149,7 +158,7 @@ export default function RegistroGrupo() {
   const containerStyle = useMemo(
     () => ({
       backgroundColor: theme.backgroundColor || undefined,
-      backgroundImage: theme._bgUrl ? `url(${theme._bgUrl})` : undefined,
+      backgroundImage: theme._bgUrl ? `url("${theme._bgUrl}")` : undefined,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }),
