@@ -25,46 +25,77 @@ export default function DetailsModal({
 
         {type === 'course' ? (
           <>
-            {/* ── Datos del curso ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 gap-2 text-sm">
-              <p><strong>Título:</strong> {data.titulo}</p>
-              <p><strong>Instructor:</strong> {data.instructor}</p>
-              <p><strong>Fechas:</strong> {data.fechaInicio} – {data.fechaFin}</p>
-              <p><strong>Ubicación:</strong> {data.ubicacion}</p>
-              <p><strong>Categoría:</strong> {data.categoria}</p>
-              <p><strong>Estado:</strong> {data.estado}</p>
-              <p><strong>Tipo:</strong> {data.tipoCurso === 'grupos' ? 'Por Grupos' : 'Personal'}</p>
-              <p><strong>Participantes:</strong> {data.lista?.length ?? 0}</p>
-              <p><strong>Reportes:</strong> {data.reportes?.length ?? 0}</p>
-              <p><strong>Descripción:</strong> {data.descripcion}</p>
-            </div>
+            {/* ── Layout con datos del curso y QR ─────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Datos del curso */}
+              <div className="space-y-2 text-sm">
+                <p><strong>Título:</strong> {data.titulo}</p>
+                <p><strong>Instructor:</strong> {data.instructor}</p>
+                <p><strong>Fechas:</strong> {data.fechaInicio} – {data.fechaFin}</p>
+                <p><strong>Ubicación:</strong> {data.ubicacion}</p>
+                <p><strong>Categoría:</strong> {data.categoria}</p>
+                <p><strong>Estado:</strong> {data.estado}</p>
+                <p><strong>Tipo:</strong> {data.tipoCurso === 'grupos' ? 'Por Grupos' : 'Personal'}</p>
+                <p><strong>Participantes:</strong> {data.lista?.length ?? 0}</p>
+                <p><strong>Reportes:</strong> {data.reportes?.length ?? 0}</p>
+                <p><strong>Descripción:</strong> {data.descripcion}</p>
+              </div>
 
-            {/* ── QR para registrar asistencia ────────────────────────────── */}
-            <div className="pt-4 flex justify-center">
-              <QrCanvas courseId={data.id} />
+              {/* QR y Link de registro */}
+              <div className="flex flex-col items-center space-y-4">
+                <div className="text-center">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Código QR para registro</h4>
+                  <QrCanvas courseId={data.id} />
+                </div>
+                
+                {/* Link de registro con botón copiar */}
+                <div className="w-full max-w-sm">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Link de registro:
+                  </label>
+                  <div className="flex">
+                    <input
+                      type="text"
+                      value={`${window.location.origin}/registro/${data.id}`}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50 text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/registro/${data.id}`);
+                        // Aquí podrías agregar una notificación de éxito
+                      }}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 text-sm"
+                      title="Copiar link"
+                    >
+                      📋
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* ── Secciones específicas para cursos de grupo ─────────────── */}
             {isGroupCourse && (
-              <div className="pt-6 border-t">
-                {/* Pestañas */}
-                <div className="flex border-b mb-4">
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                {/* Pestañas mejoradas */}
+                <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6">
                   <button
                     onClick={() => setActiveTab('cuestionario')}
-                    className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                    className={`flex-1 px-4 py-2 font-medium text-sm rounded-md transition-all duration-200 ${
                       activeTab === 'cuestionario'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                     }`}
                   >
                     📋 Información del Cuestionario
                   </button>
                   <button
                     onClick={() => setActiveTab('grupos')}
-                    className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                    className={`flex-1 px-4 py-2 font-medium text-sm rounded-md transition-all duration-200 ${
                       activeTab === 'grupos'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                     }`}
                   >
                     👥 Grupos Registrados
@@ -73,113 +104,163 @@ export default function DetailsModal({
 
                 {/* Contenido de las pestañas */}
                 {activeTab === 'cuestionario' && (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold text-gray-800">Formulario de Registro de Grupos</h4>
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <h4 className="text-xl font-bold text-gray-800 mb-2">📋 Formulario de Registro de Grupos</h4>
+                      <p className="text-gray-600 text-sm">Configuración del formulario que completarán los equipos</p>
+                    </div>
                     
                     {/* Campos preestablecidos */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h5 className="font-medium text-blue-800 mb-3">Campos Preestablecidos</h5>
-                      <div className="space-y-2 text-sm">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100">
+                      <div className="flex items-center mb-4">
+                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+                          <span className="text-white text-sm font-bold">✓</span>
+                        </div>
+                        <h5 className="text-lg font-semibold text-blue-800">Campos Preestablecidos</h5>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {data.formularioGrupos?.camposPreestablecidos?.nombreEquipo && (
-                          <div className="flex items-center text-blue-700">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                            Nombre del Equipo (requerido)
+                          <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
+                            <span className="text-blue-500 mr-3">🏷️</span>
+                            <span className="text-gray-700 font-medium">Nombre del Equipo</span>
+                            <span className="ml-auto text-red-500 text-sm">*</span>
                           </div>
                         )}
                         {data.formularioGrupos?.camposPreestablecidos?.nombreLider && (
-                          <div className="flex items-center text-blue-700">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                            Nombre del Líder del Equipo (requerido)
+                          <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
+                            <span className="text-blue-500 mr-3">👤</span>
+                            <span className="text-gray-700 font-medium">Nombre del Líder</span>
+                            <span className="ml-auto text-red-500 text-sm">*</span>
                           </div>
                         )}
                         {data.formularioGrupos?.camposPreestablecidos?.contactoEquipo && (
-                          <div className="flex items-center text-blue-700">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                            Contacto del Equipo (requerido)
+                          <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
+                            <span className="text-blue-500 mr-3">📞</span>
+                            <span className="text-gray-700 font-medium">Contacto del Equipo</span>
+                            <span className="ml-auto text-red-500 text-sm">*</span>
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* Preguntas personalizadas */}
-                    {data.formularioGrupos?.preguntasPersonalizadas?.length > 0 && (
-                      <div className="bg-green-50 p-4 rounded-lg">
-                        <h5 className="font-medium text-green-800 mb-3">Preguntas Personalizadas</h5>
-                        <div className="space-y-3">
-                          {data.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => (
-                            <div key={index} className="bg-white p-3 rounded border border-green-200">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <h6 className="font-medium text-gray-800">
-                                    {pregunta.titulo}
-                                    {pregunta.requerido && <span className="text-red-500 ml-1">*</span>}
-                                  </h6>
-                                  <p className="text-sm text-gray-600 capitalize">
-                                    Tipo: {pregunta.tipo === 'abierta' ? 'Respuesta abierta' : 
-                                           pregunta.tipo === 'combobox' ? 'Lista desplegable' :
-                                           pregunta.tipo === 'multiple' ? 'Opción múltiple' : 'Lista de verificación'}
-                                  </p>
-                                  {pregunta.opciones?.length > 0 && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {pregunta.opciones.length} opciones disponibles
-                                    </p>
-                                  )}
+                    {data.formularioGrupos?.preguntasPersonalizadas?.length > 0 ? (
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border border-green-100">
+                        <div className="flex items-center mb-4">
+                          <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+                            <span className="text-white text-sm font-bold">?</span>
+                          </div>
+                          <h5 className="text-lg font-semibold text-green-800">Preguntas Personalizadas</h5>
+                        </div>
+                        <div className="space-y-4">
+                          {data.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => {
+                            const tipoIconos = {
+                              'abierta': '📝',
+                              'combobox': '📋',
+                              'multiple': '🔘',
+                              'checkbox': '☑️'
+                            };
+                            const tipoTextos = {
+                              'abierta': 'Respuesta abierta',
+                              'combobox': 'Lista desplegable',
+                              'multiple': 'Opción múltiple',
+                              'checkbox': 'Lista de verificación'
+                            };
+                            return (
+                              <div key={index} className="bg-white p-4 rounded-lg shadow-sm border border-green-100">
+                                <div className="flex items-start space-x-3">
+                                  <span className="text-xl">{tipoIconos[pregunta.tipo] || '❓'}</span>
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h6 className="font-semibold text-gray-800">
+                                        {pregunta.titulo}
+                                        {pregunta.requerido && <span className="text-red-500 ml-1">*</span>}
+                                      </h6>
+                                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                                        {tipoTextos[pregunta.tipo] || 'Desconocido'}
+                                      </span>
+                                    </div>
+                                    {pregunta.opciones?.length > 0 && (
+                                      <div className="flex items-center text-sm text-gray-600">
+                                        <span className="mr-2">📊</span>
+                                        <span>{pregunta.opciones.length} opciones configuradas</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
-                    )}
-
-                    {(!data.formularioGrupos?.preguntasPersonalizadas || data.formularioGrupos.preguntasPersonalizadas.length === 0) && (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>No se han configurado preguntas personalizadas para este curso.</p>
+                    ) : (
+                      <div className="bg-gray-50 p-8 rounded-xl border-2 border-dashed border-gray-200 text-center">
+                        <div className="text-4xl mb-3">📝</div>
+                        <h6 className="font-medium text-gray-700 mb-2">Sin preguntas personalizadas</h6>
+                        <p className="text-gray-500 text-sm">No se han configurado preguntas adicionales para este curso.</p>
                       </div>
                     )}
                   </div>
                 )}
 
                 {activeTab === 'grupos' && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-lg font-semibold text-gray-800">Grupos Registrados</h4>
-                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        {data.grupos?.length || 0} grupos
-                      </span>
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <h4 className="text-xl font-bold text-gray-800 mb-2">👥 Grupos Registrados</h4>
+                      <div className="flex justify-center items-center space-x-2">
+                        <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-full text-base font-semibold shadow-lg">
+                          {data.grupos?.length || 0} {(data.grupos?.length || 0) === 1 ? 'grupo' : 'grupos'} registrados
+                        </span>
+                      </div>
                     </div>
                     
                     {data.grupos && data.grupos.length > 0 ? (
-                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                         {data.grupos.map((grupo, index) => (
-                          <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                          <div key={index} className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
                             <div className="flex justify-between items-start">
                               <div className="flex-1">
-                                <h5 className="font-semibold text-gray-800">{grupo.nombreEquipo || `Grupo ${index + 1}`}</h5>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  <strong>Líder:</strong> {grupo.nombreLider || 'No especificado'}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  <strong>Contacto:</strong> {grupo.contactoEquipo || 'No especificado'}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-2">
-                                  Registrado: {grupo.fechaRegistro ? new Date(grupo.fechaRegistro).toLocaleDateString('es-MX') : 'Fecha no disponible'}
-                                </p>
+                                <div className="flex items-center mb-3">
+                                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-3">
+                                    <span className="text-white font-bold text-sm">{index + 1}</span>
+                                  </div>
+                                  <h5 className="text-lg font-bold text-gray-800">{grupo.nombreEquipo || `Grupo ${index + 1}`}</h5>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                  <div className="flex items-center bg-blue-50 p-2 rounded-lg">
+                                    <span className="text-blue-500 mr-2">👤</span>
+                                    <div>
+                                      <span className="text-xs text-blue-600 font-medium">Líder:</span>
+                                      <p className="text-sm text-gray-700 font-medium">{grupo.nombreLider || 'No especificado'}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center bg-green-50 p-2 rounded-lg">
+                                    <span className="text-green-500 mr-2">📞</span>
+                                    <div>
+                                      <span className="text-xs text-green-600 font-medium">Contacto:</span>
+                                      <p className="text-sm text-gray-700 font-medium">{grupo.contactoEquipo || 'No especificado'}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <span className="mr-1">📅</span>
+                                  <span>Registrado: {grupo.fechaRegistro ? new Date(grupo.fechaRegistro).toLocaleDateString('es-MX') : 'Fecha no disponible'}</span>
+                                </div>
                               </div>
-                              <div className="flex space-x-2 ml-4">
+                              <div className="flex flex-col space-y-2 ml-4">
                                 <button
                                   onClick={() => console.log('Ver grupo:', grupo)}
-                                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                  className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium shadow-sm"
                                   title="Ver detalles"
                                 >
-                                  👁️
+                                  👁️ Ver
                                 </button>
                                 <button
                                   onClick={() => console.log('Editar grupo:', grupo)}
-                                  className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                                  className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm"
                                   title="Editar grupo"
                                 >
-                                  ✏️
+                                  ✏️ Editar
                                 </button>
                                 <button
                                   onClick={() => {
@@ -187,10 +268,10 @@ export default function DetailsModal({
                                       console.log('Eliminar grupo:', grupo);
                                     }
                                   }}
-                                  className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                  className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-medium shadow-sm"
                                   title="Eliminar grupo"
                                 >
-                                  🗑️
+                                  🗑️ Eliminar
                                 </button>
                               </div>
                             </div>
@@ -198,10 +279,14 @@ export default function DetailsModal({
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-12 text-gray-500">
-                        <div className="text-4xl mb-4">👥</div>
-                        <p className="text-lg font-medium">No hay grupos registrados</p>
-                        <p className="text-sm mt-2">Los grupos aparecerán aquí cuando se registren usando el código QR.</p>
+                      <div className="bg-gray-50 p-12 rounded-xl border-2 border-dashed border-gray-200 text-center">
+                        <div className="text-6xl mb-4">👥</div>
+                        <h6 className="text-lg font-semibold text-gray-700 mb-2">No hay grupos registrados</h6>
+                        <p className="text-gray-500 text-sm mb-4">Los grupos aparecerán aquí cuando se registren usando el código QR o el link de registro.</p>
+                        <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
+                          <span className="mr-2">💡</span>
+                          Comparte el QR o link para que los equipos se registren
+                        </div>
                       </div>
                     )}
                   </div>
