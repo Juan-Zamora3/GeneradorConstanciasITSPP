@@ -169,6 +169,18 @@ export default function CourseModal({
           imageUrl: imagePreview || initialData.imageUrl || '',
           updatedAt: new Date(),
         });
+        if (initialData.encuestaId) {
+          try {
+            await updateDoc(doc(db, 'encuestas', initialData.encuestaId), {
+              titulo: `Registro de Grupos – ${form.titulo || ''}`,
+              descripcion: form.descripcion || '',
+              theme: form.theme,
+              updatedAt: new Date(),
+            });
+          } catch (err) {
+            console.error('update encuesta:', err);
+          }
+        }
         // opcional: feedback visual
         // alert('Cambios guardados');
       } catch (err) {
