@@ -9,6 +9,7 @@ import Constancias    from '../paginas/Constancias';
 import Cursos         from '../paginas/Cursos';
 import Perfil         from '../paginas/Perfil';
 import CrearUsuarios  from '../paginas/CrearUsuarios';
+import Equipos        from '../paginas/Equipos';   // ← NUEVO
 import AsistenciaForm from '../paginas/AsistenciaForm';   // ← NUEVO
 import Layout         from '../componentes/Layout';
 
@@ -81,7 +82,17 @@ export default function RutasApp() {
               </Layout>
             }
           />
+           <Route
+            path="/Equipos"
+            element={
+              <Layout>
+                <Equipos />
+              </Layout>
+            }
+          />
         </>
+        
+        
       )}
 
       {/* ---------- Fallback ---------- */}

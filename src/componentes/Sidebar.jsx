@@ -1,6 +1,6 @@
 import React, { useContext, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FaHome, FaUser, FaFileSignature, FaBook, FaUserPlus } from 'react-icons/fa'
+import { FaHome, FaUser, FaFileSignature, FaBook, FaUserPlus, FaUsers, FaUserFriends } from 'react-icons/fa'
 import { AuthContext } from '../contexto/AuthContext'
 import logoImg from '../assets/logo.png'
 
@@ -30,6 +30,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
         { path: '/constancias', name: 'Constancias', icon: <FaFileSignature /> },
         { path: '/cursos', name: 'Cursos', icon: <FaBook /> },
         { path: '/usuarios', name: 'Usuarios', icon: <FaUserPlus /> },
+        { path: '/Equipos', name: 'Equipos', icon: <FaUserFriends /> },
       ],
     },
   ]
