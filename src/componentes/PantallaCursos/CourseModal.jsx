@@ -1,6 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
+
+const defaultTheme = {
+  backgroundColor: '#f5f7fb',
+  backgroundImage: '',   // DataURL base64
+  titleColor: '#111827',
+  textColor: '#374151',
+  overlayOpacity: 0.35,
+};
+
+const emptyQuestion = {
+  titulo: '',
+  tipo: 'abierta',
+  requerida: false,
+  opciones: [],
+};
 
 export default function CourseModal({
   isOpen,
@@ -8,22 +23,7 @@ export default function CourseModal({
   onSubmit,          // se sigue llamando si tu padre lo usa
   initialData = {},
 }) {
-  const defaultTheme = {
-    backgroundColor: '#f5f7fb',
-    backgroundImage: '',   // DataURL base64
-    titleColor: '#111827',
-    textColor: '#374151',
-    overlayOpacity: 0.35,
-  };
-
-  const emptyQuestion = {
-    titulo: '',
-    tipo: 'abierta',
-    requerida: false,
-    opciones: [],
-  };
-
-  const createInitialForm = () => ({
+  const createInitialForm = useCallback(() => ({
     titulo: '',
     instructor: '',
     fechaInicio: '',
@@ -42,7 +42,7 @@ export default function CourseModal({
       },
       preguntasPersonalizadas: [],
     },
-  });
+  }), []);
 
   const [form, setForm] = useState(createInitialForm());
 
@@ -59,14 +59,14 @@ export default function CourseModal({
 
   const isEdit = Boolean(initialData.id);
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setForm(createInitialForm());
     setImageFile(null);
     setImagePreview(null);
     setEditandoPregunta(null);
     setNuevaPregunta(emptyQuestion);
     if (imageInputRef.current) imageInputRef.current.value = '';
-  };
+  }, [createInitialForm]);
 
   const handleClose = () => {
     resetState();
@@ -103,7 +103,7 @@ export default function CourseModal({
     } else {
       resetState();
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, resetState]);
 
   // Personal
   useEffect(() => {
