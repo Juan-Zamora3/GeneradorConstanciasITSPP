@@ -17,7 +17,7 @@ import DetailsModal from '../componentes/PantallaCursos/DetailsModal';
 
 import { AuthContext } from '../contexto/AuthContext';
 
-// ⬇️ NUEVO: borrado en cascada (curso + encuestas)
+// Borrado en cascada (curso + encuestas)
 import { deleteCourseAndSurveys } from '../servicios/cursos';
 
 /* ---------------- VALIDADORES BÁSICOS ---------------- */
@@ -213,10 +213,9 @@ export default function Cursos() {
 
     setDeletingIds((s) => new Set(s).add(c.id));
     try {
-      // ⬇️ Borrado en batch: curso + encuestas
+      // Borrado en batch: curso + encuestas
       await deleteCourseAndSurveys(c.id);
       toast.info('Curso eliminado (incluidas encuestas asociadas)');
-      // si tienes DetailsModal abierto con este curso, ciérralo
       if (showDetail && detailType === 'course' && detailData?.id === c.id) {
         setShowDetail(false);
       }
@@ -342,7 +341,7 @@ export default function Cursos() {
                 <CourseListItem
                   key={c.id}
                   course={c}
-                  deleting={isDeleting(c.id)}          {/* se ignora si tu item no lo usa */}
+                  deleting={isDeleting(c.id)}
                   onView={() => {
                     setDetailData(c);
                     setDetailType('course');
