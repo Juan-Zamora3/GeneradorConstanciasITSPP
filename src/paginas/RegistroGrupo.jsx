@@ -30,10 +30,8 @@ export default function RegistroGrupo() {
         let s = null;
 
         if (encuestaId) {
-          // modo antiguo /registro/:encuestaId
           s = await getById(encuestaId);
         } else if (slug) {
-          // modo nuevo /:slug -> buscamos en la colección 'encuestas' por linkSlug
           const q = query(collection(db, 'encuestas'), where('linkSlug', '==', slug));
           const snap = await getDocs(q);
           if (!snap.empty) {
@@ -49,7 +47,6 @@ export default function RegistroGrupo() {
         // Inicializar respuestas custom con base en preguntas
         const init = {};
         (s?.preguntas || []).forEach((p) => {
-          // si es checkbox, arr; si no, string
           init[p.id] = p.tipo === 'checkbox' ? [] : '';
         });
         setCustom(init);
@@ -66,6 +63,19 @@ export default function RegistroGrupo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encuestaId, slug]);
 
+  // ⬇⬇⬇ Mover hooks ANTES de cualquier return condicional ⬇⬇⬇
+  const theme = encuesta?.theme || {};
+  const containerStyle = useMemo(
+    () => ({
+      backgroundColor: theme.backgroundColor || undefined,
+      backgroundImage: theme.backgroundImage ? `url(${theme.backgroundImage})` : undefined,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }),
+    [theme.backgroundColor, theme.backgroundImage]
+  );
+  // ⬆⬆⬆
+
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!encuesta) return;
@@ -81,6 +91,7 @@ export default function RegistroGrupo() {
     }
   };
 
+  // Ahora los returns condicionales pueden ir después de los hooks
   if (loading) return <div className="p-6">Cargando…</div>;
   if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
   if (ok) return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
@@ -90,18 +101,6 @@ export default function RegistroGrupo() {
     nombreLider: true,
     contactoEquipo: true,
   };
-
-  // Apariencia / theme
-  const theme = encuesta.theme || {};
-  const containerStyle = useMemo(
-    () => ({
-      backgroundColor: theme.backgroundColor || undefined,
-      backgroundImage: theme.backgroundImage ? `url(${theme.backgroundImage})` : undefined,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-    }),
-    [theme.backgroundColor, theme.backgroundImage]
-  );
 
   return (
     <div className="min-h-screen" style={containerStyle}>
@@ -136,9 +135,7 @@ export default function RegistroGrupo() {
                 <input
                   className="border rounded px-3 py-2 w-full"
                   value={preset.nombreEquipo}
-                  onChange={(e) =>
-                    setPreset((p) => ({ ...p, nombreEquipo: e.target.value }))
-                  }
+                  onChange={(e) => setPreset((p) => ({ ...p, nombreEquipo: e.target.value }))}
                   required
                 />
               </div>
@@ -151,9 +148,7 @@ export default function RegistroGrupo() {
                 <input
                   className="border rounded px-3 py-2 w-full"
                   value={preset.nombreLider}
-                  onChange={(e) =>
-                    setPreset((p) => ({ ...p, nombreLider: e.target.value }))
-                  }
+                  onChange={(e) => setPreset((p) => ({ ...p, nombreLider: e.target.value }))}
                   required
                 />
               </div>
@@ -166,9 +161,7 @@ export default function RegistroGrupo() {
                 <input
                   className="border rounded px-3 py-2 w-full"
                   value={preset.contactoEquipo}
-                  onChange={(e) =>
-                    setPreset((p) => ({ ...p, contactoEquipo: e.target.value }))
-                  }
+                  onChange={(e) => setPreset((p) => ({ ...p, contactoEquipo: e.target.value }))}
                   required
                 />
               </div>
@@ -177,10 +170,7 @@ export default function RegistroGrupo() {
             {/* Preguntas personalizadas */}
             {(encuesta.preguntas || []).map((p) => (
               <div key={p.id}>
-                <label
-                  className="block text-sm mb-1"
-                  style={{ color: theme.textColor || '#374151' }}
-                >
+                <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
                   {p.etiqueta} {p.requerida ? '*' : ''}
                 </label>
 
@@ -188,9 +178,7 @@ export default function RegistroGrupo() {
                   <input
                     className="border rounded px-3 py-2 w-full"
                     value={custom[p.id] ?? ''}
-                    onChange={(e) =>
-                      setCustom((c) => ({ ...c, [p.id]: e.target.value }))
-                    }
+                    onChange={(e) => setCustom((c) => ({ ...c, [p.id]: e.target.value }))}
                     required={!!p.requerida}
                   />
                 )}
@@ -199,9 +187,7 @@ export default function RegistroGrupo() {
                   <select
                     className="border rounded px-3 py-2 w-full"
                     value={custom[p.id] ?? ''}
-                    onChange={(e) =>
-                      setCustom((c) => ({ ...c, [p.id]: e.target.value }))
-                    }
+                    onChange={(e) => setCustom((c) => ({ ...c, [p.id]: e.target.value }))}
                     required={!!p.requerida}
                   >
                     <option value="">Seleccione…</option>
@@ -221,9 +207,7 @@ export default function RegistroGrupo() {
                           type="radio"
                           name={p.id}
                           checked={custom[p.id] === op}
-                          onChange={() =>
-                            setCustom((c) => ({ ...c, [p.id]: op }))
-                          }
+                          onChange={() => setCustom((c) => ({ ...c, [p.id]: op }))}
                           required={!!p.requerida}
                         />
                         {op}
@@ -245,10 +229,7 @@ export default function RegistroGrupo() {
                             onChange={(e) => {
                               const next = new Set(arr);
                               e.target.checked ? next.add(op) : next.delete(op);
-                              setCustom((c) => ({
-                                ...c,
-                                [p.id]: Array.from(next),
-                              }));
+                              setCustom((c) => ({ ...c, [p.id]: Array.from(next) }));
                             }}
                           />
                           {op}
