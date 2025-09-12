@@ -133,7 +133,19 @@ export default function RegistroGrupo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(preguntas.map((p) => `${p.id}:${p.tipo}`))]);
 
+  // Re-inicializa campos preestablecidos cuando cambia su configuración
+  useEffect(() => {
+    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
+  }, [
+    encuesta?.camposPreestablecidos?.nombreEquipo,
+    encuesta?.camposPreestablecidos?.nombreLider,
+    encuesta?.camposPreestablecidos?.contactoEquipo,
+  ]);
+
+  // Normaliza theme/appearance
+
   // Normaliza theme/appearance combinando formularios + overrides en encuesta
+
   const theme = useMemo(() => {
     const raw = {
       ...(formAppearance || {}),
