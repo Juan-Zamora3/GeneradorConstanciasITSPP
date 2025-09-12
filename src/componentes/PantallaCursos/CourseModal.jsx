@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 
@@ -16,7 +16,14 @@ export default function CourseModal({
     overlayOpacity: 0.35,
   };
 
-  const [form, setForm] = useState({
+  const emptyQuestion = {
+    titulo: '',
+    tipo: 'abierta',
+    requerida: false,
+    opciones: [],
+  };
+
+  const createInitialForm = () => ({
     titulo: '',
     instructor: '',
     fechaInicio: '',
@@ -37,25 +44,38 @@ export default function CourseModal({
     },
   });
 
+  const [form, setForm] = useState(createInitialForm());
+
   // imagen de portada del curso (no es la de la pantalla del formulario)
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const imageInputRef = useRef(null);
 
   const [personalList, setPersonalList] = useState([]);
   const [editandoPregunta, setEditandoPregunta] = useState(null);
-  const [nuevaPregunta, setNuevaPregunta] = useState({
-    titulo: '',
-    tipo: 'abierta',
-    requerida: false,
-    opciones: [],
-  });
+  const [nuevaPregunta, setNuevaPregunta] = useState(emptyQuestion);
   const [searchPersonal, setSearchPersonal] = useState('');
   const [filterArea, setFilterArea] = useState('');
 
   const isEdit = Boolean(initialData.id);
 
+  const resetState = () => {
+    setForm(createInitialForm());
+    setImageFile(null);
+    setImagePreview(null);
+    setEditandoPregunta(null);
+    setNuevaPregunta(emptyQuestion);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
+
+  const handleClose = () => {
+    resetState();
+    onClose?.();
+  };
+
   // Cargar datos iniciales al abrir/editar
   useEffect(() => {
+    if (!isOpen) return;
     if (initialData.id) {
       const existentes = Array.isArray(initialData.lista) ? initialData.lista : [];
       setForm({
@@ -79,12 +99,11 @@ export default function CourseModal({
         },
       });
       if (initialData.imageUrl) setImagePreview(initialData.imageUrl);
+      if (imageInputRef.current) imageInputRef.current.value = '';
     } else {
-      setForm(f => ({ ...f, theme: defaultTheme }));
-      setImageFile(null);
-      setImagePreview(null);
+      resetState();
     }
-  }, [initialData]);
+  }, [initialData, isOpen]);
 
   // Personal
   useEffect(() => {
@@ -127,6 +146,7 @@ export default function CourseModal({
   const removeImage = () => {
     setImageFile(null);
     setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   // Apariencia: imagen de fondo base64
@@ -200,7 +220,7 @@ export default function CourseModal({
           <h3 className="text-2xl font-bold text-gray-800">
             {isEdit ? 'Editar Curso' : 'Nuevo Curso'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
         </div>
 
         {/* Formulario */}
@@ -284,7 +304,14 @@ export default function CourseModal({
               <label htmlFor="image-upload" className="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                 Seleccionar imagen
               </label>
-              <input id="image-upload" type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                ref={imageInputRef}
+                className="hidden"
+              />
               {imagePreview && (
                 <div className="relative">
                   <img src={imagePreview} alt="Vista previa" className="w-24 h-24 object-cover rounded-lg border" />
@@ -438,7 +465,6 @@ export default function CourseModal({
               personalList={personalList}
               personalFiltrado={personalFiltrado}
               form={form}
-              setForm={setForm}
               searchPersonal={searchPersonal}
               setSearchPersonal={setSearchPersonal}
               filterArea={filterArea}
@@ -449,7 +475,7 @@ export default function CourseModal({
 
           {/* Acciones */}
           <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
-            <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button type="button" onClick={handleClose} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
             <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               {isEdit ? 'Actualizar Curso' : 'Crear Curso'}
             </button>
@@ -463,7 +489,7 @@ export default function CourseModal({
 /* ===================== Sub-secciones ===================== */
 
 function PersonalSection({
-  personalList, personalFiltrado, form, setForm,
+  personalList, personalFiltrado, form,
   searchPersonal, setSearchPersonal, filterArea, setFilterArea, handlePersonalToggle
 }) {
   return (

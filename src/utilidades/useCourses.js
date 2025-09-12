@@ -9,6 +9,8 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../servicios/firebaseConfig';
@@ -165,6 +167,19 @@ export function useCourses() {
 
   const deleteCourse = async (id) => {
     const cRef = doc(db, 'Cursos', id);
+
+    // Eliminar encuestas asociadas al curso
+    const q = query(collection(db, 'encuestas'), where('cursoId', '==', id));
+    const encuestasSnap = await getDocs(q);
+    for (const encDoc of encuestasSnap.docs) {
+      // Eliminar respuestas de la encuesta
+      const respSnap = await getDocs(collection(encDoc.ref, 'respuestas'));
+      for (const r of respSnap.docs) {
+        await deleteDoc(r.ref);
+      }
+      await deleteDoc(encDoc.ref);
+    }
+
     await deleteDoc(cRef);
   };
 
