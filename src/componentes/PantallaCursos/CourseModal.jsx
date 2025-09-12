@@ -16,7 +16,14 @@ export default function CourseModal({
     overlayOpacity: 0.35,
   };
 
-  const [form, setForm] = useState({
+  const emptyQuestion = {
+    titulo: '',
+    tipo: 'abierta',
+    requerida: false,
+    opciones: [],
+  };
+
+  const createInitialForm = () => ({
     titulo: '',
     instructor: '',
     fechaInicio: '',
@@ -37,18 +44,15 @@ export default function CourseModal({
     },
   });
 
+  const [form, setForm] = useState(createInitialForm());
+
   // imagen de portada del curso (no es la de la pantalla del formulario)
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
 
   const [personalList, setPersonalList] = useState([]);
   const [editandoPregunta, setEditandoPregunta] = useState(null);
-  const [nuevaPregunta, setNuevaPregunta] = useState({
-    titulo: '',
-    tipo: 'abierta',
-    requerida: false,
-    opciones: [],
-  });
+  const [nuevaPregunta, setNuevaPregunta] = useState(emptyQuestion);
   const [searchPersonal, setSearchPersonal] = useState('');
   const [filterArea, setFilterArea] = useState('');
 
@@ -56,6 +60,7 @@ export default function CourseModal({
 
   // Cargar datos iniciales al abrir/editar
   useEffect(() => {
+    if (!isOpen) return;
     if (initialData.id) {
       const existentes = Array.isArray(initialData.lista) ? initialData.lista : [];
       setForm({
@@ -80,11 +85,13 @@ export default function CourseModal({
       });
       if (initialData.imageUrl) setImagePreview(initialData.imageUrl);
     } else {
-      setForm(f => ({ ...f, theme: defaultTheme }));
+      setForm(createInitialForm());
       setImageFile(null);
       setImagePreview(null);
+      setEditandoPregunta(null);
+      setNuevaPregunta(emptyQuestion);
     }
-  }, [initialData]);
+  }, [initialData, isOpen]);
 
   // Personal
   useEffect(() => {
@@ -438,7 +445,6 @@ export default function CourseModal({
               personalList={personalList}
               personalFiltrado={personalFiltrado}
               form={form}
-              setForm={setForm}
               searchPersonal={searchPersonal}
               setSearchPersonal={setSearchPersonal}
               filterArea={filterArea}
@@ -463,7 +469,7 @@ export default function CourseModal({
 /* ===================== Sub-secciones ===================== */
 
 function PersonalSection({
-  personalList, personalFiltrado, form, setForm,
+  personalList, personalFiltrado, form,
   searchPersonal, setSearchPersonal, filterArea, setFilterArea, handlePersonalToggle
 }) {
   return (
