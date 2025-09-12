@@ -11,20 +11,23 @@ import {
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 
+// ⬅️ Import estático (recomendado)
+import { saveResponse } from '../utilidades/useSurveys';
+
 export default function RegistroGrupo() {
   // Soporta ambos esquemas de URL: /registro/:encuestaId  y  /:slug
   const { encuestaId, slug } = useParams();
 
   const [encuesta, setEncuesta] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [preset, setPreset] = useState({
+  const [loading, setLoading]   = useState(true);
+  const [preset, setPreset]     = useState({
     nombreEquipo: '',
     nombreLider: '',
     contactoEquipo: '',
   });
-  const [custom, setCustom] = useState({});
+  const [custom, setCustom]     = useState({});
   const [enviando, setEnviando] = useState(false);
-  const [ok, setOk] = useState(false);
+  const [ok, setOk]             = useState(false);
 
   // === Suscripción en tiempo real a la encuesta ===
   useEffect(() => {
@@ -79,12 +82,7 @@ export default function RegistroGrupo() {
   // Normaliza preguntas desde diferentes claves
   const preguntas = useMemo(() => {
     const s = encuesta || {};
-    return (
-      s.preguntas ??
-      s.form?.preguntas ??
-      s.questions ??
-      []
-    );
+    return s.preguntas ?? s.form?.preguntas ?? s.questions ?? [];
   }, [encuesta]);
 
   // Re-inicializa respuestas custom cuando cambia la estructura de preguntas
@@ -129,10 +127,7 @@ export default function RegistroGrupo() {
     if (!encuesta) return;
     setEnviando(true);
     try {
-      // ⬇️ ajusta este import si tu helper está en otra ruta
-      const { saveResponse } = await import('../utilidades/useSurveys');
-      // Nota: si ya usas un hook, puedes exponer una función pura para guardar
-      await (saveResponse?.default ?? saveResponse)(encuesta.id, {
+      await saveResponse(encuesta.id, {
         preset,
         custom,
         createdAt: new Date(),
@@ -146,9 +141,9 @@ export default function RegistroGrupo() {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
-  if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
-  if (ok) return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
+  if (loading)     return <div className="p-6">Cargando…</div>;
+  if (!encuesta)   return <div className="p-6">Formulario no encontrado.</div>;
+  if (ok)          return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
 
   const campos = encuesta.camposPreestablecidos ?? {
     nombreEquipo: true,
