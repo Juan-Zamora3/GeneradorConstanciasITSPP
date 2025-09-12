@@ -11,7 +11,8 @@ const DEFAULTS = {
 };
 
 export function useFormAppearance(formId) {
-  const [appearance, setAppearance] = useState(DEFAULTS);
+  // Usa una copia para evitar referencias compartidas entre formularios
+  const [appearance, setAppearance] = useState(() => ({ ...DEFAULTS }));
   const [loading, setLoading] = useState(true);
   const objectUrlRef = useRef(null);
 
@@ -25,7 +26,7 @@ export function useFormAppearance(formId) {
       setLoading(true);
       try {
         if (!formId) {
-          if (mounted) setAppearance(DEFAULTS);
+          if (mounted) setAppearance({ ...DEFAULTS });
           return;
         }
         const snap = await getDoc(doc(db, 'formularios', formId));
@@ -41,7 +42,7 @@ export function useFormAppearance(formId) {
       }
     }
     // reset duro + carga
-    setAppearance(DEFAULTS);
+    setAppearance({ ...DEFAULTS });
     load();
 
     return () => {

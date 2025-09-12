@@ -15,8 +15,8 @@ export async function deleteCourseAndSurveys(cursoId) {
   const batch = writeBatch(db);
   snap.docs.forEach(d => batch.delete(d.ref));
 
-  // 2) curso
-  batch.delete(doc(db, 'cursos', cursoId));
+  // 2) curso (colección 'Cursos')
+  batch.delete(doc(db, 'Cursos', cursoId));
 
   await batch.commit();
 }
