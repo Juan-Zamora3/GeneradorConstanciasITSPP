@@ -10,6 +10,7 @@ import {
 import { db } from '@/servicios/firebaseConfig';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+
 import { useCourses } from '@/utilidades/useCourses';
 import AttendanceModal from '@/componentes/AttendanceModal';
 import { ToastContainer, toast } from 'react-toastify';
@@ -23,28 +24,43 @@ import {
   FONT_OPTIONS,
   toRGB,
   fechaLarga,
-  wrapText
+  wrapText,
+  drawTextBox   // ⬅️ AGREGA ESTA LÍNEA
 } from '@/utilidades/pdfHelpers';
+
+
+// ==========================================
+// CONFIG
+// ==========================================
+
+// Si usas otra colección para respuestas del registro de equipos, cámbiala aquí:
+const COL_E_R = 'encuestas_respuestas';
 
 // Convierte ArrayBuffer → Base64 en el navegador
 // URL relativa en prod / localhost en dev
 const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
-// Cajas por defecto
+// Cajas por defecto (plantilla editable)
 const defaultBoxes = {
-  nombre:  { x:98,  y:260, w:400, h:40,  color:'#374151', size:26, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE'  },
+  nombre:  { x:98,  y:260, w:400, h:40,  color:'#374151', size:26, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE / EQUIPO'  },
   mensaje: { x:58,  y:320, w:480, h:100, color:'#374151', size:14, bold:false, align:'left',   font:'Helvetica',       preview:'MENSAJE' },
   fecha:   { x:98,  y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA'    },
 };
 
-// Helpers de texto
+// ==========================================
+// PEQUEÑOS HELPERS
+// ==========================================
+const notify = (msg, type='info') =>
+  toast[type](msg, { position:'top-right', theme:'colored', autoClose:3000 });
+
 const getNombreCompleto = part => {
+  if (!part) return '';
   if (part.Nombres && part.ApellidoP) return `${part.Nombres} ${part.ApellidoP}`;
   if (part.Nombres) return part.Nombres;
   if (part.nombre) return part.nombre;
   return '';
 };
-const getPuesto = part => part.puesto || part.Puesto || '';
+const getPuesto = part => part?.puesto || part?.Puesto || '';
 const getCursoTitulo = (curso, part) =>
   curso?.titulo || curso?.cursoNombre || part?.cursoNombre || 'Sin nombre';
 const getFechaInicio = (curso, part) =>
@@ -52,7 +68,13 @@ const getFechaInicio = (curso, part) =>
 const getFechaFin = (curso, part) =>
   curso?.fechaFin || part?.fechaFin || '';
 
+// Ajuste suave de tamaño si el texto se desborda la altura de la caja (auto-fit)
 
+
+
+// ==========================================
+// COMPONENTE
+// ==========================================
 export default function Constancias() {
   const { courses } = useCourses();
 
@@ -60,11 +82,23 @@ export default function Constancias() {
   const [pdfSize, setPdfSize]             = useState({ w:PDF_W, h:PDF_H });
   const [plantilla, setPlantilla]         = useState(null);
   const [plantillaUrl, setPlantillaUrl]   = useState(null);
+
   const [cursoId, setCursoId]             = useState('');
   const [curso, setCurso]                 = useState(null);
+
+  // MODO: individuales (personal/asistencias) vs equipos (registro de grupos)
+  const [modo, setModo]                   = useState('individual'); // 'individual' | 'equipos'
+
+  // Individuales
   const [participantes, setParticipantes] = useState([]);
   const [asistencias, setAsistencias]     = useState([]);
   const [checkedInit, setCheckedInit]     = useState({});
+
+  // Equipos
+  const [equipos, setEquipos]             = useState([]);
+  const [checkedEquipos, setCheckedEquipos] = useState({});
+
+  // Config por plantilla
   const [cfgMap, setCfgMap]               = useState({});
   const plantillaKey = plantilla ? `${plantilla.byteLength}` : 'none';
 
@@ -88,8 +122,6 @@ export default function Constancias() {
   const [attendanceData, setAttendanceData] = useState(null);
 
   const fileRef = useRef(null);
-  const notify = (msg, type='info') =>
-    toast[type](msg, { position:'top-right', theme:'colored', autoClose:3000 });
 
   // Blob URL de la plantilla
   useEffect(() => {
@@ -126,12 +158,13 @@ export default function Constancias() {
   const cfg   = cfgMap[plantillaKey] || {};
   const boxes = cfg.boxes || defaultBoxes;
 
-  // ─── Hook: carga curso, listas y asistencias ───
+  // ─── Hook: carga curso y datos asociados ───
   useEffect(() => {
     if (!cursoId) {
       setCurso(null);
       setParticipantes([]);
       setAsistencias([]);
+      setEquipos([]);
       return;
     }
     let alive = true;
@@ -141,7 +174,8 @@ export default function Constancias() {
       const data = snap.data();
       setCurso(data);
 
-      // 1) Participantes iniciales
+      // ============= INDIVIDUALES (personal y asistencias) ============
+      // Participantes iniciales (lista del curso)
       const idsInit = Array.isArray(data.listas?.[0]) 
         ? data.listas[0] 
         : data.listas || [];
@@ -165,12 +199,29 @@ export default function Constancias() {
       setParticipantes(iniciales);
       setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o), {}));
 
-      // 2) Asistencias registradas en colección independiente
+      // Asistencias registradas en colección independiente
       const snapAsis = await getDocs(
         query(collection(db, 'Asistencias'), where('cursoId', '==', cursoId))
       );
-      const raw = snapAsis.docs.map(d => ({ id: d.id, ...d.data() }));
-      setAsistencias(raw);
+      const rawAsis = snapAsis.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAsistencias(rawAsis);
+
+      // ============= EQUIPOS (registro por encuesta) ============
+      // Si el curso tiene encuestaId, traemos los equipos
+      if (data.encuestaId) {
+        const snapEquipos = await getDocs(
+          query(collection(db, COL_E_R), where('encuestaId', '==', data.encuestaId))
+        );
+        const eq = snapEquipos.docs.map(d => ({
+          id: d.id,
+          ...d.data(), // {encuestaId, preset:{nombreEquipo, nombreLider, contactoEquipo}, custom:{...}}
+        }));
+        setEquipos(eq);
+        setCheckedEquipos(eq.reduce((o,e)=> (o[e.id] = false, o), {}));
+      } else {
+        setEquipos([]);
+        setCheckedEquipos({});
+      }
     })();
     return () => { alive = false; };
   }, [cursoId]);
@@ -187,8 +238,8 @@ export default function Constancias() {
       ...m,
       [plantillaKey]: {
         ...m[plantillaKey],
-        mensajePDF:    m[plantillaKey].mensajePDF || defPdf,
-        mensajeCorreo: m[plantillaKey].mensajeCorreo || defMail
+        mensajePDF:    m[plantillaKey]?.mensajePDF || defPdf,
+        mensajeCorreo: m[plantillaKey]?.mensajeCorreo || defMail
       }
     }));
   }, [curso, plantilla, plantillaKey]);
@@ -216,31 +267,65 @@ export default function Constancias() {
     }
   };
 
-  // Genera el PDF para un participante
-  const genPDF = async part => {
+  // ============ SELECCIÓN ============
+
+  // Individuales: unión de seleccionados de "iniciales" + todas las asistencias (checkbox fijo)
+  const selInit  = participantes.filter((_,i)=>checkedInit[i]);
+  const selAsis  = asistencias;
+  const selInd   = [...selInit, ...selAsis];
+
+  // Equipos seleccionados
+  const selEquip = equipos.filter(e => checkedEquipos[e.id]);
+
+  // === NOMBRE Y TEXTO POR MODO ===
+  const buildTextContext = (ent) => {
+    if (modo === 'individual') {
+      const nombre      = getNombreCompleto(ent).toUpperCase();
+      const puesto      = getPuesto(ent);
+      const tituloCurso = getCursoTitulo(curso, ent);
+      const ini         = getFechaInicio(curso, ent);
+      const fin         = getFechaFin(curso, ent);
+      return { nombre, puesto, tituloCurso, ini, fin };
+    } else {
+      // modo equipos
+      const preset = ent?.preset || {};
+      const nombreEquipo = (preset.nombreEquipo || 'EQUIPO').toUpperCase();
+      const tituloCurso  = getCursoTitulo(curso);
+      const ini          = getFechaInicio(curso);
+      const fin          = getFechaFin(curso);
+      // Para el "puesto", mostramos el líder si existe:
+      const puesto       = preset.nombreLider ? `Líder: ${preset.nombreLider}` : '';
+      return { nombre: nombreEquipo, puesto, tituloCurso, ini, fin };
+    }
+  };
+
+  // ============ GENERADOR DE PDF ============
+
+  const genPDF = async (ent) => {
     const pdf   = await PDFDocument.load(plantilla);
     pdf.registerFontkit(fontkit);
     const page  = pdf.getPages()[0];
-    const ov    = participantOverrides[part.id] || {};
+
+    const ov    = participantOverrides[ent.id] || {};
     const bx    = ov.boxes || boxes;
     const txt   = ov.msgPdf ?? cfg.mensajePDF;
 
-    const nombre      = getNombreCompleto(part).toUpperCase();
-    const puesto      = getPuesto(part);
-    const tituloCurso = getCursoTitulo(curso, part);
-    const ini         = getFechaInicio(curso, part);
-    const fin         = getFechaFin(curso, part);
+    const { nombre, puesto, tituloCurso, ini, fin } = buildTextContext(ent);
 
     for (const [key, cfgBox] of Object.entries(bx)) {
       let texto = '';
       if (key==='nombre') texto = nombre;
       else if (key==='mensaje') {
-        texto = txt
+        // placeholders disponibles:
+        // {nombre}, {curso}, {puesto}, {fechainicio}, {fechafin}
+        texto = (txt || '')
           .replace('{nombre}', nombre)
           .replace('{curso}',  tituloCurso)
           .replace('{puesto}', puesto)
           .replace('{fechainicio}', fechaLarga(ini))
           .replace('{fechafin}',    fechaLarga(fin));
+
+        // fallback si faltan reemplazos
         if (!texto || texto.includes('{')) {
           texto = `Por su participación en “${tituloCurso}”, del ${fechaLarga(ini)} al ${fechaLarga(fin)}.`;
         }
@@ -248,20 +333,31 @@ export default function Constancias() {
         texto = fechaLarga(fin);
       }
 
-      const font  = await pdf.embedFont(FONT_LOOKUP[cfgBox.font]||StandardFonts.Helvetica);
+      // Fuente y color
+      const fontRef = FONT_LOOKUP[cfgBox.font] || StandardFonts.Helvetica;
+      const font  = await pdf.embedFont(fontRef);
       const color = toRGB(cfgBox.color);
-      const size  = cfgBox.size;
-      const maxW  = cfgBox.w;
-      let   y     = page.getHeight() - cfgBox.y - size;
 
-      const lines = wrapText(texto, font, size, maxW);
+      // Auto-fit
+      const { size: finalSize, lines } = fitTextToHeight({
+        font,
+        text: texto,
+        boxW: cfgBox.w,
+        boxH: cfgBox.h,
+        baseSize: cfgBox.size,
+        minSize: Math.min(10, cfgBox.size), // evita degradar demasiado
+        align: cfgBox.align,
+        lineGap: 2
+      });
+
+      let y = page.getHeight() - cfgBox.y - finalSize;
       lines.forEach(line => {
-        const w = font.widthOfTextAtSize(line, size);
+        const w = font.widthOfTextAtSize(line, finalSize);
         let x   = cfgBox.x;
-        if      (cfgBox.align==='center') x += (maxW - w)/2;
-        else if (cfgBox.align==='right')  x += maxW - w;
-        page.drawText(line, { x, y, size, font, color });
-        y -= size + 2;
+        if      (cfgBox.align==='center') x += (cfgBox.w - w)/2;
+        else if (cfgBox.align==='right')  x += cfgBox.w - w;
+        page.drawText(line, { x, y, size: finalSize, font, color });
+        y -= finalSize + 2;
       });
     }
 
@@ -270,15 +366,14 @@ export default function Constancias() {
 
   const blobUrl = buf => URL.createObjectURL(new Blob([buf],{ type:'application/pdf' }));
 
-  // Selección union de iniciales + asistencias
-  const selInit = participantes.filter((_,i)=>checkedInit[i]);
-  const selReal = asistencias;
-  const sel     = [...selInit, ...selReal];
+  // === Selección final según modo ===
+  const sel = modo === 'individual' ? selInd : selEquip;
 
-  // Genera vista previa
+  // ============ ACCIONES ============
+
   const handlePreview = async () => {
     if (!plantilla)  return notify('Sube una plantilla PDF','warning');
-    if (!sel.length) return notify('Selecciona participantes','warning');
+    if (!sel.length) return notify('Selecciona participantes o equipos','warning');
     setLoadingPreview(true);
     try {
       const bufs = await Promise.all(sel.map(genPDF));
@@ -286,51 +381,72 @@ export default function Constancias() {
       setPrevURLs(bufs.map(blobUrl));
       setPrevIdx(0);
       setIsPreview(true);
-    } catch {
+    } catch (e) {
+      console.error(e);
       notify('Error generando vista previa','error');
     } finally {
       setLoadingPreview(false);
     }
   };
 
-  // Descarga ZIP
   const handleZip = async () => {
     if (!plantilla)  return notify('Sube una plantilla PDF','warning');
-    if (!sel.length) return notify('Selecciona participantes','warning');
+    if (!sel.length) return notify('Selecciona participantes o equipos','warning');
     setLoadingZip(true);
     try {
       const zip = new JSZip();
-      for (const p of sel) {
-        const buf = await genPDF(p);
-        const nm  = getNombreCompleto(p).replace(/\s+/g,'_');
-        zip.file(`Constancia_${getCursoTitulo(curso,p)}_${nm}.pdf`, buf);
+      for (const ent of sel) {
+        const buf = await genPDF(ent);
+        let baseName = 'Constancia';
+        if (modo === 'individual') {
+          const nm  = getNombreCompleto(ent).replace(/\s+/g,'_') || 'Sin_Nombre';
+          baseName  = `${baseName}_${getCursoTitulo(curso,ent)}_${nm}`;
+        } else {
+          const equipo = (ent?.preset?.nombreEquipo || 'Equipo').replace(/\s+/g,'_');
+          baseName  = `${baseName}_${getCursoTitulo(curso)}_${equipo}`;
+        }
+        zip.file(`${baseName}.pdf`, buf);
       }
       saveAs(await zip.generateAsync({ type:'blob' }), `Constancias_${getCursoTitulo(curso)}.zip`);
-    } catch {
+    } catch (e) {
+      console.error(e);
       notify('Error creando ZIP','error');
     } finally {
       setLoadingZip(false);
     }
   };
 
-  // Envía correos
   const handleSend = async () => {
     if (!plantilla)  return notify('Sube una plantilla PDF','warning');
-    if (!sel.length) return notify('Selecciona participantes','warning');
+    if (!sel.length) return notify('Selecciona participantes o equipos','warning');
     setLoadingSend(true);
 
     try {
-      for (const p of sel) {
-        const buf    = await genPDF(p);
+      for (const ent of sel) {
+        const buf    = await genPDF(ent);
         const base64 = arrayBufferToBase64(buf);
-        const nombre = getNombreCompleto(p);
+
+        // Correo destino:
+        // - Individual: ent.correo
+        // - Equipo: intenta preset.contactoEquipo o custom.correo (ajústalo a tu estructura)
+        let destino = ent?.correo || ent?.preset?.contactoEquipo || '';
+        if (!destino) {
+          // si no hay correo, omite envío pero no rompas el bucle
+          console.warn('Sin correo para:', ent);
+          continue;
+        }
+
+        // Nombre para saludo
+        const { nombre } = buildTextContext(ent);
+        const msg = (participantOverrides[ent.id]?.msgMail||cfg.mensajeCorreo || '')
+                      .replace('{nombre}', nombre);
+
         const payload = {
-          Correo:        p.correo,  // debe venir definido desde Personal
+          Correo:        destino,
           Nombres:       nombre,
-          Puesto:        getCursoTitulo(curso,p),
+          Puesto:        getCursoTitulo(curso, ent),
           pdf:           base64,
-          mensajeCorreo: (participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo)
-                            .replace('{nombre}', nombre)
+          mensajeCorreo: msg
         };
         const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
           method:  'POST',
@@ -349,11 +465,15 @@ export default function Constancias() {
   };
 
   const toggleInit = i => setCheckedInit(o => ({ ...o, [i]: !o[i] }));
+  const toggleEquipo = id => setCheckedEquipos(o => ({ ...o, [id]: !o[id] }));
 
+  // ==========================================
+  // RENDER
+  // ==========================================
   return (
     <div className="h-full flex bg-gray-50">
       {/* SIDEBAR */}
-      <aside className="w-72 p-4 bg-white shadow space-y-6 overflow-auto">
+      <aside className="w-80 p-4 bg-white shadow space-y-6 overflow-auto">
         {/* Plantilla PDF */}
         <div>
           <h4 className="font-semibold mb-2">Plantilla PDF</h4>
@@ -399,72 +519,148 @@ export default function Constancias() {
           </select>
         </div>
 
-        {/* Participantes Iniciales */}
+        {/* Modo de generación */}
         <div>
-          <h4 className="font-semibold mb-1">Participantes Iniciales</h4>
-          <div className="border rounded max-h-40 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-200">
-                <tr>
-                  <th className="w-8 p-2">Sel</th>
-                  <th className="p-2">Nombre</th>
-                  <th className="p-2">Puesto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {participantes.map((p,i)=>(
-                  <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
-                    <td className="text-center p-2">
-                      <input
-                        type="checkbox"
-                        checked={checkedInit[i]||false}
-                        onChange={()=>toggleInit(i)}
-                      />
-                    </td>
-                    <td className="p-2 break-words">{getNombreCompleto(p)}</td>
-                    <td className="p-2 break-words">{getPuesto(p)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h4 className="font-semibold mb-2">Modo de generación</h4>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="modo"
+                value="individual"
+                checked={modo==='individual'}
+                onChange={()=>{ setModo('individual'); setIsPreview(false); }}
+              />
+              <span>Individuales (Personal / Asistencias)</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="modo"
+                value="equipos"
+                checked={modo==='equipos'}
+                onChange={()=>{ setModo('equipos'); setIsPreview(false); }}
+                disabled={!curso?.encuestaId}
+              />
+              <span>Por equipos (Registro de grupos)</span>
+            </label>
+            {!curso?.encuestaId && (
+              <p className="text-xs text-amber-600">
+                Este curso no tiene <code>encuestaId</code>. Genera el link/encuesta para habilitar equipos.
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Asistencias Registradas */}
-        <div>
-          <h4 className="font-semibold mb-1">Asistencias Registradas</h4>
-          <div className="border rounded max-h-40 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-gray-200">
-                <tr>
-                  <th className="w-8 p-2">Sel</th>
-                  <th className="p-2">Nombre</th>
-                  <th className="p-2">Puesto</th>
-                  <th className="p-2">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {asistencias.map((p,i)=>(
-                  <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
-                    <td className="text-center p-2">
-                      <input type="checkbox" checked disabled />
-                    </td>
-                    <td className="p-2 break-words">{getNombreCompleto(p)}</td>
-                    <td className="p-2 break-words">{getPuesto(p)}</td>
-                    <td className="text-center p-2">
-                      <button
-                        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
-                        onClick={()=>{ setAttendanceData(p); setShowAttendance(true); }}
-                      >
-                        Detalles
-                      </button>
-                    </td>
+        {/* LISTAS según modo */}
+        {modo==='individual' ? (
+          <>
+            {/* Participantes Iniciales */}
+            <div>
+              <h4 className="font-semibold mb-1">Participantes Iniciales</h4>
+              <div className="border rounded max-h-40 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-gray-200">
+                    <tr>
+                      <th className="w-8 p-2">Sel</th>
+                      <th className="p-2">Nombre</th>
+                      <th className="p-2">Puesto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participantes.map((p,i)=>(
+                      <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
+                        <td className="text-center p-2">
+                          <input
+                            type="checkbox"
+                            checked={checkedInit[i]||false}
+                            onChange={()=>toggleInit(i)}
+                          />
+                        </td>
+                        <td className="p-2 break-words">{getNombreCompleto(p)}</td>
+                        <td className="p-2 break-words">{getPuesto(p)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Asistencias Registradas */}
+            <div>
+              <h4 className="font-semibold mb-1">Asistencias Registradas</h4>
+              <div className="border rounded max-h-40 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-gray-200">
+                    <tr>
+                      <th className="w-8 p-2">Sel</th>
+                      <th className="p-2">Nombre</th>
+                      <th className="p-2">Puesto</th>
+                      <th className="p-2">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asistencias.map((p,i)=>(
+                      <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
+                        <td className="text-center p-2">
+                          <input type="checkbox" checked disabled />
+                        </td>
+                        <td className="p-2 break-words">{getNombreCompleto(p)}</td>
+                        <td className="p-2 break-words">{getPuesto(p)}</td>
+                        <td className="text-center p-2">
+                          <button
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+                            onClick={()=>{ setAttendanceData(p); setShowAttendance(true); }}
+                          >
+                            Detalles
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          // MODO EQUIPOS
+          <div>
+            <h4 className="font-semibold mb-1">Equipos registrados</h4>
+            <div className="border rounded max-h-64 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-200">
+                  <tr>
+                    <th className="w-8 p-2">Sel</th>
+                    <th className="p-2">Equipo</th>
+                    <th className="p-2">Líder</th>
+                    <th className="p-2">Contacto</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {equipos.length ? equipos.map(eq => (
+                    <tr key={eq.id} className="odd:bg-gray-100 hover:bg-gray-200">
+                      <td className="text-center p-2">
+                        <input
+                          type="checkbox"
+                          checked={!!checkedEquipos[eq.id]}
+                          onChange={()=>toggleEquipo(eq.id)}
+                        />
+                      </td>
+                      <td className="p-2 break-words">{eq?.preset?.nombreEquipo || '—'}</td>
+                      <td className="p-2 break-words">{eq?.preset?.nombreLider  || '—'}</td>
+                      <td className="p-2 break-words">{eq?.preset?.contactoEquipo|| '—'}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={4} className="text-center p-3 text-gray-500">No hay equipos</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              * Las respuestas se leen de <code>{COL_E_R}</code> filtradas por <code>encuestaId</code>.
+            </p>
           </div>
-        </div>
+        )}
 
         {/* Mensajes */}
         <div>
@@ -472,23 +668,28 @@ export default function Constancias() {
           <textarea
             rows={3}
             className="w-full p-2 border rounded"
-            value={cfg.mensajePDF}
+            value={cfg.mensajePDF || ''}
             onChange={e=>setCfgMap(m=>({
               ...m,
               [plantillaKey]:{...m[plantillaKey], mensajePDF:e.target.value}
             }))}
+            placeholder='Ej: Por su participación en "{curso}", del {fechainicio} al {fechafin}.'
           />
+          <p className="text-[11px] text-gray-500 mt-1">
+            Placeholders: <code>{'{nombre}'}</code>, <code>{'{curso}'}</code>, <code>{'{puesto}'}</code>, <code>{'{fechainicio}'}</code>, <code>{'{fechafin}'}</code>
+          </p>
         </div>
         <div>
           <h4 className="font-semibold mb-1">Mensaje Correo</h4>
           <textarea
             rows={3}
             className="w-full p-2 border rounded"
-            value={cfg.mensajeCorreo}
+            value={cfg.mensajeCorreo || ''}
             onChange={e=>setCfgMap(m=>({
               ...m,
               [plantillaKey]:{...m[plantillaKey], mensajeCorreo:e.target.value}
             }))}
+            placeholder="Hola {nombre}, adjunto tu constancia..."
           />
         </div>
 
@@ -552,9 +753,10 @@ export default function Constancias() {
                 onDragStop={(_,d)=>patchBox(id,{ x:d.x, y:d.y })}
                 onResizeStop={(_,__,r)=>patchBox(id,{ w:r.offsetWidth, h:r.offsetHeight })}
                 lockAspectRatio={id==='nombre'}
-                grid={[4,4]}
+                dragGrid={[4,4]}
+                resizeGrid={[4,4]}
                 style={{
-                  border: activeBox===id ? '2px dashed #2563eb' : 'none',
+                  border: activeBox===id ? '2px dashed #2563eb' : '1px dashed transparent',
                   cursor: 'move',
                   position: 'absolute'
                 }}
@@ -566,7 +768,8 @@ export default function Constancias() {
                     fontSize: cfg.size,
                     fontWeight: cfg.bold ? 700 : 400,
                     color: cfg.color,
-                    textAlign: cfg.align==='justify' ? 'justify' : cfg.align
+                    textAlign: cfg.align==='justify' ? 'justify' : cfg.align,
+                    padding: 2
                   }}
                 >
                   {cfg.preview}
@@ -576,16 +779,23 @@ export default function Constancias() {
           </div>
         )}
 
-        {/* Edición individual */}
+        {/* Edición individual de una constancia */}
         {!isPreview && editId && boxesEditing && plantillaUrl && (
           <>
             <div className="text-center font-semibold mb-2">
               Editando:&nbsp;
-              {getNombreCompleto(
-                participantes.find(p=>p.id===editId)
-                || asistencias.find(a=>a.id===editId)
-                || {}
-              )}
+              {(() => {
+                if (modo==='individual') {
+                  return getNombreCompleto(
+                    participantes.find(p=>p.id===editId)
+                    || asistencias.find(a=>a.id===editId)
+                    || {}
+                  );
+                } else {
+                  const eq = equipos.find(e=>e.id===editId);
+                  return eq?.preset?.nombreEquipo || 'Equipo';
+                }
+              })()}
             </div>
             <div
               className="mx-auto bg-white shadow relative"
@@ -608,9 +818,10 @@ export default function Constancias() {
                   onDragStop={(_,d)=>patchBox(id,{ x:d.x, y:d.y },'edit')}
                   onResizeStop={(_,__,r)=>patchBox(id,{ w:r.offsetWidth, h:r.offsetHeight },'edit')}
                   lockAspectRatio={id==='nombre'}
-                  grid={[4,4]}
+                  dragGrid={[4,4]}
+                  resizeGrid={[4,4]}
                   style={{
-                    border: activeBox===id ? '2px dashed #2563eb' : 'none',
+                    border: activeBox===id ? '2px dashed #2563eb' : '1px dashed transparent',
                     cursor: 'move',
                     position: 'absolute'
                   }}
@@ -622,7 +833,8 @@ export default function Constancias() {
                       fontSize: cfg.size,
                       fontWeight: cfg.bold ? 700 : 400,
                       color: cfg.color,
-                      textAlign: cfg.align==='justify' ? 'justify' : cfg.align
+                      textAlign: cfg.align==='justify' ? 'justify' : cfg.align,
+                      padding: 2
                     }}
                   >
                     {cfg.preview}
@@ -710,11 +922,13 @@ export default function Constancias() {
               <button
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded"
                 onClick={()=>{
-                  const p = sel[prevIdx];
-                  setBoxesEditing(JSON.parse(JSON.stringify(participantOverrides[p.id]?.boxes||boxes)));
-                  setMsgPdfEditing(participantOverrides[p.id]?.msgPdf||cfg.mensajePDF);
-                  setMsgMailEditing(participantOverrides[p.id]?.msgMail||cfg.mensajeCorreo);
-                  setEditId(p.id);
+                  const ent = sel[prevIdx];
+                  setBoxesEditing(JSON.parse(JSON.stringify(
+                    participantOverrides[ent.id]?.boxes || boxes
+                  )));
+                  setMsgPdfEditing(participantOverrides[ent.id]?.msgPdf||cfg.mensajePDF);
+                  setMsgMailEditing(participantOverrides[ent.id]?.msgMail||cfg.mensajeCorreo);
+                  setEditId(ent.id);
                   setIsPreview(false);
                 }}
               >
@@ -735,7 +949,7 @@ export default function Constancias() {
             <h4 className="font-semibold mb-2">Propiedades “{activeBox}”</h4>
             <label className="block text-xs">Tamaño</label>
             <input
-              type="number" min={6} max={60}
+              type="number" min={6} max={72}
               value={boxCfg.size}
               onChange={e=>patchBox(activeBox,{ size:+e.target.value }, tgt)}
               className="w-full p-1 border rounded text-sm"

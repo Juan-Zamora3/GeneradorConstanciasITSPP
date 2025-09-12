@@ -1,31 +1,37 @@
-import React from 'react'
+import React from "react";
 
 export default function MessageEditor({
   mensajePDF,
   setMensajePDF,
   mensajeCorreo,
-  setMensajeCorreo
+  setMensajeCorreo,
 }) {
   return (
-    <div className="space-y-4">
+    <section className="space-y-4">
       <div>
-        <h3 className="font-medium">Mensaje en PDF</h3>
+        <h4 className="font-semibold mb-1">Mensaje PDF</h4>
         <textarea
           rows={3}
-          className="w-full border rounded p-2 resize-none"
+          className="w-full p-2 border rounded"
           value={mensajePDF}
-          onChange={e => setMensajePDF(e.target.value)}
+          onChange={(e) => setMensajePDF(e.target.value)}
         />
+        <p className="text-[11px] text-gray-500 mt-1">
+          Placeholders: <code>{'{nombre}'}</code>, <code>{'{curso}'}</code>,{" "}
+          <code>{'{puesto}'}</code>, <code>{'{fechainicio}'}</code>,{" "}
+          <code>{'{fechafin}'}</code>
+        </p>
       </div>
+
       <div>
-        <h3 className="font-medium">Mensaje en Correo</h3>
+        <h4 className="font-semibold mb-1">Mensaje Correo</h4>
         <textarea
           rows={3}
-          className="w-full border rounded p-2 resize-none"
+          className="w-full p-2 border rounded"
           value={mensajeCorreo}
-          onChange={e => setMensajeCorreo(e.target.value)}
+          onChange={(e) => setMensajeCorreo(e.target.value)}
         />
       </div>
-    </div>
-  )
+    </section>
+  );
 }
