@@ -16,7 +16,7 @@ import { saveResponse } from '../utilidades/useSurveys';
 
 function clamp01(n) {
   const x = Number(n);
-  return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
+  return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : null;
 }
 function nonEmpty(v) {
   // convierte '' en undefined para que los fallback funcionen
@@ -115,14 +115,15 @@ export default function RegistroGrupo() {
     const raw =
       (encuesta?.theme || encuesta?.appearance || encuesta?.apariencia || {});
     const t = {
-      headerTitle:      nonEmpty(raw.headerTitle),
-      headerDescription:nonEmpty(raw.headerDescription),
-      backgroundColor:  nonEmpty(raw.backgroundColor),
-      titleColor:       nonEmpty(raw.titleColor),
-      textColor:        nonEmpty(raw.textColor),
-      overlayOpacity:   clamp01(nonEmpty(raw.overlayOpacity)),
-      backgroundImage:  nonEmpty(raw.backgroundImage),
-      bgVersion:        raw.bgVersion || 0,
+      headerTitle:       nonEmpty(raw.headerTitle),
+      headerDescription: nonEmpty(raw.headerDescription),
+      backgroundColor:   nonEmpty(raw.backgroundColor),
+      titleColor:        nonEmpty(raw.titleColor),
+      textColor:         nonEmpty(raw.textColor),
+      // si no hay valor numérico válido, usa 0.35 por defecto
+      overlayOpacity:    (v => (v ?? 0.35))(clamp01(nonEmpty(raw.overlayOpacity))),
+      backgroundImage:   nonEmpty(raw.backgroundImage),
+      bgVersion:         raw.bgVersion || 0,
     };
 
     // URL final del fondo:
@@ -158,7 +159,8 @@ export default function RegistroGrupo() {
   const containerStyle = useMemo(
     () => ({
       backgroundColor: theme.backgroundColor || undefined,
-      backgroundImage: theme._bgUrl ? `url("${theme._bgUrl}")` : undefined,
+      // 'none' asegura que se borre el fondo previo si no hay imagen
+      backgroundImage: theme._bgUrl ? `url("${theme._bgUrl}")` : 'none',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }),

@@ -15,25 +15,24 @@ import CourseModal from '../componentes/PantallaCursos/CourseModal';
 import ReportModal from '../componentes/PantallaCursos/ReportModal';
 import DetailsModal from '../componentes/PantallaCursos/DetailsModal';
 
-// Si no usas estos, puedes borrarlos para evitar warnings
-// import { QRCodeCanvas } from 'qrcode.react';
-// import { useSurveys } from '../utilidades/useSurveys';
-
 import { AuthContext } from '../contexto/AuthContext';
+
+// ⬇️ NUEVO: borrado en cascada (curso + encuestas)
+import { deleteCourseAndSurveys } from '../servicios/cursos';
 
 /* ---------------- VALIDADORES BÁSICOS ---------------- */
 function validateCourse(c) {
   const errs = [];
-  if (!c.titulo?.trim()) errs.push('Título obligatorio');
-  if (!c.instructor?.trim()) errs.push('Instructor obligatorio');
-  if (!c.fechaInicio?.trim()) errs.push('Fecha de inicio obligatoria');
+  if (!c?.titulo?.trim()) errs.push('Título obligatorio');
+  if (!c?.instructor?.trim()) errs.push('Instructor obligatorio');
+  if (!c?.fechaInicio?.trim()) errs.push('Fecha de inicio obligatoria');
   return errs;
 }
 function validateReport(r) {
   const errs = [];
-  if (!r.titulo?.trim()) errs.push('Título obligatorio');
-  if (!r.tipo?.trim()) errs.push('Tipo obligatorio');
-  if (!r.cursoId?.trim()) errs.push('Curso asociado obligatorio');
+  if (!r?.titulo?.trim()) errs.push('Título obligatorio');
+  if (!r?.tipo?.trim()) errs.push('Tipo obligatorio');
+  if (!r?.cursoId?.trim()) errs.push('Curso asociado obligatorio');
   return errs;
 }
 
@@ -43,7 +42,7 @@ export default function Cursos() {
   const canManageCourses = usuario?.role !== 'user';
 
   /* ----------- data hooks ----------- */
-  const { courses, loading: lc, createCourse, updateCourse, deleteCourse } = useCourses();
+  const { courses, loading: lc, createCourse, updateCourse /* deleteCourse */ } = useCourses();
   const { reports, loading: lr, createReport, updateReport, deleteReport } = useReports();
 
   /* ----------- UI state ----------- */
@@ -64,27 +63,31 @@ export default function Cursos() {
 
   const importRef = useRef(null);
 
-  /* ----------- cursos filtrados (S/ useMemo para reflejar updates) ----------- */
+  // ids que se están eliminando (para deshabilitar botón)
+  const [deletingIds, setDeletingIds] = useState(() => new Set());
+  const isDeleting = (id) => deletingIds.has(id);
+
+  /* ----------- cursos filtrados (sin useMemo para reflejar updates) ----------- */
   const filteredCourses = (() => {
     let arr = Array.isArray(courses) ? courses : [];
     if (search.trim()) {
       const t = search.toLowerCase();
       arr = arr.filter(
         (c) =>
-          (c.titulo ?? '').toLowerCase().includes(t) ||
-          (c.instructor ?? '').toLowerCase().includes(t)
+          (c?.titulo ?? '').toLowerCase().includes(t) ||
+          (c?.instructor ?? '').toLowerCase().includes(t)
       );
     }
-    if (filterCat) arr = arr.filter((c) => c.categoria === filterCat);
+    if (filterCat) arr = arr.filter((c) => c?.categoria === filterCat);
     return [...arr].sort((a, b) =>
-      String(a[sortBy] ?? '').localeCompare(String(b[sortBy] ?? ''))
+      String(a?.[sortBy] ?? '').localeCompare(String(b?.[sortBy] ?? ''))
     );
   })();
 
   /* =============== EXCEL: export / import =============== */
   const exportList = () => {
     const list = view === 'courses' ? courses : reports;
-    const wb = listToWorkbook(list);
+    const wb = listToWorkbook(list || []);
     const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
     const today = new Date();
     const file = `${view === 'courses' ? 'Cursos' : 'Reportes'}-${today
@@ -157,7 +160,7 @@ export default function Cursos() {
 
   /* ----------- export automático día 1 ----------- */
   useEffect(() => {
-    const listReady = view === 'courses' ? courses.length : reports.length;
+    const listReady = view === 'courses' ? (courses?.length || 0) : (reports?.length || 0);
     if (!listReady) return;
 
     const today = new Date();
@@ -194,9 +197,39 @@ export default function Cursos() {
 
   const handleDeleteReport = async (rep) => {
     if (!window.confirm('¿Eliminar reporte?')) return;
-    await deleteReport(rep.id);
-    toast.info('Reporte eliminado');
-    setShowDetail(false);
+    try {
+      await deleteReport(rep.id);
+      toast.info('Reporte eliminado');
+      setShowDetail(false);
+    } catch (e) {
+      console.error(e);
+      toast.error('No se pudo eliminar el reporte');
+    }
+  };
+
+  const handleDeleteCourse = async (c) => {
+    if (!c?.id) return;
+    if (!window.confirm('¿Eliminar curso y sus encuestas asociadas?')) return;
+
+    setDeletingIds((s) => new Set(s).add(c.id));
+    try {
+      // ⬇️ Borrado en batch: curso + encuestas
+      await deleteCourseAndSurveys(c.id);
+      toast.info('Curso eliminado (incluidas encuestas asociadas)');
+      // si tienes DetailsModal abierto con este curso, ciérralo
+      if (showDetail && detailType === 'course' && detailData?.id === c.id) {
+        setShowDetail(false);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('No se pudo eliminar el curso');
+    } finally {
+      setDeletingIds((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
+      });
+    }
   };
 
   /* -------------------------------------------------- render */
@@ -309,6 +342,7 @@ export default function Cursos() {
                 <CourseListItem
                   key={c.id}
                   course={c}
+                  deleting={isDeleting(c.id)}          {/* se ignora si tu item no lo usa */}
                   onView={() => {
                     setDetailData(c);
                     setDetailType('course');
@@ -324,12 +358,7 @@ export default function Cursos() {
                   }
                   onDelete={
                     canManageCourses
-                      ? async () => {
-                          if (window.confirm('¿Eliminar curso?')) {
-                            await deleteCourse(c.id);
-                            toast.info('Curso eliminado');
-                          }
-                        }
+                      ? () => handleDeleteCourse(c)
                       : undefined
                   }
                   canManage={canManageCourses}
