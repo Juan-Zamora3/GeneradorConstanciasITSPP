@@ -317,19 +317,19 @@ export default function Cursos() {
                   onEdit={
                     canManageCourses
                       ? () => {
-                        setEditCourse(c);
-                        setShowCourseModal(true);
-                      }
+                          setEditCourse(c);
+                          setShowCourseModal(true);
+                        }
                       : undefined
                   }
                   onDelete={
                     canManageCourses
                       ? async () => {
-                        if (window.confirm('¿Eliminar curso?')) {
-                          await deleteCourse(c.id);
-                          toast.info('Curso eliminado');
+                          if (window.confirm('¿Eliminar curso?')) {
+                            await deleteCourse(c.id);
+                            toast.info('Curso eliminado');
+                          }
                         }
-                      }
                       : undefined
                   }
                   canManage={canManageCourses}
@@ -368,6 +368,7 @@ export default function Cursos() {
 
       {/* === MODALES === */}
       <CourseModal
+        key={showCourseModal ? (editCourse?.encuesta?.id || editCourse?.id || 'new') : 'closed'}
         isOpen={showCourseModal}
         initialData={editCourse || {}}
         onClose={() => {
@@ -398,6 +399,7 @@ export default function Cursos() {
       />
 
       <ReportModal
+        key={showReportModal ? (editReport?.id || 'new') : 'closed'}
         isOpen={showReportModal}
         onClose={() => {
           setShowReportModal(false);

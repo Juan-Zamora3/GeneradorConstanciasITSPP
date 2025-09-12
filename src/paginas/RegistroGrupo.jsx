@@ -11,8 +11,17 @@ import {
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 
-// ⬅️ Import estático (recomendado)
+// Import estático (recomendado)
 import { saveResponse } from '../utilidades/useSurveys';
+
+function clamp01(n) {
+  const x = Number(n);
+  return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
+}
+function nonEmpty(v) {
+  // convierte '' en undefined para que los fallback funcionen
+  return typeof v === 'string' && v.trim() === '' ? undefined : v;
+}
 
 export default function RegistroGrupo() {
   // Soporta ambos esquemas de URL: /registro/:encuestaId  y  /:slug
@@ -79,6 +88,12 @@ export default function RegistroGrupo() {
     return () => unsub();
   }, [encuestaId, slug]);
 
+  // Al cambiar de encuesta, limpia estados de usuario/OK
+  useEffect(() => {
+    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
+    setOk(false);
+  }, [encuesta?.id]);
+
   // Normaliza preguntas desde diferentes claves
   const preguntas = useMemo(() => {
     const s = encuesta || {};
@@ -95,10 +110,29 @@ export default function RegistroGrupo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(preguntas.map((p) => `${p.id}:${p.tipo}`))]);
 
-  // Normaliza theme/appearance
+  // Normaliza theme/appearance (quita vacíos, limita overlay y hace cache-bust del fondo)
   const theme = useMemo(() => {
-    const s = encuesta || {};
-    return s.theme || s.appearance || s.apariencia || {};
+    const raw =
+      (encuesta?.theme || encuesta?.appearance || encuesta?.apariencia || {});
+    const t = {
+      headerTitle:      nonEmpty(raw.headerTitle),
+      headerDescription:nonEmpty(raw.headerDescription),
+      backgroundColor:  nonEmpty(raw.backgroundColor),
+      titleColor:       nonEmpty(raw.titleColor),
+      textColor:        nonEmpty(raw.textColor),
+      overlayOpacity:   clamp01(nonEmpty(raw.overlayOpacity)),
+      backgroundImage:  nonEmpty(raw.backgroundImage),
+      bgVersion:        raw.bgVersion || 0,
+    };
+
+    // cache-bust para backgroundImage
+    let bgUrl;
+    if (t.backgroundImage) {
+      const hasQ = String(t.backgroundImage).includes('?');
+      bgUrl = `${t.backgroundImage}${hasQ ? '&' : '?'}v=${t.bgVersion}`;
+    }
+
+    return { ...t, _bgUrl: bgUrl };
   }, [encuesta]);
 
   // Título/Descripción visibles (también acepta encuesta.titulo/descripcion)
@@ -115,11 +149,11 @@ export default function RegistroGrupo() {
   const containerStyle = useMemo(
     () => ({
       backgroundColor: theme.backgroundColor || undefined,
-      backgroundImage: theme.backgroundImage ? `url(${theme.backgroundImage})` : undefined,
+      backgroundImage: theme._bgUrl ? `url(${theme._bgUrl})` : undefined,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }),
-    [theme.backgroundColor, theme.backgroundImage]
+    [theme.backgroundColor, theme._bgUrl]
   );
 
   const onSubmit = async (e) => {
@@ -141,9 +175,9 @@ export default function RegistroGrupo() {
     }
   };
 
-  if (loading)     return <div className="p-6">Cargando…</div>;
-  if (!encuesta)   return <div className="p-6">Formulario no encontrado.</div>;
-  if (ok)          return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
+  if (loading)   return <div className="p-6">Cargando…</div>;
+  if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
+  if (ok)        return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
 
   const campos = encuesta.camposPreestablecidos ?? {
     nombreEquipo: true,
@@ -152,11 +186,12 @@ export default function RegistroGrupo() {
   };
 
   return (
-    <div className="min-h-screen" style={containerStyle}>
-      {theme.backgroundImage && (
+    // key fuerza remount al cambiar de encuesta y evita “heredar” estado/estilos
+    <div key={encuesta.id} className="min-h-screen" style={containerStyle}>
+      {theme._bgUrl && theme.overlayOpacity > 0 && (
         <div
           className="fixed inset-0 pointer-events-none"
-          style={{ background: `rgba(0,0,0,${Number(theme.overlayOpacity ?? 0)})` }}
+          style={{ background: `rgba(0,0,0,${theme.overlayOpacity})` }}
         />
       )}
 
@@ -169,7 +204,7 @@ export default function RegistroGrupo() {
             {headerTitle}
           </h1>
 
-          {/* ✅ Descripción editable */}
+          {/* Descripción editable */}
           <p className="text-sm mb-6" style={{ color: theme.textColor || '#374151' }}>
             {headerDescription}
           </p>
