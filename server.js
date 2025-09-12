@@ -6,6 +6,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Mailjet from 'node-mailjet';
+// opcional
+// import helmet from 'helmet';
+// import compression from 'compression';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -13,27 +16,32 @@ const __dirname  = path.dirname(__filename);
 const app  = express();
 const port = process.env.PORT || 3000;
 
-// ───────── middlewares ─────────
+// Middlewares
 app.use(cors());
 app.use(bodyParser.json({ limit: '25mb' }));
+// app.use(helmet());
+// app.use(compression());
 
-// ───────── Mailjet API client ─────────
-const mailjet = Mailjet.apiConnect(
-  process.env.MJ_API_KEY    || '***dev_key***',
-  process.env.MJ_API_SECRET || '***dev_secret***'
-);
+// Mailjet
+const MJ_KEY = process.env.MJ_API_KEY;
+const MJ_SECRET = process.env.MJ_API_SECRET;
 
-// ───────── util ─────────
+if (!MJ_KEY || !MJ_SECRET) {
+  console.warn('⚠️ Falta MJ_API_KEY/MJ_API_SECRET en variables de entorno.');
+}
+const mailjet = Mailjet.apiConnect(MJ_KEY || '***dev_key***', MJ_SECRET || '***dev_secret***');
+
+// Utils
 function registrarEnvio(Correo, Nombres, Puesto) {
   const entrada = { Correo, Nombres, Puesto, fecha: new Date().toISOString() };
-  fs.appendFileSync(
-    path.join(__dirname, 'envios.log'),
-    JSON.stringify(entrada) + '\n',
-    'utf8'
-  );
+  if (process.env.NODE_ENV === 'production') {
+    console.log('[ENVIO]', entrada);
+  } else {
+    fs.appendFileSync(path.join(__dirname, 'envios.log'), JSON.stringify(entrada) + '\n', 'utf8');
+  }
 }
 
-// ───────── endpoint: enviar correo ─────────
+// API
 app.post('/EnviarCorreo', async (req, res) => {
   try {
     const { Correo, Nombres, Puesto, pdf, mensajeCorreo } = req.body;
@@ -41,23 +49,23 @@ app.post('/EnviarCorreo', async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
 
+    // Límite conservador para adjunto
+    const approxBytes = (pdf.length * 3) / 4;
+    if (approxBytes > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: 'PDF demasiado grande para enviar por correo' });
+    }
+
     await mailjet
       .post('send', { version: 'v3.1' })
       .request({
         Messages: [{
-          From: {
-            Email: 'ConstanciasISCITSPP@outlook.com',
-            Name:  'Constancias ISC-ITSPP'
-          },
-          To: [{
-            Email: Correo,
-            Name:  Nombres
-          }],
-          Subject:  'Tu constancia de participación',
+          From: { Email: 'ConstanciasISCITSPP@outlook.com', Name: 'Constancias ISC-ITSPP' },
+          To: [{ Email: Correo, Name: Nombres }],
+          Subject: 'Tu constancia de participación',
           TextPart: `Hola ${Nombres},\n\n${mensajeCorreo}\n\n¡Gracias por tu participación!`,
           Attachments: [{
-            ContentType:   'application/pdf',
-            Filename:      `Constancia_${Puesto.replace(/\s/g,'_')}_${Nombres.replace(/\s/g,'_')}.pdf`,
+            ContentType: 'application/pdf',
+            Filename: `Constancia_${Puesto.replace(/\s/g,'_')}_${Nombres.replace(/\s/g,'_')}.pdf`,
             Base64Content: pdf
           }]
         }]
@@ -71,16 +79,18 @@ app.post('/EnviarCorreo', async (req, res) => {
   }
 });
 
-// ───────── servir el build de Vite ─────────
+// Healthcheck
+app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// Static
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// ───────── fallback para SPA (¡sin usar path-to-regexp!) ─────────
-app.use((req, res) => {
+// Fallback SPA SOLO GET
+app.get('*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// ───────── arranque ─────────
 app.listen(port, () => {
   console.log(`Servidor listo en ${port}`);
 });
