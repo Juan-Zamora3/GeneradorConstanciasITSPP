@@ -1,4 +1,3 @@
-// src/paginas/RegistroGrupo.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
@@ -8,23 +7,37 @@ import {
   limit,
   onSnapshot,
   doc,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
+
+// Import estático
+import { saveResponse } from '../utilidades/useSurveys';
+
+function clamp01(n) {
+  const x = Number(n);
+  return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : null;
+}
+function nonEmpty(v) {
+  // convierte '' en undefined para que los fallback funcionen
+  return typeof v === 'string' && v.trim() === '' ? undefined : v;
+}
 
 export default function RegistroGrupo() {
   // Soporta ambos esquemas de URL: /registro/:encuestaId  y  /:slug
   const { encuestaId, slug } = useParams();
 
-  const [encuesta, setEncuesta] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [preset, setPreset] = useState({
+  const [encuesta,        setEncuesta]        = useState(null);
+  const [formAppearance,  setFormAppearance]  = useState(null); // ← apariencia desde formularios/{id}
+  const [loading,         setLoading]         = useState(true);
+  const [preset,          setPreset]          = useState({
     nombreEquipo: '',
     nombreLider: '',
     contactoEquipo: '',
   });
-  const [custom, setCustom] = useState({});
-  const [enviando, setEnviando] = useState(false);
-  const [ok, setOk] = useState(false);
+  const [custom,          setCustom]          = useState({});
+  const [enviando,        setEnviando]        = useState(false);
+  const [ok,              setOk]              = useState(false);
 
   // === Suscripción en tiempo real a la encuesta ===
   useEffect(() => {
@@ -76,15 +89,38 @@ export default function RegistroGrupo() {
     return () => unsub();
   }, [encuestaId, slug]);
 
+  // Al cambiar de encuesta, limpia estados visibles
+  useEffect(() => {
+    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
+    setOk(false);
+    setFormAppearance(null);
+  }, [encuesta?.id]);
+
+  // Carga apariencia global desde formularios/{formId|cursoId|courseId} (si existe) y la mezcla
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const formId = encuesta?.formId || encuesta?.cursoId || encuesta?.courseId;
+      if (!formId) {
+        setFormAppearance(null);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, 'formularios', formId)); // cambia 'formularios' si tu colección se llama distinto
+        const data = snap.exists() ? (snap.data()?.appearance || {}) : {};
+        if (!cancelled) setFormAppearance(data);
+      } catch (e) {
+        console.error('getDoc formularios error', e);
+        if (!cancelled) setFormAppearance(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [encuesta?.formId, encuesta?.cursoId, encuesta?.courseId]);
+
   // Normaliza preguntas desde diferentes claves
   const preguntas = useMemo(() => {
     const s = encuesta || {};
-    return (
-      s.preguntas ??
-      s.form?.preguntas ??
-      s.questions ??
-      []
-    );
+    return s.preguntas ?? s.form?.preguntas ?? s.questions ?? [];
   }, [encuesta]);
 
   // Re-inicializa respuestas custom cuando cambia la estructura de preguntas
@@ -107,10 +143,44 @@ export default function RegistroGrupo() {
   ]);
 
   // Normaliza theme/appearance
+
+  // Normaliza theme/appearance combinando formularios + overrides en encuesta
+
   const theme = useMemo(() => {
-    const s = encuesta || {};
-    return s.theme || s.appearance || s.apariencia || {};
-  }, [encuesta]);
+    const raw = {
+      ...(formAppearance || {}),
+      ...(encuesta?.theme || encuesta?.appearance || encuesta?.apariencia || {}),
+    };
+    const t = {
+      headerTitle:       nonEmpty(raw.headerTitle),
+      headerDescription: nonEmpty(raw.headerDescription),
+      backgroundColor:   nonEmpty(raw.backgroundColor),
+      titleColor:        nonEmpty(raw.titleColor),
+      textColor:         nonEmpty(raw.textColor),
+      // si no hay valor numérico válido, usa 0.35 por defecto
+      overlayOpacity:    (v => (v ?? 0.35))(clamp01(nonEmpty(raw.overlayOpacity))),
+      backgroundImage:   nonEmpty(raw.backgroundImage),
+      bgVersion:         raw.bgVersion || 0,
+    };
+
+    // URL final del fondo:
+    // - si es http(s) => se aplica cache-buster ?v=
+    // - si es data: o blob: => se deja intacta (no añadir query)
+    let bgUrl = undefined;
+    if (t.backgroundImage) {
+      const s = String(t.backgroundImage);
+      if (/^https?:\/\//i.test(s)) {
+        bgUrl = `${s}${s.includes('?') ? '&' : '?'}v=${t.bgVersion}`;
+      } else if (/^(data:|blob:)/i.test(s)) {
+        bgUrl = s; // NO tocar
+      } else {
+        // Valor no reconocido -> mejor no usarlo
+        bgUrl = undefined;
+      }
+    }
+
+    return { ...t, _bgUrl: bgUrl };
+  }, [encuesta, formAppearance]);
 
   // Título/Descripción visibles (también acepta encuesta.titulo/descripcion)
   const headerTitle =
@@ -126,11 +196,12 @@ export default function RegistroGrupo() {
   const containerStyle = useMemo(
     () => ({
       backgroundColor: theme.backgroundColor || undefined,
-      backgroundImage: theme.backgroundImage ? `url(${theme.backgroundImage})` : undefined,
+      // 'none' asegura que se borre el fondo previo si no hay imagen
+      backgroundImage: theme._bgUrl ? `url("${theme._bgUrl}")` : 'none',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     }),
-    [theme.backgroundColor, theme.backgroundImage]
+    [theme.backgroundColor, theme._bgUrl]
   );
 
   const onSubmit = async (e) => {
@@ -138,10 +209,7 @@ export default function RegistroGrupo() {
     if (!encuesta) return;
     setEnviando(true);
     try {
-      // ⬇️ ajusta este import si tu helper está en otra ruta
-      const { saveResponse } = await import('../utilidades/useSurveys');
-      // Nota: si ya usas un hook, puedes exponer una función pura para guardar
-      await (saveResponse?.default ?? saveResponse)(encuesta.id, {
+      await saveResponse(encuesta.id, {
         preset,
         custom,
         createdAt: new Date(),
@@ -155,9 +223,9 @@ export default function RegistroGrupo() {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading)   return <div className="p-6">Cargando…</div>;
   if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
-  if (ok) return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
+  if (ok)        return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
 
   const campos = encuesta.camposPreestablecidos ?? {
     nombreEquipo: true,
@@ -166,11 +234,12 @@ export default function RegistroGrupo() {
   };
 
   return (
-    <div className="min-h-screen" style={containerStyle}>
-      {theme.backgroundImage && (
+    // key fuerza remount al cambiar de encuesta y evita “heredar” estado/estilos
+    <div key={encuesta.id} className="min-h-screen" style={containerStyle}>
+      {theme._bgUrl && theme.overlayOpacity > 0 && (
         <div
           className="fixed inset-0 pointer-events-none"
-          style={{ background: `rgba(0,0,0,${Number(theme.overlayOpacity ?? 0)})` }}
+          style={{ background: `rgba(0,0,0,${theme.overlayOpacity})` }}
         />
       )}
 
@@ -183,7 +252,7 @@ export default function RegistroGrupo() {
             {headerTitle}
           </h1>
 
-          {/* ✅ Descripción editable */}
+          {/* Descripción editable */}
           <p className="text-sm mb-6" style={{ color: theme.textColor || '#374151' }}>
             {headerDescription}
           </p>
