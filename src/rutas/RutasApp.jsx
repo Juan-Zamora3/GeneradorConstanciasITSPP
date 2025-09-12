@@ -1,3 +1,4 @@
+// src/rutas/RutasApp.jsx
 import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthContext } from '../contexto/AuthContext';
@@ -9,10 +10,10 @@ import Constancias    from '../paginas/Constancias';
 import Cursos         from '../paginas/Cursos';
 import Perfil         from '../paginas/Perfil';
 import CrearUsuarios  from '../paginas/CrearUsuarios';
-import Equipos        from '../paginas/Equipos';   // ← NUEVO
-import AsistenciaForm from '../paginas/AsistenciaForm';   // ← NUEVO
+import Equipos        from '../paginas/Equipos';
+import AsistenciaForm from '../paginas/AsistenciaForm';
 import Layout         from '../componentes/Layout';
-import RegistroGrupo from '../paginas/RegistroGrupo';
+import RegistroGrupo  from '../paginas/RegistroGrupo';
 
 export default function RutasApp() {
   const { usuario } = useContext(AuthContext);
@@ -21,16 +22,20 @@ export default function RutasApp() {
     <Routes>
       {/* ---------- Rutas públicas ---------- */}
       <Route path="/" element={<Navigate to="/login" replace />} />
+
+      {/* Formulario por ID antiguo */}
       <Route path="/registro/:encuestaId" element={<RegistroGrupo />} />
 
-      {/* formulario de asistencia accesible SIN login */}
+      {/* Formulario por slug (NUEVO) → permite /seguridad-industrial */}
+      <Route path="/:slug" element={<RegistroGrupo />} />
+
+      {/* Formulario de asistencia público */}
       <Route path="/asistencia/:cursoId" element={<AsistenciaForm />} />
 
+      {/* Login */}
       <Route
         path="/login"
-        element={
-          !usuario ? <Login /> : <Navigate to="/inicio" replace />
-        }
+        element={!usuario ? <Login /> : <Navigate to="/inicio" replace />}
       />
 
       {/* ---------- Rutas protegidas (requieren login) ---------- */}
@@ -84,7 +89,7 @@ export default function RutasApp() {
               </Layout>
             }
           />
-           <Route
+          <Route
             path="/Equipos"
             element={
               <Layout>
@@ -92,20 +97,13 @@ export default function RutasApp() {
               </Layout>
             }
           />
-          
         </>
-        
-        
       )}
 
       {/* ---------- Fallback ---------- */}
       <Route
         path="*"
-        element={
-          usuario
-            ? <Navigate to="/inicio" replace />
-            : <Navigate to="/login" replace />
-        }
+        element={usuario ? <Navigate to="/inicio" replace /> : <Navigate to="/login" replace />}
       />
     </Routes>
   );
