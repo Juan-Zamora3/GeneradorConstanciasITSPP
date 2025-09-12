@@ -24,6 +24,24 @@ export default function CourseModal({
   initialData = {},
 }) {
   const createInitialForm = useCallback(() => ({
+=======
+  const defaultTheme = {
+    backgroundColor: '#f5f7fb',
+    backgroundImage: '',   // DataURL base64
+    titleColor: '#111827',
+    textColor: '#374151',
+    overlayOpacity: 0.35,
+  };
+
+  const emptyQuestion = {
+    titulo: '',
+    tipo: 'abierta',
+    requerida: false,
+    opciones: [],
+  };
+
+  const createInitialForm = () => ({
+
     titulo: '',
     instructor: '',
     fechaInicio: '',
@@ -43,6 +61,8 @@ export default function CourseModal({
       preguntasPersonalizadas: [],
     },
   }), []);
+
+  const [form, setForm] = useState(createInitialForm());
 
   const [form, setForm] = useState(createInitialForm());
 
@@ -104,6 +124,15 @@ export default function CourseModal({
       resetState();
     }
   }, [initialData, isOpen, resetState]);
+=======
+      setForm(createInitialForm());
+      setImageFile(null);
+      setImagePreview(null);
+      setEditandoPregunta(null);
+      setNuevaPregunta(emptyQuestion);
+    }
+  }, [initialData, isOpen]);
+
 
   // Personal
   useEffect(() => {
