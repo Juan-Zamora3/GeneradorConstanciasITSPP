@@ -1,4 +1,3 @@
-// src/paginas/Cursos.jsx
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -63,11 +62,11 @@ export default function Cursos() {
 
   const importRef = useRef(null);
 
-  // ids que se están eliminando (para deshabilitar botón)
+  // ids en eliminación (deshabilita botón mientras borra)
   const [deletingIds, setDeletingIds] = useState(() => new Set());
   const isDeleting = (id) => deletingIds.has(id);
 
-  /* ----------- cursos filtrados (sin useMemo para reflejar updates) ----------- */
+  /* ----------- cursos filtrados ----------- */
   const filteredCourses = (() => {
     let arr = Array.isArray(courses) ? courses : [];
     if (search.trim()) {

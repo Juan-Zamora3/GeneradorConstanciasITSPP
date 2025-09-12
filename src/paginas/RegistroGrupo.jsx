@@ -1,4 +1,3 @@
-// src/paginas/RegistroGrupo.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
@@ -8,6 +7,7 @@ import {
   limit,
   onSnapshot,
   doc,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 
@@ -27,16 +27,17 @@ export default function RegistroGrupo() {
   // Soporta ambos esquemas de URL: /registro/:encuestaId  y  /:slug
   const { encuestaId, slug } = useParams();
 
-  const [encuesta, setEncuesta] = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [preset, setPreset]     = useState({
+  const [encuesta,        setEncuesta]        = useState(null);
+  const [formAppearance,  setFormAppearance]  = useState(null); // ← apariencia desde formularios/{id}
+  const [loading,         setLoading]         = useState(true);
+  const [preset,          setPreset]          = useState({
     nombreEquipo: '',
     nombreLider: '',
     contactoEquipo: '',
   });
-  const [custom, setCustom]     = useState({});
-  const [enviando, setEnviando] = useState(false);
-  const [ok, setOk]             = useState(false);
+  const [custom,          setCustom]          = useState({});
+  const [enviando,        setEnviando]        = useState(false);
+  const [ok,              setOk]              = useState(false);
 
   // === Suscripción en tiempo real a la encuesta ===
   useEffect(() => {
@@ -92,7 +93,29 @@ export default function RegistroGrupo() {
   useEffect(() => {
     setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
     setOk(false);
+    setFormAppearance(null);
   }, [encuesta?.id]);
+
+  // Carga apariencia global desde formularios/{formId|cursoId|courseId} (si existe) y la mezcla
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const formId = encuesta?.formId || encuesta?.cursoId || encuesta?.courseId;
+      if (!formId) {
+        setFormAppearance(null);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, 'formularios', formId)); // cambia 'formularios' si tu colección se llama distinto
+        const data = snap.exists() ? (snap.data()?.appearance || {}) : {};
+        if (!cancelled) setFormAppearance(data);
+      } catch (e) {
+        console.error('getDoc formularios error', e);
+        if (!cancelled) setFormAppearance(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [encuesta?.formId, encuesta?.cursoId, encuesta?.courseId]);
 
   // Normaliza preguntas desde diferentes claves
   const preguntas = useMemo(() => {
@@ -110,10 +133,12 @@ export default function RegistroGrupo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(preguntas.map((p) => `${p.id}:${p.tipo}`))]);
 
-  // Normaliza theme/appearance
+  // Normaliza theme/appearance combinando formularios + overrides en encuesta
   const theme = useMemo(() => {
-    const raw =
-      (encuesta?.theme || encuesta?.appearance || encuesta?.apariencia || {});
+    const raw = {
+      ...(formAppearance || {}),
+      ...(encuesta?.theme || encuesta?.appearance || encuesta?.apariencia || {}),
+    };
     const t = {
       headerTitle:       nonEmpty(raw.headerTitle),
       headerDescription: nonEmpty(raw.headerDescription),
@@ -143,7 +168,7 @@ export default function RegistroGrupo() {
     }
 
     return { ...t, _bgUrl: bgUrl };
-  }, [encuesta]);
+  }, [encuesta, formAppearance]);
 
   // Título/Descripción visibles (también acepta encuesta.titulo/descripcion)
   const headerTitle =
