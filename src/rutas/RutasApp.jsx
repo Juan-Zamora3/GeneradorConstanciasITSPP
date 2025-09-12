@@ -12,6 +12,7 @@ import CrearUsuarios  from '../paginas/CrearUsuarios';
 import Equipos        from '../paginas/Equipos';   // ← NUEVO
 import AsistenciaForm from '../paginas/AsistenciaForm';   // ← NUEVO
 import Layout         from '../componentes/Layout';
+import RegistroGrupo from '../paginas/RegistroGrupo';
 
 export default function RutasApp() {
   const { usuario } = useContext(AuthContext);
@@ -20,6 +21,7 @@ export default function RutasApp() {
     <Routes>
       {/* ---------- Rutas públicas ---------- */}
       <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/registro/:encuestaId" element={<RegistroGrupo />} />
 
       {/* formulario de asistencia accesible SIN login */}
       <Route path="/asistencia/:cursoId" element={<AsistenciaForm />} />
@@ -90,6 +92,7 @@ export default function RutasApp() {
               </Layout>
             }
           />
+          
         </>
         
         

@@ -1,7 +1,10 @@
 // src/componentes/PantallaCursos/CourseModal.jsx
+// src/componentes/PantallaCursos/CourseModal.jsx
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
+import { useSurveys } from '../../utilidades/useSurveys';
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function CourseModal({
   isOpen,
@@ -41,6 +44,10 @@ export default function CourseModal({
   });
   const [searchPersonal, setSearchPersonal] = useState('');
   const [filterArea, setFilterArea] = useState('');
+  const { createForCourse, getByCourse } = useSurveys();
+
+
+
 
   // Cargar datos iniciales si estamos editando
   useEffect(() => {
@@ -721,7 +728,9 @@ export default function CourseModal({
                     <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
                     Nombre del Equipo (requerido)
                   </div>
+                  
                 )}
+
                 {form.formularioGrupos.camposPreestablecidos.nombreLider && (
                   <div className="flex items-center text-gray-600">
                     <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>

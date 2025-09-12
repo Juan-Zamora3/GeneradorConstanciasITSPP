@@ -14,6 +14,9 @@ import ReportListItem from '../componentes/PantallaCursos/ReportListItem';
 import CourseModal    from '../componentes/PantallaCursos/CourseModal';
 import ReportModal    from '../componentes/PantallaCursos/ReportModal';
 import DetailsModal   from '../componentes/PantallaCursos/DetailsModal';
+import { useSurveys } from '../utilidades/useSurveys';
+import { QRCodeCanvas } from 'qrcode.react';
+
 
 import { AuthContext } from '../contexto/AuthContext';
 
@@ -32,6 +35,9 @@ function validateReport(r) {
   if (!r.cursoId?.trim())       errs.push('Curso asociado obligatorio');
   return errs;
 }
+
+
+
 
 /* -------------------------------------------------------------- */
 export default function Cursos() {
@@ -165,6 +171,8 @@ export default function Cursos() {
     toast.info('Reporte eliminado');
     setShowDetail(false);
   };
+
+  
 
   /* -------------------------------------------------- render */
   return (

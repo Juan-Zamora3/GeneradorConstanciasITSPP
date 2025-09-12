@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageCarousel from '../common/ImageCarousel';
-import QrCanvas from './QrCanvas';          // ← importa el componente
+import QrCanvas from './QrCanvas';
+import { useSurveys } from '../../utilidades/useSurveys';
+import { QRCodeCanvas } from 'qrcode.react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../servicios/firebaseConfig';
 
 export default function DetailsModal({
   isOpen,
@@ -10,11 +14,93 @@ export default function DetailsModal({
   onDelete,
 }) {
   const [activeTab, setActiveTab] = useState('cuestionario');
-  
+
+  // === Encuestas ===
+  const { getByCourse, createForCourse } = useSurveys();
+  const [encuestaLink, setEncuestaLink] = useState('');
+  const [encuestaId, setEncuestaId] = useState('');
+  const [creatingSurvey, setCreatingSurvey] = useState(false);
+
+  const isGroupCourse = data?.tipoCurso === 'grupos';
+
+  // Cargar encuesta si ya existe para este curso
+  useEffect(() => {
+    if (!isOpen || !data?.id) return;
+    (async () => {
+      try {
+        const list = await getByCourse(data.id);
+        if (list?.length) {
+          setEncuestaId(list[0].id);
+          setEncuestaLink(list[0].link || '');
+        } else {
+          setEncuestaId('');
+          setEncuestaLink('');
+        }
+      } catch (e) {
+        console.error('loadSurvey error', e);
+      }
+    })();
+  }, [isOpen, data?.id, getByCourse]);
+
+  // Mapeo de preguntas desde la config del curso (NO usa "form" ni "initialData")
+  const mapPreguntasForSurvey = () => {
+    const tipoMap = {
+      abierta: 'text',
+      combobox: 'select',
+      multiple: 'radio',
+      checklist: 'checkbox',
+    };
+    const preguntas = data?.formularioGrupos?.preguntasPersonalizadas || [];
+    return preguntas.map((p, i) => ({
+      id: `p${i + 1}`,
+      etiqueta: p.titulo?.trim() || `Pregunta ${i + 1}`,
+      tipo: tipoMap[p.tipo] || 'text',
+      opciones: Array.isArray(p.opciones) ? p.opciones.filter(Boolean) : [],
+      requerida: !!p.requerida,
+    }));
+  };
+
+  // Generar/guardar encuesta para este curso
+  const generarEncuesta = async () => {
+    if (!data?.id) {
+      alert('Primero guarda el curso para poder generar el link.');
+      return;
+    }
+    setCreatingSurvey(true);
+    try {
+      if (!encuestaId) {
+        const preguntas = mapPreguntasForSurvey();
+        const { id, link } = await createForCourse({
+          cursoId: data.id,
+          titulo: `Registro de Grupos – ${data.titulo || ''}`,
+          preguntas,
+          user: null,
+        });
+
+        setEncuestaId(id);
+        setEncuestaLink(link);
+
+        // Guardar referencia también en el documento del curso (opcional)
+        try {
+          await updateDoc(doc(db, 'Cursos', data.id), {
+            encuestaId: id,
+            encuestaLink: link,
+          });
+        } catch (e) {
+          console.warn('No se pudo actualizar el curso con encuestaId/Link:', e);
+        }
+      }
+    } catch (e) {
+      console.error('generarEncuesta error', e);
+      alert('No se pudo generar la encuesta');
+    } finally {
+      setCreatingSurvey(false);
+    }
+  };
+
+  // <<< NO pongas "if (!isOpen) return null" antes de los hooks >>>
   if (!isOpen) return null;
-  
-  // Verificar si es un curso de tipo grupo
-  const isGroupCourse = data.tipoCurso === 'grupos';
+  //estamos confiando en mi compita carnal//
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -48,30 +134,63 @@ export default function DetailsModal({
                   <QrCanvas courseId={data.id} />
                 </div>
                 
-                {/* Link de registro con botón copiar */}
-                <div className="w-full max-w-sm">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Link de registro:
-                  </label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      value={`${window.location.origin}/registro/${data.id}`}
-                      readOnly
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50 text-sm"
-                    />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/registro/${data.id}`);
-                        // Aquí podrías agregar una notificación de éxito
-                      }}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 text-sm"
-                      title="Copiar link"
-                    >
-                      📋
-                    </button>
-                  </div>
-                </div>
+
+                                {/* Link de registro y QR */}
+<div className="mt-6 p-4 bg-white rounded-lg border border-gray-200">
+  <div className="flex items-center justify-between mb-3">
+    <h6 className="text-sm font-medium text-gray-700">Link de registro para equipos</h6>
+    <button
+      type="button"
+      onClick={generarEncuesta}
+      disabled={creatingSurvey || !!encuestaLink}
+      className={`px-3 py-1 rounded-md text-sm ${
+        encuestaLink
+          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+          : 'bg-indigo-600 text-white hover:bg-indigo-700'
+      }`}
+    >
+      {encuestaLink ? 'Link generado' : (creatingSurvey ? 'Generando…' : 'Generar link')}
+    </button>
+  </div>
+
+  {encuestaLink ? (
+    <>
+      <div className="flex items-center gap-2">
+        <input
+          className="flex-1 border rounded px-2 py-1"
+          readOnly
+          value={encuestaLink}
+        />
+
+      </div>
+     
+    </>
+  ) : (
+    <p className="text-xs text-gray-500">
+      Aún no hay link. Guarda el curso y presiona “Generar link”.
+    </p>
+  )}
+</div>
+{encuestaLink && (
+  <div className="flex items-center gap-2 mt-2">
+    <a
+      href={encuestaLink}
+      target="_blank"
+      rel="noreferrer"
+      className="px-3 py-1 bg-indigo-600 text-white rounded"
+    >
+      Abrir
+    </a>
+    <button
+      type="button"
+      className="px-3 py-1 bg-slate-700 text-white rounded"
+      onClick={() => navigator.clipboard.writeText(encuestaLink)}
+    >
+      Copiar
+    </button>
+  </div>
+)}
+
               </div>
             </div>
 
