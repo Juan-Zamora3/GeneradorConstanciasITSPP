@@ -1,13 +1,19 @@
 // src/paginas/RegistroGrupo.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useSurveys } from '../utilidades/useSurveys';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  limit,
+  onSnapshot,
+  doc,
+} from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 
 export default function RegistroGrupo() {
+  // Soporta ambos esquemas de URL: /registro/:encuestaId  y  /:slug
   const { encuestaId, slug } = useParams();
-  const { getById, saveResponse } = useSurveys();
 
   const [encuesta, setEncuesta] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,55 +26,93 @@ export default function RegistroGrupo() {
   const [enviando, setEnviando] = useState(false);
   const [ok, setOk] = useState(false);
 
+  // === Suscripción en tiempo real a la encuesta ===
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      try {
-        let s = null;
+    setLoading(true);
+    let unsub = () => {};
 
-        if (encuestaId) {
-          s = await getById(encuestaId);
-        } else if (slug) {
-          const q = query(collection(db, 'encuestas'), where('linkSlug', '==', slug));
-          const snap = await getDocs(q);
+    if (encuestaId) {
+      const ref = doc(db, 'encuestas', encuestaId);
+      unsub = onSnapshot(
+        ref,
+        (snap) => {
+          setEncuesta(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+          setLoading(false);
+        },
+        (err) => {
+          console.error('onSnapshot encuestaId:', err);
+          setEncuesta(null);
+          setLoading(false);
+        }
+      );
+    } else if (slug) {
+      const q = query(
+        collection(db, 'encuestas'),
+        where('linkSlug', '==', slug),
+        limit(1)
+      );
+      unsub = onSnapshot(
+        q,
+        (snap) => {
           if (!snap.empty) {
             const d = snap.docs[0];
-            s = { id: d.id, ...d.data() };
+            setEncuesta({ id: d.id, ...d.data() });
+          } else {
+            setEncuesta(null);
           }
+          setLoading(false);
+        },
+        (err) => {
+          console.error('onSnapshot slug:', err);
+          setEncuesta(null);
+          setLoading(false);
         }
+      );
+    } else {
+      setEncuesta(null);
+      setLoading(false);
+    }
 
-        if (!mounted) return;
-
-        setEncuesta(s || null);
-
-        // init preguntas custom
-        const preguntas =
-          s?.preguntas ??
-          s?.form?.preguntas ??
-          s?.questions ??
-          [];
-
-        const init = {};
-        preguntas.forEach((p) => {
-          init[p.id] = p.tipo === 'checkbox' ? [] : '';
-        });
-        setCustom(init);
-      } catch (err) {
-        console.error('Error cargando encuesta:', err);
-        setEncuesta(null);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => unsub();
   }, [encuestaId, slug]);
 
-  // Apariencia / theme (con overrides de título y descripción)
-  const theme = encuesta?.theme || {};
-  const headerTitle = theme.headerTitle || encuesta?.titulo || 'Registro de Grupos';
-  const headerDescription = theme.headerDescription || encuesta?.descripcion || 'Completa el formulario de registro.';
+  // Normaliza preguntas desde diferentes claves
+  const preguntas = useMemo(() => {
+    const s = encuesta || {};
+    return (
+      s.preguntas ??
+      s.form?.preguntas ??
+      s.questions ??
+      []
+    );
+  }, [encuesta]);
+
+  // Re-inicializa respuestas custom cuando cambia la estructura de preguntas
+  useEffect(() => {
+    const init = {};
+    preguntas.forEach((p) => {
+      init[p.id] = p.tipo === 'checkbox' ? [] : '';
+    });
+    setCustom(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(preguntas.map((p) => `${p.id}:${p.tipo}`))]);
+
+  // Normaliza theme/appearance
+  const theme = useMemo(() => {
+    const s = encuesta || {};
+    return s.theme || s.appearance || s.apariencia || {};
+  }, [encuesta]);
+
+  // Título/Descripción visibles (también acepta encuesta.titulo/descripcion)
+  const headerTitle =
+    theme.headerTitle ||
+    encuesta?.titulo ||
+    'Registro de Grupos';
+
+  const headerDescription =
+    theme.headerDescription ||
+    encuesta?.descripcion ||
+    'Completa el formulario de registro.';
 
   const containerStyle = useMemo(
     () => ({
@@ -85,7 +129,14 @@ export default function RegistroGrupo() {
     if (!encuesta) return;
     setEnviando(true);
     try {
-      await saveResponse(encuesta.id, { preset, custom, createdAt: new Date() });
+      // ⬇️ ajusta este import si tu helper está en otra ruta
+      const { saveResponse } = await import('../utilidades/useSurveys');
+      // Nota: si ya usas un hook, puedes exponer una función pura para guardar
+      await (saveResponse?.default ?? saveResponse)(encuesta.id, {
+        preset,
+        custom,
+        createdAt: new Date(),
+      });
       setOk(true);
     } catch (err) {
       console.error('saveResponse error', err);
@@ -105,12 +156,6 @@ export default function RegistroGrupo() {
     contactoEquipo: true,
   };
 
-  const preguntas =
-    encuesta.preguntas ??
-    encuesta.form?.preguntas ??
-    encuesta.questions ??
-    [];
-
   return (
     <div className="min-h-screen" style={containerStyle}>
       {theme.backgroundImage && (
@@ -122,9 +167,14 @@ export default function RegistroGrupo() {
 
       <div className="relative z-10 max-w-3xl mx-auto p-6">
         <div className="rounded-xl bg-white/90 backdrop-blur shadow-xl p-6">
-          <h1 className="text-2xl font-semibold mb-2" style={{ color: theme.titleColor || '#111827' }}>
+          <h1
+            className="text-2xl font-semibold mb-2"
+            style={{ color: theme.titleColor || '#111827' }}
+          >
             {headerTitle}
           </h1>
+
+          {/* ✅ Descripción editable */}
           <p className="text-sm mb-6" style={{ color: theme.textColor || '#374151' }}>
             {headerDescription}
           </p>
@@ -144,7 +194,6 @@ export default function RegistroGrupo() {
                 />
               </div>
             )}
-
             {campos.nombreLider && (
               <div>
                 <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
@@ -158,7 +207,6 @@ export default function RegistroGrupo() {
                 />
               </div>
             )}
-
             {campos.contactoEquipo && (
               <div>
                 <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
@@ -198,7 +246,9 @@ export default function RegistroGrupo() {
                   >
                     <option value="">Seleccione…</option>
                     {(p.opciones || []).map((op) => (
-                      <option key={op} value={op}>{op}</option>
+                      <option key={op} value={op}>
+                        {op}
+                      </option>
                     ))}
                   </select>
                 )}
