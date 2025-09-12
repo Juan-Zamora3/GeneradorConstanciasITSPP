@@ -1,6 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
+
+const defaultTheme = {
+  backgroundColor: '#f5f7fb',
+  backgroundImage: '',   // DataURL base64
+  titleColor: '#111827',
+  textColor: '#374151',
+  overlayOpacity: 0.35,
+};
+
+const emptyQuestion = {
+  titulo: '',
+  tipo: 'abierta',
+  requerida: false,
+  opciones: [],
+};
 
 export default function CourseModal({
   isOpen,
@@ -8,6 +23,8 @@ export default function CourseModal({
   onSubmit,          // se sigue llamando si tu padre lo usa
   initialData = {},
 }) {
+  const createInitialForm = useCallback(() => ({
+=======
   const defaultTheme = {
     backgroundColor: '#f5f7fb',
     backgroundImage: '',   // DataURL base64
@@ -24,6 +41,7 @@ export default function CourseModal({
   };
 
   const createInitialForm = () => ({
+
     titulo: '',
     instructor: '',
     fechaInicio: '',
@@ -42,13 +60,16 @@ export default function CourseModal({
       },
       preguntasPersonalizadas: [],
     },
-  });
+  }), []);
+
+  const [form, setForm] = useState(createInitialForm());
 
   const [form, setForm] = useState(createInitialForm());
 
   // imagen de portada del curso (no es la de la pantalla del formulario)
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const imageInputRef = useRef(null);
 
   const [personalList, setPersonalList] = useState([]);
   const [editandoPregunta, setEditandoPregunta] = useState(null);
@@ -57,6 +78,20 @@ export default function CourseModal({
   const [filterArea, setFilterArea] = useState('');
 
   const isEdit = Boolean(initialData.id);
+
+  const resetState = useCallback(() => {
+    setForm(createInitialForm());
+    setImageFile(null);
+    setImagePreview(null);
+    setEditandoPregunta(null);
+    setNuevaPregunta(emptyQuestion);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  }, [createInitialForm]);
+
+  const handleClose = () => {
+    resetState();
+    onClose?.();
+  };
 
   // Cargar datos iniciales al abrir/editar
   useEffect(() => {
@@ -84,7 +119,12 @@ export default function CourseModal({
         },
       });
       if (initialData.imageUrl) setImagePreview(initialData.imageUrl);
+      if (imageInputRef.current) imageInputRef.current.value = '';
     } else {
+      resetState();
+    }
+  }, [initialData, isOpen, resetState]);
+=======
       setForm(createInitialForm());
       setImageFile(null);
       setImagePreview(null);
@@ -92,6 +132,7 @@ export default function CourseModal({
       setNuevaPregunta(emptyQuestion);
     }
   }, [initialData, isOpen]);
+
 
   // Personal
   useEffect(() => {
@@ -134,6 +175,7 @@ export default function CourseModal({
   const removeImage = () => {
     setImageFile(null);
     setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
   // Apariencia: imagen de fondo base64
@@ -207,7 +249,7 @@ export default function CourseModal({
           <h3 className="text-2xl font-bold text-gray-800">
             {isEdit ? 'Editar Curso' : 'Nuevo Curso'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
         </div>
 
         {/* Formulario */}
@@ -291,7 +333,14 @@ export default function CourseModal({
               <label htmlFor="image-upload" className="text-blue-600 hover:text-blue-800 underline cursor-pointer">
                 Seleccionar imagen
               </label>
-              <input id="image-upload" type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                ref={imageInputRef}
+                className="hidden"
+              />
               {imagePreview && (
                 <div className="relative">
                   <img src={imagePreview} alt="Vista previa" className="w-24 h-24 object-cover rounded-lg border" />
@@ -455,7 +504,7 @@ export default function CourseModal({
 
           {/* Acciones */}
           <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
-            <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
+            <button type="button" onClick={handleClose} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
             <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               {isEdit ? 'Actualizar Curso' : 'Crear Curso'}
             </button>
