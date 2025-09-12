@@ -41,6 +41,9 @@ export function useCourses() {
               reportes: data.reportes || [],
               imageUrl: data.imageUrl || '',
               tipoCurso: data.tipoCurso || 'personal',
+              theme: data.theme || {},
+              encuestaId: data.encuestaId || '',
+              encuestaLink: data.encuestaLink || '',
               formularioGrupos: data.formularioGrupos || {
                 camposPreestablecidos: {
                   nombreEquipo: true,
@@ -89,6 +92,9 @@ export function useCourses() {
         reportes: [],
         imageUrl,
         tipoCurso: courseData.tipoCurso || 'personal',
+        theme: courseData.theme || {},
+        encuestaId: courseData.encuestaId || '',
+        encuestaLink: courseData.encuestaLink || '',
         formularioGrupos: courseData.formularioGrupos || {
           camposPreestablecidos: {
             nombreEquipo: true,
@@ -136,6 +142,9 @@ export function useCourses() {
       descripcion: courseData.descripcion,
       listas: Array.isArray(courseData.lista) ? courseData.lista : [],
       tipoCurso: courseData.tipoCurso || 'personal',
+      theme: courseData.theme || {},
+      encuestaId: courseData.encuestaId || '',
+      encuestaLink: courseData.encuestaLink || '',
       formularioGrupos: courseData.formularioGrupos || {
         camposPreestablecidos: {
           nombreEquipo: true,
