@@ -24,24 +24,6 @@ export default function CourseModal({
   initialData = {},
 }) {
   const createInitialForm = useCallback(() => ({
-=======
-  const defaultTheme = {
-    backgroundColor: '#f5f7fb',
-    backgroundImage: '',   // DataURL base64
-    titleColor: '#111827',
-    textColor: '#374151',
-    overlayOpacity: 0.35,
-  };
-
-  const emptyQuestion = {
-    titulo: '',
-    tipo: 'abierta',
-    requerida: false,
-    opciones: [],
-  };
-
-  const createInitialForm = () => ({
-
     titulo: '',
     instructor: '',
     fechaInicio: '',
@@ -64,12 +46,11 @@ export default function CourseModal({
 
   const [form, setForm] = useState(createInitialForm());
 
-  const [form, setForm] = useState(createInitialForm());
-
   // imagen de portada del curso (no es la de la pantalla del formulario)
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const imageInputRef = useRef(null);
+  const themeFileRef = useRef(null);
 
   const [personalList, setPersonalList] = useState([]);
   const [editandoPregunta, setEditandoPregunta] = useState(null);
@@ -86,6 +67,7 @@ export default function CourseModal({
     setEditandoPregunta(null);
     setNuevaPregunta(emptyQuestion);
     if (imageInputRef.current) imageInputRef.current.value = '';
+    if (themeFileRef.current) themeFileRef.current.value = '';
   }, [createInitialForm]);
 
   const handleClose = () => {
@@ -108,31 +90,24 @@ export default function CourseModal({
         descripcion: initialData.descripcion || '',
         tipoCurso: initialData.tipoCurso || 'personal',
         lista: existentes,
-        theme: initialData.theme || defaultTheme,
-        formularioGrupos: initialData.formularioGrupos || {
+        theme: { ...defaultTheme, ...(initialData.theme || {}) },
+        formularioGrupos: {
           camposPreestablecidos: {
             nombreEquipo: true,
             nombreLider: true,
             contactoEquipo: true,
+            ...(initialData.formularioGrupos?.camposPreestablecidos || {}),
           },
-          preguntasPersonalizadas: [],
+          preguntasPersonalizadas: initialData.formularioGrupos?.preguntasPersonalizadas || [],
         },
       });
       if (initialData.imageUrl) setImagePreview(initialData.imageUrl);
       if (imageInputRef.current) imageInputRef.current.value = '';
+      if (themeFileRef.current) themeFileRef.current.value = '';
     } else {
       resetState();
     }
   }, [initialData, isOpen, resetState]);
-=======
-      setForm(createInitialForm());
-      setImageFile(null);
-      setImagePreview(null);
-      setEditandoPregunta(null);
-      setNuevaPregunta(emptyQuestion);
-    }
-  }, [initialData, isOpen]);
-
 
   // Personal
   useEffect(() => {
@@ -187,6 +162,11 @@ export default function CourseModal({
       setForm(f => ({ ...f, theme: { ...f.theme, backgroundImage: ev.target.result } }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const removeThemeImage = () => {
+    setForm(f => ({ ...f, theme: { ...f.theme, backgroundImage: '' } }));
+    if (themeFileRef.current) themeFileRef.current.value = '';
   };
 
   // Filtros de personal
@@ -414,7 +394,29 @@ export default function CourseModal({
 
                   <label className="text-sm">
                     <span className="block text-gray-600 mb-1">Imagen de fondo (desde tu equipo)</span>
-                    <input type="file" accept="image/*" onChange={handleThemeFile} className="w-full rounded border px-2 py-2" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleThemeFile}
+                      ref={themeFileRef}
+                      className="w-full rounded border px-2 py-2"
+                    />
+                    {form.theme.backgroundImage && (
+                      <div className="relative mt-2">
+                        <img
+                          src={form.theme.backgroundImage}
+                          alt="Vista previa de fondo"
+                          className="w-24 h-24 object-cover rounded border"
+                        />
+                        <button
+                          type="button"
+                          onClick={removeThemeImage}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
                   </label>
 
                   <label className="text-sm">
