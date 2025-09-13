@@ -2,7 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, query, where, limit, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 
-
+const toSurveyQuestions = (lista = []) => {
+  const tipoMap = { abierta: 'text', combobox: 'select', multiple: 'radio', checklist: 'checkbox' };
+  return lista.map((p, i) => ({
+    id: `p${i + 1}`,
+    etiqueta: p.titulo?.trim() || `Pregunta ${i + 1}`,
+    tipo: tipoMap[p.tipo] || 'text',
+    opciones: Array.isArray(p.opciones) ? p.opciones.filter(Boolean) : [],
+    requerida: !!p.requerida,
+  }));
+};
 const defaultTheme = {
   backgroundColor: '#f5f7fb',
   backgroundImage: '',   // DataURL base64
@@ -185,7 +194,7 @@ export default function CourseModal({
   });
 
   // Guardar (llama al padre y asegura persistencia en edición)
- const submit = async (e) => {
+const submit = async (e) => {
   e.preventDefault();
 
   onSubmit?.({ ...form, imageUrl: imagePreview }, imageFile);
@@ -198,7 +207,8 @@ export default function CourseModal({
       updatedAt: new Date(),
     });
   }
- // ---------- Encuesta (lo que lee el formulario público) ----------
+
+  // ---------- Encuesta (lo que lee el formulario público) ----------
   // 1) Resuelve el id de encuesta
   let encuestaId = initialData.encuestaId;
   if (!encuestaId && initialData.id) {
@@ -212,31 +222,38 @@ export default function CourseModal({
   }
   if (!encuestaId) return; // no hay encuesta que actualizar
 
-  // 2) Calcula valores a guardar
-  const cantidad = Math.max(
-    1,
-    Number(form.formularioGrupos?.cantidadParticipantes ?? 1) || 1
-  );
-
+  // 2) Calcula payload
+  const cantidad = Math.max(1, Number(form.formularioGrupos?.cantidadParticipantes ?? 1) || 1);
   const campos = {
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
-    cantidadParticipantes: true, // <- obliga a mostrar la sección
+    cantidadParticipantes: true,
     ...(form.formularioGrupos?.camposPreestablecidos || {}),
   };
 
-  // 3) Escribe una sola vez el doc correcto
+  // 👇 Usa la función ya definida arriba
+  const preguntas = toSurveyQuestions(form.formularioGrupos?.preguntasPersonalizadas || []);
+
+  // 3) Un SOLO update al doc correcto
   await updateDoc(doc(db, 'encuestas', encuestaId), {
     titulo: `Registro de Grupos – ${form.titulo || ''}`,
     descripcion: form.descripcion || '',
     theme: form.theme,
-    cantidadParticipantes: cantidad,         // <- lo que usa RegistroGrupo
+
+    cantidadParticipantes: cantidad,
+    camposPreestablecidos: campos,
     formularioGrupos: {
       ...(initialData.formularioGrupos || {}),
-      cantidadParticipantes: cantidad,       // espejo (por si acaso)
+      cantidadParticipantes: cantidad,
     },
-    camposPreestablecidos: campos,
+
+    // claves que lee RegistroGrupo
+    preguntas,
+    form: { preguntas },            // compat opcional
+    questions: preguntas,           // compat opcional
+    questionsVersion: Date.now(),   // fuerza refresh
+
     updatedAt: new Date(),
   });
 };
