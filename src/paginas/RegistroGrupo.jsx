@@ -1,43 +1,67 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  collection,
-  query,
-  where,
-  limit,
-  onSnapshot,
-  doc,
-  getDoc,
+  collection, query, where, limit, onSnapshot, doc, getDoc,
 } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
-
-// Import estático
 import { saveResponse } from '../utilidades/useSurveys';
 
+// helpers: clamp01, nonEmpty, clampInt, resizeArray…
 function clamp01(n) {
   const x = Number(n);
   return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : null;
 }
+
 function nonEmpty(v) {
   // convierte '' en undefined para que los fallback funcionen
   return typeof v === 'string' && v.trim() === '' ? undefined : v;
 }
 
+function clampInt(n, min = 1, max = 6) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return min;
+  return Math.min(max, Math.max(min, Math.round(x)));
+}
+
+function resizeArray(arr, len, fill = '') {
+  const a = Array.isArray(arr) ? arr.slice(0, len) : [];
+  while (a.length < len) a.push(fill);
+  return a;
+}
+
 export default function RegistroGrupo() {
-  // Soporta ambos esquemas de URL: /registro/:encuestaId  y  /:slug
+  // URL params
   const { encuestaId, slug } = useParams();
 
-  const [encuesta,        setEncuesta]        = useState(null);
-  const [formAppearance,  setFormAppearance]  = useState(null); // ← apariencia desde formularios/{id}
-  const [loading,         setLoading]         = useState(true);
-  const [preset,          setPreset]          = useState({
-    nombreEquipo: '',
-    nombreLider: '',
-    contactoEquipo: '',
+  // ----- STATES (siempre antes de cualquier return) -----
+  const [encuesta,       setEncuesta]       = useState(null);
+  const [formAppearance, setFormAppearance] = useState(null);
+  const [loading,        setLoading]        = useState(true);
+  const [preset,         setPreset]         = useState({
+    nombreEquipo: '', nombreLider: '', contactoEquipo: '',
+    cantidadParticipantes: 1, integrantes: [''],
   });
-  const [custom,          setCustom]          = useState({});
-  const [enviando,        setEnviando]        = useState(false);
-  const [ok,              setOk]              = useState(false);
+  const [custom,         setCustom]         = useState({});
+  const [enviando,       setEnviando]       = useState(false);
+  const [ok,             setOk]             = useState(false);
+
+  // Cupo depende de encuesta -> calcúlalo DESPUÉS de declarar encuesta
+  const cupo = useMemo(() => (
+    encuesta?.cantidadParticipantes ??
+    encuesta?.formularioGrupos?.cantidadParticipantes ?? 1
+  ), [encuesta]);
+
+  // Ajusta preset cuando cambia encuesta/cupo (solo UNO de estos effects)
+  useEffect(() => {
+    setPreset(p => ({
+      ...p,
+      cantidadParticipantes: cupo,
+      integrantes: resizeArray(p.integrantes, cupo),
+    }));
+    setOk(false);
+    setFormAppearance(null);
+  }, [encuesta?.id, cupo]);// Cada vez que cambie la encuesta o el cupo, ajusta el preset
+
 
   // === Suscripción en tiempo real a la encuesta ===
   useEffect(() => {
@@ -91,10 +115,15 @@ export default function RegistroGrupo() {
 
   // Al cambiar de encuesta, limpia estados visibles
   useEffect(() => {
-    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
-    setOk(false);
-    setFormAppearance(null);
-  }, [encuesta?.id]);
+  setPreset(p => ({
+    ...p,
+    nombreEquipo: '',
+    nombreLider: '',
+    contactoEquipo: '',
+  }));
+  setOk(false);
+  setFormAppearance(null);
+}, [encuesta?.id]);
 
   // Carga apariencia global desde formularios/{formId|cursoId|courseId} (si existe) y la mezcla
   useEffect(() => {
@@ -135,14 +164,17 @@ export default function RegistroGrupo() {
 
   // Re-inicializa campos preestablecidos cuando cambia su configuración
   useEffect(() => {
-    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '' });
+    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '',  });
+  setOk(false);
   }, [
     encuesta?.camposPreestablecidos?.nombreEquipo,
     encuesta?.camposPreestablecidos?.nombreLider,
     encuesta?.camposPreestablecidos?.contactoEquipo,
+   // ⬅️ asegura reset si cambian
   ]);
 
   // Normaliza theme/appearance
+
 
   // Normaliza theme/appearance combinando formularios + overrides en encuesta
 
@@ -159,9 +191,12 @@ export default function RegistroGrupo() {
       textColor:         nonEmpty(raw.textColor),
       // si no hay valor numérico válido, usa 0.35 por defecto
       overlayOpacity:    (v => (v ?? 0.35))(clamp01(nonEmpty(raw.overlayOpacity))),
+      
       backgroundImage:   nonEmpty(raw.backgroundImage),
+      
       bgVersion:         raw.bgVersion || 0,
     };
+
 
     // URL final del fondo:
     // - si es http(s) => se aplica cache-buster ?v=
@@ -226,12 +261,16 @@ export default function RegistroGrupo() {
   if (loading)   return <div className="p-6">Cargando…</div>;
   if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
   if (ok)        return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
+  
 
   const campos = encuesta.camposPreestablecidos ?? {
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
+    cantidadParticipantes: true,
   };
+
+ 
 
   return (
     // key fuerza remount al cambiar de encuesta y evita “heredar” estado/estilos
@@ -298,6 +337,31 @@ export default function RegistroGrupo() {
                 />
               </div>
             )}
+          
+{campos.cantidadParticipantes && cupo > 0 && (
+  <div className="space-y-4">
+    {Array.from({ length: cupo }).map((_, i) => (
+      <div key={i}>
+        <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
+          Integrante {i + 1}
+        </label>
+        <input
+          className="border rounded px-3 py-2 w-full"
+          value={preset.integrantes?.[i] ?? ''}
+          onChange={(e) =>
+            setPreset(p => {
+              const next = resizeArray(p.integrantes, cupo);
+              next[i] = e.target.value;
+              return { ...p, integrantes: next };
+            })
+          }
+          required
+        />
+      </div>
+    ))}
+  </div>
+)}
+
 
             {/* Preguntas personalizadas */}
             {preguntas.map((p) => (

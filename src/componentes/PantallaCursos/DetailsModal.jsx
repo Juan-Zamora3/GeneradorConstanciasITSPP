@@ -6,6 +6,8 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 
+
+
 /** Util: slug del título para el link corto */
 function slugify(str = '') {
   return String(str)
@@ -106,14 +108,24 @@ export default function DetailsModal({
       if (!id) {
         const preguntas = mapPreguntasForSurvey();
         const res = await createForCourse({
-          cursoId: data.id,
-          titulo: `Registro de Grupos – ${data.titulo || ''}`,
-          descripcion: data.descripcion || '',
-          preguntas,
-          theme,
-          user: null,
-        });
+  cursoId: data.id,
+  titulo: `Registro de Grupos – ${data.titulo || ''}`,
+  descripcion: data.descripcion || '',
+  preguntas,
+  theme,
+  user: null,
+  // 🔽 añade:
+  camposPreestablecidos: data.formularioGrupos?.camposPreestablecidos ?? {
+    nombreEquipo: true,
+    nombreLider: true,
+    contactoEquipo: true,
+    cantidadParticipantes: true,
+      cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes ?? 1,
+
+  },
+}); 
         id = res.id;
+        
       }
 
       // Construye link corto con slug
@@ -123,14 +135,22 @@ export default function DetailsModal({
 
       // Guardar en colección 'encuestas'
       try {
-        await updateDoc(doc(db, 'encuestas', id), {
-          link,
-          linkSlug: slug,
-          theme,
-          titulo: `Registro de Grupos – ${data.titulo || ''}`,
-          descripcion: data.descripcion || '',
-          updatedAt: new Date(),
-        });
+       await updateDoc(doc(db, 'encuestas', id), {
+  link,
+  linkSlug: slug,
+  theme,
+  titulo: `Registro de Grupos – ${data.titulo || ''}`,
+  descripcion: data.descripcion || '',
+  // 🔽 añade:
+  cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes ?? 1,
+  camposPreestablecidos: data.formularioGrupos?.camposPreestablecidos ?? {
+    nombreEquipo: true,
+    nombreLider: true,
+    contactoEquipo: true,
+    cantidadParticipantes: true,
+  },
+  updatedAt: new Date(),
+});
       } catch (e) {
         console.warn('No se pudo actualizar la encuesta:', e);
       }
@@ -451,7 +471,7 @@ function CuestionarioPreview({ data }) {
           </div>
           <h5 className="text-lg font-semibold text-blue-800">Campos Preestablecidos</h5>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3"> 
           {data.formularioGrupos?.camposPreestablecidos?.nombreEquipo && (
             <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
               <span className="text-blue-500 mr-3">🏷️</span>
@@ -473,6 +493,13 @@ function CuestionarioPreview({ data }) {
               <span className="ml-auto text-red-500 text-sm">*</span>
             </div>
           )}
+          {data.formularioGrupos?.camposPreestablecidos?.cantidadParticipantes && (
+           <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
+           <span className="text-blue-500 mr-3">👥</span>
+           <span className="text-gray-700 font-medium">Cantidad de Participantes</span>
+           <span className="ml-auto text-red-500 text-sm">*</span>
+           </div>
+          )}
         </div>
       </div>
 
@@ -487,8 +514,8 @@ function CuestionarioPreview({ data }) {
           </div>
           <div className="space-y-4">
             {data.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => {
-              const tipoIconos = { abierta: '📝', combobox: '📋', multiple: '🔘', checkbox: '☑️' };
-              const tipoTextos = { abierta: 'Respuesta abierta', combobox: 'Lista desplegable', multiple: 'Opción múltiple', checkbox: 'Lista de verificación' };
+              const tipoIconos = { abierta: '📝', combobox: '📋', multiple: '🔘', checklist: '☑️' };
+              const tipoTextos = { abierta: 'Respuesta abierta', combobox: 'Lista desplegable', multiple: 'Opción múltiple', checklist: 'Lista de verificación' };
               return (
                 <div key={index} className="bg-white p-4 rounded-lg shadow-sm border border-green-100">
                   <div className="flex items-start space-x-3">
@@ -497,7 +524,7 @@ function CuestionarioPreview({ data }) {
                       <div className="flex items-center justify-between mb-2">
                         <h6 className="font-semibold text-gray-800">
                           {pregunta.titulo}
-                          {pregunta.requerido && <span className="text-red-500 ml-1">*</span>}
+                          {pregunta.requerida && <span className="text-red-500 ml-1">*</span>}
                         </h6>
                         <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
                           {tipoTextos[pregunta.tipo] || 'Desconocido'}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
+
 
 const defaultTheme = {
   backgroundColor: '#f5f7fb',
@@ -39,8 +40,11 @@ export default function CourseModal({
         nombreEquipo: true,
         nombreLider: true,
         contactoEquipo: true,
+        cantidadParticipantes: true,
       },
+      cantidadParticipantes: 1,
       preguntasPersonalizadas: [],
+      
     },
   }), []);
 
@@ -96,9 +100,12 @@ export default function CourseModal({
             nombreEquipo: true,
             nombreLider: true,
             contactoEquipo: true,
+            cantidadParticipantes: true, // ⬅️ nuevo campo
             ...(initialData.formularioGrupos?.camposPreestablecidos || {}),
           },
+          cantidadParticipantes: initialData.formularioGrupos?.cantidadParticipantes ?? 1,
           preguntasPersonalizadas: initialData.formularioGrupos?.preguntasPersonalizadas || [],
+          
         },
       });
       if (initialData.imageUrl) setImagePreview(initialData.imageUrl);
@@ -178,46 +185,62 @@ export default function CourseModal({
   });
 
   // Guardar (llama al padre y asegura persistencia en edición)
-  const submit = async e => {
-    e.preventDefault();
+ const submit = async (e) => {
+  e.preventDefault();
 
-    // 1) Notifica a tu handler padre si existe
-    onSubmit?.(
-      {
-        ...form,
-        imageUrl: imagePreview, // portada del curso en base64 si quieres guardarla
-      },
-      imageFile
+  onSubmit?.({ ...form, imageUrl: imagePreview }, imageFile);
+
+  // Guarda el curso (cuando editas)
+  if (isEdit) {
+    await updateDoc(doc(db, 'Cursos', initialData.id), {
+      ...form,
+      imageUrl: imagePreview || initialData.imageUrl || '',
+      updatedAt: new Date(),
+    });
+  }
+ // ---------- Encuesta (lo que lee el formulario público) ----------
+  // 1) Resuelve el id de encuesta
+  let encuestaId = initialData.encuestaId;
+  if (!encuestaId && initialData.id) {
+    const q = query(
+      collection(db, 'encuestas'),
+      where('cursoId', '==', initialData.id),
+      limit(1)
     );
+    const snap = await getDocs(q);
+    if (!snap.empty) encuestaId = snap.docs[0].id;
+  }
+  if (!encuestaId) return; // no hay encuesta que actualizar
 
-    // 2) Garantiza persistencia cuando ESTÁS EDITANDO (lo que pediste que “no se editaba”)
-    if (isEdit) {
-      try {
-        await updateDoc(doc(db, 'Cursos', initialData.id), {
-          ...form,
-          imageUrl: imagePreview || initialData.imageUrl || '',
-          updatedAt: new Date(),
-        });
-        if (initialData.encuestaId) {
-          try {
-            await updateDoc(doc(db, 'encuestas', initialData.encuestaId), {
-              titulo: `Registro de Grupos – ${form.titulo || ''}`,
-              descripcion: form.descripcion || '',
-              theme: form.theme,
-              updatedAt: new Date(),
-            });
-          } catch (err) {
-            console.error('update encuesta:', err);
-          }
-        }
-        // opcional: feedback visual
-        // alert('Cambios guardados');
-      } catch (err) {
-        console.error('update curso:', err);
-        alert('No se pudo guardar el curso');
-      }
-    }
+  // 2) Calcula valores a guardar
+  const cantidad = Math.max(
+    1,
+    Number(form.formularioGrupos?.cantidadParticipantes ?? 1) || 1
+  );
+
+  const campos = {
+    nombreEquipo: true,
+    nombreLider: true,
+    contactoEquipo: true,
+    cantidadParticipantes: true, // <- obliga a mostrar la sección
+    ...(form.formularioGrupos?.camposPreestablecidos || {}),
   };
+
+  // 3) Escribe una sola vez el doc correcto
+  await updateDoc(doc(db, 'encuestas', encuestaId), {
+    titulo: `Registro de Grupos – ${form.titulo || ''}`,
+    descripcion: form.descripcion || '',
+    theme: form.theme,
+    cantidadParticipantes: cantidad,         // <- lo que usa RegistroGrupo
+    formularioGrupos: {
+      ...(initialData.formularioGrupos || {}),
+      cantidadParticipantes: cantidad,       // espejo (por si acaso)
+    },
+    camposPreestablecidos: campos,
+    updatedAt: new Date(),
+  });
+};
+
 
   if (!isOpen) return null;
 
@@ -357,7 +380,7 @@ export default function CourseModal({
                   </div>
                 </label>
                 <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:bg-green-50 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
-                  <input
+                  <input 
                     type="radio"
                     name="tipoCurso"
                     value="grupos"
@@ -611,6 +634,7 @@ function GruposSection({
             { key: 'nombreEquipo', label: 'Nombre del Equipo' },
             { key: 'nombreLider', label: 'Nombre del Líder del Equipo' },
             { key: 'contactoEquipo', label: 'Contacto del Equipo' },
+              { key: 'cantidadParticipantes', label: 'Cantidad de Participantes' },
           ].map(c => (
             <label key={c.key} className="flex items-center">
               <input
@@ -633,6 +657,54 @@ function GruposSection({
           ))}
         </div>
       </div>
+      <div className="mt-4">
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Cantidad de Participantes
+  </label>
+  <div className="flex items-stretch gap-2">
+    <button
+      type="button"
+      onClick={() => setForm(prev => ({
+        ...prev,
+        formularioGrupos: {
+          ...prev.formularioGrupos,
+          cantidadParticipantes: Math.max(1, (prev.formularioGrupos.cantidadParticipantes ?? 1) - 1),
+        }
+      }))}
+      className="px-3 rounded border bg-white hover:bg-gray-50"
+    >−</button>
+
+    <input
+      type="number"
+      min={1}
+      step={1}
+      value={form.formularioGrupos.cantidadParticipantes ?? 1}
+      onChange={(e) => {
+        const n = Math.max(1, Math.round(Number(e.target.value) || 1));
+        setForm(prev => ({
+          ...prev,
+          formularioGrupos: { ...prev.formularioGrupos, cantidadParticipantes: n },
+        }));
+      }}
+      className="border rounded px-3 py-2 w-24 text-center"
+      required
+    />
+
+    <button
+      type="button"
+      onClick={() => setForm(prev => ({
+        ...prev,
+        formularioGrupos: {
+          ...prev.formularioGrupos,
+          cantidadParticipantes: Math.max(1, (prev.formularioGrupos.cantidadParticipantes ?? 1) + 1),
+        }
+      }))}
+      className="px-3 rounded border bg-white hover:bg-gray-50"
+    >+</button>
+  </div>
+  <p className="text-xs text-gray-500 mt-1">Se usará en el formulario público.</p>
+</div>
+
 
       {/* Preguntas Personalizadas */}
       <div className="mb-6">
@@ -846,6 +918,12 @@ function GruposSection({
               <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
               Contacto del Equipo (requerido)
             </div>
+          )}
+          {form.formularioGrupos.camposPreestablecidos.cantidadParticipantes && (
+           <div className="flex items-center text-gray-600">
+             <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+            Cantidad de Participantes (requerido)
+          </div>
           )}
           {form.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => (
             <div key={index} className="flex items-center text-gray-600">

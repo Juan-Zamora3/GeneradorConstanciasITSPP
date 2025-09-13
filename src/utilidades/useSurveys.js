@@ -6,7 +6,7 @@ import {
   addDoc,
   getDoc,
   getDocs,
-  query,
+  query, 
   where,
   updateDoc,
   serverTimestamp,
