@@ -3,7 +3,7 @@ import ImageCarousel from '../common/ImageCarousel';
 import QrCanvas from './QrCanvas'; // si ya lo usas en otras partes; aquí usamos QRCodeCanvas directamente
 import { useSurveys } from '../../utilidades/useSurveys';
 import { QRCodeCanvas } from 'qrcode.react';
-import { doc, updateDoc, collection, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -562,12 +562,20 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
   const [filterCat, setFilterCat] = useState('');
 
   const categorias = useMemo(() => {
+
     const s = new Set(categoriasConfig);
+
+    const s = new Set();
+
     equipos.forEach((e) => {
       if (e.categoria) s.add(e.categoria);
     });
     return Array.from(s);
+
   }, [equipos, categoriasConfig]);
+
+  }, [equipos]);
+
 
   const equiposFiltrados = filterCat
     ? equipos.filter((e) => e.categoria === filterCat)
@@ -594,9 +602,24 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
     setEditar(null);
   };
 
-  const eliminarEquipo = async (grupo) => {
-    if (!confirm(`¿Eliminar el equipo "${grupo.nombreEquipo}"?`)) return;
-    await deleteDoc(doc(db, 'encuestas', encuestaId, 'respuestas', grupo.id));
+
+  const editarEquipo = (grupo) =>
+    setEditar({
+      ...grupo,
+      integrantes: [...grupo.integrantes],
+    });
+
+  const guardarEdicion = async (e) => {
+    e.preventDefault();
+    await updateDoc(doc(db, 'encuestas', encuestaId, 'respuestas', editar.id), {
+      'preset.nombreEquipo': editar.nombreEquipo,
+      'preset.nombreLider': editar.nombreLider,
+      'preset.contactoEquipo': editar.contactoEquipo,
+      'preset.categoria': editar.categoria,
+      'preset.integrantes': editar.integrantes,
+      'preset.cantidadParticipantes': editar.integrantes.length,
+    });
+    setEditar(null);
   };
 
   useEffect(() => {
@@ -737,12 +760,6 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
                     className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm"
                   >
                     ✏️ Editar
-                  </button>
-                  <button
-                    onClick={() => eliminarEquipo(grupo)}
-                    className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-medium shadow-sm"
-                  >
-                    🗑️ Eliminar
                   </button>
                 </div>
               </div>
