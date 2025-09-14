@@ -374,6 +374,38 @@ export default function Constancias() {
   // === Selección final según modo ===
   const sel = modo === 'individual' ? selInd : selEquip;
 
+  // Entidad utilizada para previsualizar datos en los cuadros de texto.
+  const previewEnt = useMemo(() => {
+    if (editId) return sel.find(e => e.id === editId) || null;
+    return sel.length === 1 ? sel[0] : null;
+  }, [editId, sel]);
+
+  const resolveMessage = (txt = '', ctx) => (
+    txt
+      .replace('{nombre}', ctx.nombre)
+      .replace('{curso}', ctx.tituloCurso)
+      .replace('{puesto}', ctx.puesto)
+      .replace('{fechainicio}', fechaLarga(ctx.ini))
+      .replace('{fechafin}', fechaLarga(ctx.fin))
+  );
+
+  const getBoxText = (id) => {
+    if (!previewEnt) return boxes[id]?.preview || '';
+    const ctx = buildTextContext(previewEnt);
+    if (id === 'nombre') return ctx.nombre;
+    if (id === 'mensaje') {
+      const ov = participantOverrides[previewEnt.id] || {};
+      const base = editId ? msgPdfEditing : (ov.msgPdf ?? cfg.mensajePDF);
+      const msg  = resolveMessage(base, ctx);
+      if (!msg || msg.includes('{')) {
+        return `Por su participación en “${ctx.tituloCurso}”, del ${fechaLarga(ctx.ini)} al ${fechaLarga(ctx.fin)}.`;
+      }
+      return msg;
+    }
+    if (id === 'fecha') return fechaLarga(ctx.fin);
+    return boxes[id]?.preview || '';
+  };
+
   // ============ ACCIONES ============
 
   const handlePreview = async () => {
@@ -795,7 +827,7 @@ export default function Constancias() {
                     padding: 2
                   }}
                 >
-                  {cfg.preview}
+                  {getBoxText(id)}
                 </div>
               </Rnd>
             ))}
@@ -850,7 +882,7 @@ export default function Constancias() {
                   }}
                   onClick={e=>{ e.stopPropagation(); setActiveBox(id); setPanelOpen(true); }}
                 >
-                  <div className="w-full h-full overflow-hidden break-all whitespace-pre-wrap"
+                <div className="w-full h-full overflow-hidden break-all whitespace-pre-wrap"
                     style={{
                       fontFamily: cfg.font,
                       fontSize: cfg.size,
@@ -860,7 +892,7 @@ export default function Constancias() {
                       padding: 2
                     }}
                   >
-                    {cfg.preview}
+                    {getBoxText(id)}
                   </div>
                 </Rnd>
               ))}
