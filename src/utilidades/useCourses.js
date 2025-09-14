@@ -86,6 +86,8 @@ export function useCourses() {
         imageUrl = await getDownloadURL(snapshot.ref);
       }
 
+      const categorias = Array.from(new Set(courseData.formularioGrupos?.categorias || []));
+
       await addDoc(collection(db, 'Cursos'), {
         cursoNombre: courseData.titulo,
         asesor: courseData.instructor,
@@ -102,17 +104,19 @@ export function useCourses() {
         theme: courseData.theme || {},
         encuestaId: courseData.encuestaId || '',
         encuestaLink: courseData.encuestaLink || '',
-        formularioGrupos: courseData.formularioGrupos || {
-          camposPreestablecidos: {
-            nombreEquipo: true,
-            nombreLider: true,
-            contactoEquipo: true,
-            categoria: true,
-            cantidadParticipantes: true,
-          },
-          preguntasPersonalizadas: [],
-          categorias: [],
-        },
+        formularioGrupos: courseData.formularioGrupos
+          ? { ...courseData.formularioGrupos, categorias }
+          : {
+              camposPreestablecidos: {
+                nombreEquipo: true,
+                nombreLider: true,
+                contactoEquipo: true,
+                categoria: true,
+                cantidadParticipantes: true,
+              },
+              preguntasPersonalizadas: [],
+              categorias,
+            },
         grupos: []
       });
 
@@ -142,6 +146,8 @@ export function useCourses() {
 
   const updateCourse = async (id, courseData, imageFile) => {
     const cRef = doc(db, 'Cursos', id);
+    const categorias = Array.from(new Set(courseData.formularioGrupos?.categorias || []));
+
     const updateData = {
       cursoNombre: courseData.titulo,
       asesor: courseData.instructor,
@@ -155,17 +161,19 @@ export function useCourses() {
       theme: courseData.theme || {},
       encuestaId: courseData.encuestaId || '',
       encuestaLink: courseData.encuestaLink || '',
-      formularioGrupos: courseData.formularioGrupos || {
-        camposPreestablecidos: {
-          nombreEquipo: true,
-          nombreLider: true,
-          contactoEquipo: true,
-          categoria: true,
-          cantidadParticipantes: true,
-        },
-        preguntasPersonalizadas: [],
-        categorias: [],
-      }
+      formularioGrupos: courseData.formularioGrupos
+        ? { ...courseData.formularioGrupos, categorias }
+        : {
+            camposPreestablecidos: {
+              nombreEquipo: true,
+              nombreLider: true,
+              contactoEquipo: true,
+              categoria: true,
+              cantidadParticipantes: true,
+            },
+            preguntasPersonalizadas: [],
+            categorias,
+          }
     };
 
     if (imageFile) {

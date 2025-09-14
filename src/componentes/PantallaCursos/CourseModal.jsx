@@ -201,10 +201,13 @@ const submit = async (e) => {
 
   onSubmit?.({ ...form, imageUrl: imagePreview }, imageFile);
 
+  const cats = Array.from(new Set(form.formularioGrupos?.categorias || []));
+
   // Guarda el curso (cuando editas)
   if (isEdit) {
     await updateDoc(doc(db, 'Cursos', initialData.id), {
       ...form,
+      formularioGrupos: { ...form.formularioGrupos, categorias: cats },
       imageUrl: imagePreview || initialData.imageUrl || '',
       updatedAt: new Date(),
     });
@@ -249,7 +252,7 @@ const submit = async (e) => {
     formularioGrupos: {
       ...(initialData.formularioGrupos || {}),
       cantidadParticipantes: cantidad,
-      categorias: form.formularioGrupos.categorias || [],
+      categorias: cats,
     },
 
     // claves que lee RegistroGrupo
@@ -688,18 +691,23 @@ function GruposSection({
             className="border rounded px-3 py-2 w-full"
             rows={3}
             value={(form.formularioGrupos.categorias || []).join('\n')}
-            onChange={(e) =>
+            onChange={(e) => {
+              const cats = Array.from(
+                new Set(
+                  e.target.value
+                    .split('\n')
+                    .map((c) => c.trim())
+                    .filter(Boolean)
+                )
+              );
               setForm((prev) => ({
                 ...prev,
                 formularioGrupos: {
                   ...prev.formularioGrupos,
-                  categorias: e.target.value
-                    .split('\n')
-                    .map((c) => c.trim())
-                    .filter(Boolean),
+                  categorias: cats,
                 },
-              }))
-            }
+              }));
+            }}
           />
         </div>
       )}
