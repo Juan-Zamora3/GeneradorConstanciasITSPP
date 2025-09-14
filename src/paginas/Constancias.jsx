@@ -39,9 +39,10 @@ const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
 
 // Cajas por defecto (plantilla editable)
 const defaultBoxes = {
-  nombre:  { x:98,  y:260, w:400, h:40,  color:'#374151', size:26, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE / EQUIPO'  },
-  mensaje: { x:58,  y:320, w:480, h:100, color:'#374151', size:14, bold:false, align:'left',   font:'Helvetica',       preview:'MENSAJE' },
-  fecha:   { x:98,  y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA'    },
+  nombre:       { x:98, y:220, w:400, h:40,  color:'#374151', size:26, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE' },
+  nombreEquipo: { x:98, y:270, w:400, h:40,  color:'#374151', size:20, bold:true,  align:'center', font:'Helvetica-Bold', preview:'NOMBRE DEL EQUIPO' },
+  mensaje:      { x:58, y:330, w:480, h:100, color:'#374151', size:14, bold:false, align:'left',   font:'Helvetica',       preview:'MENSAJE' },
+  fecha:        { x:98, y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA' },
 };
 
 // ==========================================
@@ -285,22 +286,23 @@ export default function Constancias() {
   // === NOMBRE Y TEXTO POR MODO ===
   const buildTextContext = (ent) => {
     if (modo === 'individual') {
-      const nombre      = getNombreCompleto(ent).toUpperCase();
-      const puesto      = getPuesto(ent);
-      const tituloCurso = getCursoTitulo(curso, ent);
-      const ini         = getFechaInicio(curso, ent);
-      const fin         = getFechaFin(curso, ent);
-      return { nombre, puesto, tituloCurso, ini, fin };
+      const nombre       = getNombreCompleto(ent).toUpperCase();
+      const nombreEquipo = (ent?.nombreEquipo || ent?.preset?.nombreEquipo || '')
+        .toUpperCase();
+      const puesto       = getPuesto(ent);
+      const tituloCurso  = getCursoTitulo(curso, ent);
+      const ini          = getFechaInicio(curso, ent);
+      const fin          = getFechaFin(curso, ent);
+      return { nombre, nombreEquipo, puesto, tituloCurso, ini, fin };
     } else {
-      // modo equipos
-      const preset = ent?.preset || {};
+      const preset       = ent?.preset || {};
+      const nombre       = (preset.nombreLider || '').toUpperCase();
       const nombreEquipo = (preset.nombreEquipo || 'EQUIPO').toUpperCase();
       const tituloCurso  = getCursoTitulo(curso);
       const ini          = getFechaInicio(curso);
       const fin          = getFechaFin(curso);
-      // Para el "puesto", mostramos el líder si existe:
       const puesto       = preset.nombreLider ? `Líder: ${preset.nombreLider}` : '';
-      return { nombre: nombreEquipo, puesto, tituloCurso, ini, fin };
+      return { nombre, nombreEquipo, puesto, tituloCurso, ini, fin };
     }
   };
 
@@ -315,16 +317,18 @@ export default function Constancias() {
     const bx    = ov.boxes || boxes;
     const txt   = ov.msgPdf ?? cfg.mensajePDF;
 
-    const { nombre, puesto, tituloCurso, ini, fin } = buildTextContext(ent);
+    const { nombre, nombreEquipo, puesto, tituloCurso, ini, fin } = buildTextContext(ent);
 
     for (const [key, cfgBox] of Object.entries(bx)) {
       let texto = '';
       if (key==='nombre') texto = nombre;
+      else if (key==='nombreEquipo') texto = nombreEquipo;
       else if (key==='mensaje') {
         // placeholders disponibles:
         // {nombre}, {curso}, {puesto}, {fechainicio}, {fechafin}
         texto = (txt || '')
           .replace('{nombre}', nombre)
+          .replace('{equipo}', nombreEquipo)
           .replace('{curso}',  tituloCurso)
           .replace('{puesto}', puesto)
           .replace('{fechainicio}', fechaLarga(ini))
@@ -383,6 +387,7 @@ export default function Constancias() {
   const resolveMessage = (txt = '', ctx) => (
     txt
       .replace('{nombre}', ctx.nombre)
+      .replace('{equipo}', ctx.nombreEquipo)
       .replace('{curso}', ctx.tituloCurso)
       .replace('{puesto}', ctx.puesto)
       .replace('{fechainicio}', fechaLarga(ctx.ini))
@@ -393,6 +398,7 @@ export default function Constancias() {
     if (!previewEnt) return boxes[id]?.preview || '';
     const ctx = buildTextContext(previewEnt);
     if (id === 'nombre') return ctx.nombre;
+    if (id === 'nombreEquipo') return ctx.nombreEquipo;
     if (id === 'mensaje') {
       const ov = participantOverrides[previewEnt.id] || {};
       const base = editId ? msgPdfEditing : (ov.msgPdf ?? cfg.mensajePDF);
@@ -731,7 +737,7 @@ export default function Constancias() {
             placeholder='Ej: Por su participación en "{curso}", del {fechainicio} al {fechafin}.'
           />
           <p className="text-[11px] text-gray-500 mt-1">
-            Placeholders: <code>{'{nombre}'}</code>, <code>{'{curso}'}</code>, <code>{'{puesto}'}</code>, <code>{'{fechainicio}'}</code>, <code>{'{fechafin}'}</code>
+            Placeholders: <code>{'{nombre}'}</code>, <code>{'{equipo}'}</code>, <code>{'{curso}'}</code>, <code>{'{puesto}'}</code>, <code>{'{fechainicio}'}</code>, <code>{'{fechafin}'}</code>
           </p>
         </div>
         <div>
@@ -799,7 +805,9 @@ export default function Constancias() {
               height={pdfSize.h}
               className="pointer-events-none absolute top-0 left-0"
             />
-            {Object.entries(boxes).map(([id,cfg])=>(
+            {Object.entries(boxes)
+              .filter(([id]) => modo === 'equipos' || id !== 'nombreEquipo')
+              .map(([id,cfg])=>(
               <Rnd
                 key={id}
                 bounds="parent"
@@ -864,7 +872,9 @@ export default function Constancias() {
                 height={pdfSize.h}
                 className="pointer-events-none absolute top-0 left-0"
               />
-              {Object.entries(boxesEditing).map(([id,cfg])=>(
+              {Object.entries(boxesEditing)
+                .filter(([id]) => modo === 'equipos' || id !== 'nombreEquipo')
+                .map(([id,cfg])=>(
                 <Rnd
                   key={id}
                   bounds="parent"

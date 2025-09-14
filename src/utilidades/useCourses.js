@@ -57,7 +57,11 @@ export function useCourses() {
                 },
                 cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes,
                 preguntasPersonalizadas: data.formularioGrupos?.preguntasPersonalizadas || [],
-                categorias: data.formularioGrupos?.categorias || [],
+                categorias: Array.from(new Set(
+                  (data.formularioGrupos?.categorias || [])
+                    .map(c => (c || '').trim())
+                    .filter(Boolean)
+                )),
               },
               grupos: data.grupos || []
             };
@@ -86,7 +90,11 @@ export function useCourses() {
         imageUrl = await getDownloadURL(snapshot.ref);
       }
 
-      const categorias = Array.from(new Set(courseData.formularioGrupos?.categorias || []));
+      const categorias = Array.from(new Set(
+        (courseData.formularioGrupos?.categorias || [])
+          .map(c => (c || '').trim())
+          .filter(Boolean)
+      ));
 
       await addDoc(collection(db, 'Cursos'), {
         cursoNombre: courseData.titulo,
@@ -146,7 +154,11 @@ export function useCourses() {
 
   const updateCourse = async (id, courseData, imageFile) => {
     const cRef = doc(db, 'Cursos', id);
-    const categorias = Array.from(new Set(courseData.formularioGrupos?.categorias || []));
+    const categorias = Array.from(new Set(
+      (courseData.formularioGrupos?.categorias || [])
+        .map(c => (c || '').trim())
+        .filter(Boolean)
+    ));
 
     const updateData = {
       cursoNombre: courseData.titulo,
