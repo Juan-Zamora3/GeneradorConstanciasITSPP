@@ -201,7 +201,11 @@ const submit = async (e) => {
 
   onSubmit?.({ ...form, imageUrl: imagePreview }, imageFile);
 
-  const cats = Array.from(new Set(form.formularioGrupos?.categorias || []));
+  const cats = Array.from(new Set(
+    (form.formularioGrupos?.categorias || [])
+      .map(c => (c || '').trim())
+      .filter(Boolean)
+  ));
 
   // Guarda el curso (cuando editas)
   if (isEdit) {
