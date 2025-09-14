@@ -176,11 +176,7 @@ export default function RegistroGrupo() {
     if (!encuesta?.id) return;
     const ref = collection(doc(db, 'encuestas', encuesta.id), 'respuestas');
     const unsub = onSnapshot(ref, snap => {
-
       const setCat = new Set(encuesta.formularioGrupos?.categorias || []);
-
-      const setCat = new Set();
-
       snap.forEach(d => {
         const cat = d.data()?.preset?.categoria;
         if (cat) setCat.add(cat);
@@ -190,8 +186,6 @@ export default function RegistroGrupo() {
     return () => unsub();
 
   }, [encuesta?.id, encuesta?.formularioGrupos?.categorias]);
-
-  }, [encuesta?.id]);
 
 
   const theme = useMemo(() => {
