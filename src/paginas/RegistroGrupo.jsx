@@ -371,18 +371,26 @@ export default function RegistroGrupo() {
                 <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
                   Categoría *
                 </label>
-                <input
-                  list="categoria-list"
-                  className="border rounded px-3 py-2 w-full"
-                  value={preset.categoria}
-                  onChange={(e) => setPreset((p) => ({ ...p, categoria: e.target.value }))}
-                  required
-                />
-                <datalist id="categoria-list">
-                  {categorias.map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
+                {categorias.length > 0 ? (
+                  <select
+                    className="border rounded px-3 py-2 w-full"
+                    value={preset.categoria}
+                    onChange={(e) => setPreset((p) => ({ ...p, categoria: e.target.value }))}
+                    required
+                  >
+                    <option value="" disabled>Seleccione una categoría</option>
+                    {categorias.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="border rounded px-3 py-2 w-full"
+                    value={preset.categoria}
+                    onChange={(e) => setPreset((p) => ({ ...p, categoria: e.target.value }))}
+                    required
+                  />
+                )}
               </div>
             )}
 
