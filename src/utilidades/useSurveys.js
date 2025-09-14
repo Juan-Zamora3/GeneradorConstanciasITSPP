@@ -77,11 +77,24 @@ export async function createForCourse({
   titulo,
   preguntas = [],
   user,
-  slug,           // opcional
-  theme,          // opcional: { headerTitle, headerDescription, backgroundImage, ... }
-  descripcion,    // opcional
+  slug, // opcional
+  theme, // opcional: { headerTitle, headerDescription, backgroundImage, ... }
+  descripcion, // opcional
+  cantidadParticipantes = 1,
+  camposPreestablecidos = {
+    nombreEquipo: true,
+    nombreLider: true,
+    contactoEquipo: true,
+    categoria: true,
+    cantidadParticipantes: true,
+  },
+  categorias = [],
 }) {
   const base = detectHashBase();
+
+  const cats = Array.from(
+    new Set(categorias.map((c) => (c || '').trim()).filter(Boolean))
+  );
 
   // 1) documento base
   const ref = await addDoc(collection(db, ENCUESTAS), {
@@ -89,6 +102,9 @@ export async function createForCourse({
     titulo: titulo || 'Registro de Grupos',
     descripcion: descripcion || '',
     preguntas,
+    cantidadParticipantes,
+    camposPreestablecidos,
+    formularioGrupos: { cantidadParticipantes, categorias: cats },
     creadoPor: user?.uid || null,
     creadoEn: serverTimestamp(),
   });
