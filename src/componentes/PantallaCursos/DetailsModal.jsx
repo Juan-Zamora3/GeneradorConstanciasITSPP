@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect } from 'react';
 import ImageCarousel from '../common/ImageCarousel';
 import QrCanvas from './QrCanvas'; // si ya lo usas en otras partes; aquí usamos QRCodeCanvas directamente
 import { useSurveys } from '../../utilidades/useSurveys';
 import { QRCodeCanvas } from 'qrcode.react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
+import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
+import { listToWorkbook } from '../../utilidades/excelHelpers';
 
 
 
@@ -52,6 +55,12 @@ export default function DetailsModal({
   const [savingTheme, setSavingTheme] = useState(false);
 
   const isGroupCourse = data?.tipoCurso === 'grupos';
+
+  // Asegura que el tema inicial provenga de la configuración del curso
+  useEffect(() => {
+    if (!isOpen) return;
+    if (data?.theme) setTheme(t => ({ ...t, ...data.theme }));
+  }, [isOpen, data?.theme]);
 
   // Cargar encuesta si ya existe para este curso
   useEffect(() => {
@@ -355,7 +364,7 @@ export default function DetailsModal({
                         : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                     }`}
                   >
-                    👥 Grupos Registrados
+                    👥 Equipos registrados
                   </button>
                 </div>
 
@@ -364,7 +373,7 @@ export default function DetailsModal({
                   <CuestionarioPreview data={data} />
                 )}
                 {activeTab === 'grupos' && (
-                  <GruposPreview data={data} />
+                  <GruposPreview encuestaId={encuestaId} />
                 )}
               </div>
             )}
@@ -554,29 +563,75 @@ function CuestionarioPreview({ data }) {
   );
 }
 
-function GruposPreview({ data }) {
+function GruposPreview({ encuestaId }) {
+  const [equipos, setEquipos] = useState([]);
+
+  useEffect(() => {
+    if (!encuestaId) return;
+    const ref = collection(doc(db, 'encuestas', encuestaId), 'respuestas');
+    const unsub = onSnapshot(ref, snap => {
+      const list = snap.docs.map(d => {
+        const info = d.data();
+        return {
+          id: d.id,
+          nombreEquipo: info.preset?.nombreEquipo || '',
+          nombreLider: info.preset?.nombreLider || '',
+          contactoEquipo: info.preset?.contactoEquipo || '',
+          cantidadParticipantes: info.preset?.cantidadParticipantes || '',
+          custom: info.custom || {},
+          fechaRegistro: info.createdAt?.toDate ? info.createdAt.toDate() : null,
+        };
+      });
+      setEquipos(list);
+    });
+    return () => unsub();
+  }, [encuestaId]);
+
+  const exportExcel = () => {
+    const rows = equipos.map(e => ({
+      NombreEquipo: e.nombreEquipo,
+      NombreLider: e.nombreLider,
+      Contacto: e.contactoEquipo,
+      CantidadParticipantes: e.cantidadParticipantes,
+      ...e.custom,
+      FechaRegistro: e.fechaRegistro ? e.fechaRegistro.toLocaleString('es-MX') : '',
+    }));
+    const wb = listToWorkbook(rows);
+    const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    const file = `equipos-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    saveAs(new Blob([wbout], { type: 'application/octet-stream' }), file);
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h4 className="text-xl font-bold text-gray-800 mb-2">👥 Grupos Registrados</h4>
+        <h4 className="text-xl font-bold text-gray-800 mb-2">👥 Equipos registrados</h4>
         <div className="flex justify-center items-center space-x-2">
           <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-full text-base font-semibold shadow-lg">
-            {data.grupos?.length || 0} {(data.grupos?.length || 0) === 1 ? 'grupo' : 'grupos'} registrados
+            {equipos.length} {equipos.length === 1 ? 'equipo' : 'equipos'} registrados
           </span>
+          {equipos.length > 0 && (
+            <button
+              onClick={exportExcel}
+              className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm"
+            >
+              📥 Exportar Excel
+            </button>
+          )}
         </div>
       </div>
 
-      {data.grupos && data.grupos.length > 0 ? (
+      {equipos.length > 0 ? (
         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-          {data.grupos.map((grupo, index) => (
-            <div key={index} className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+          {equipos.map((grupo, index) => (
+            <div key={grupo.id} className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center mb-3">
                     <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-3">
                       <span className="text-white font-bold text-sm">{index + 1}</span>
                     </div>
-                    <h5 className="text-lg font-bold text-gray-800">{grupo.nombreEquipo || `Grupo ${index + 1}`}</h5>
+                    <h5 className="text-lg font-bold text-gray-800">{grupo.nombreEquipo || `Equipo ${index + 1}`}</h5>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                     <div className="flex items-center bg-blue-50 p-2 rounded-lg">
@@ -596,7 +651,9 @@ function GruposPreview({ data }) {
                   </div>
                   <div className="flex items-center text-xs text-gray-500">
                     <span className="mr-1">📅</span>
-                    <span>Registrado: {grupo.fechaRegistro ? new Date(grupo.fechaRegistro).toLocaleDateString('es-MX') : 'Fecha no disponible'}</span>
+                    <span>
+                      Registrado: {grupo.fechaRegistro ? grupo.fechaRegistro.toLocaleDateString('es-MX') : 'Fecha no disponible'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col space-y-2 ml-4">
@@ -611,8 +668,8 @@ function GruposPreview({ data }) {
       ) : (
         <div className="bg-gray-50 p-12 rounded-xl border-2 border-dashed border-gray-200 text-center">
           <div className="text-6xl mb-4">👥</div>
-          <h6 className="text-lg font-semibold text-gray-700 mb-2">No hay grupos registrados</h6>
-          <p className="text-gray-500 text-sm mb-4">Los grupos aparecerán aquí cuando se registren usando el código QR o el link de registro.</p>
+          <h6 className="text-lg font-semibold text-gray-700 mb-2">No hay equipos registrados</h6>
+          <p className="text-gray-500 text-sm mb-4">Los equipos aparecerán aquí cuando se registren usando el código QR o el link de registro.</p>
           <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
             <span className="mr-2">💡</span>
             Comparte el QR o link para que los equipos se registren

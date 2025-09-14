@@ -6,7 +6,7 @@ import {
 import { db } from '../servicios/firebaseConfig';
 import { saveResponse } from '../utilidades/useSurveys';
 
-// helpers: clamp01, nonEmpty, clampInt, resizeArray…
+// helpers: clamp01, nonEmpty, resizeArray…
 function clamp01(n) {
   const x = Number(n);
   return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : null;
@@ -15,12 +15,6 @@ function clamp01(n) {
 function nonEmpty(v) {
   // convierte '' en undefined para que los fallback funcionen
   return typeof v === 'string' && v.trim() === '' ? undefined : v;
-}
-
-function clampInt(n, min = 1, max = 6) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return min;
-  return Math.min(max, Math.max(min, Math.round(x)));
 }
 
 function resizeArray(arr, len, fill = '') {
@@ -260,7 +254,25 @@ export default function RegistroGrupo() {
 
   if (loading)   return <div className="p-6">Cargando…</div>;
   if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
-  if (ok)        return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
+  if (ok)
+    return (
+      <div className="min-h-screen" style={containerStyle}>
+        {theme._bgUrl && theme.overlayOpacity > 0 && (
+          <div
+            className="fixed inset-0 pointer-events-none"
+            style={{ background: `rgba(0,0,0,${theme.overlayOpacity})` }}
+          />
+        )}
+
+        <div className="relative z-10 max-w-3xl mx-auto p-6">
+          <div className="rounded-xl bg-white/90 backdrop-blur shadow-xl p-10 text-center">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
+            <p className="text-gray-600">Gracias por registrar tu equipo.</p>
+          </div>
+        </div>
+      </div>
+    );
   
 
   const campos = encuesta.camposPreestablecidos ?? {
