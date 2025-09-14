@@ -693,30 +693,53 @@ function GruposSection({
       {form.formularioGrupos.camposPreestablecidos.categoria && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Opciones de Categoría (una por línea)
+            Opciones
           </label>
-          <textarea
-            className="border rounded px-3 py-2 w-full"
-            rows={3}
-            value={(form.formularioGrupos.categorias || []).join('\n')}
-            onChange={(e) => {
-              const cats = Array.from(
-                new Set(
-                  e.target.value
-                    .split('\n')
-                    .map((c) => c.trim())
-                    .filter(Boolean)
-                )
-              );
-              setForm((prev) => ({
-                ...prev,
-                formularioGrupos: {
-                  ...prev.formularioGrupos,
-                  categorias: cats,
-                },
-              }));
-            }}
-          />
+          <div className="space-y-2">
+            {(form.formularioGrupos.categorias?.length
+              ? form.formularioGrupos.categorias
+              : ['']
+            ).map((cat, idx) => (
+              <input
+                key={idx}
+                type="text"
+                className="border rounded px-3 py-2 w-full"
+                placeholder={`Opción ${idx + 1}`}
+                value={cat}
+                onChange={(e) =>
+                  setForm((prev) => {
+                    const arr = [...(prev.formularioGrupos.categorias || [])];
+                    arr[idx] = e.target.value;
+                    return {
+                      ...prev,
+                      formularioGrupos: {
+                        ...prev.formularioGrupos,
+                        categorias: arr,
+                      },
+                    };
+                  })
+                }
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  formularioGrupos: {
+                    ...prev.formularioGrupos,
+                    categorias: [
+                      ...(prev.formularioGrupos.categorias || []),
+                      '',
+                    ],
+                  },
+                }))
+              }
+              className="text-sm text-blue-600 hover:underline"
+            >
+              + Agregar opción
+            </button>
+          </div>
         </div>
       )}
       <div className="mt-4">

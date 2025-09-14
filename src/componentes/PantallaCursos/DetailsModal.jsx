@@ -374,6 +374,9 @@ export default function DetailsModal({
                     encuestaId={encuestaId}
                     categoriasConfig={data.formularioGrupos?.categorias || []}
                     preguntasConfig={data.formularioGrupos?.preguntasPersonalizadas || []}
+                    camposPreestablecidos={
+                      data.formularioGrupos?.camposPreestablecidos || {}
+                    }
                   />
                 )}
               </div>
@@ -573,7 +576,12 @@ function CuestionarioPreview({ data }) {
   );
 }
 
-function GruposPreview({ encuestaId, categoriasConfig = [], preguntasConfig = [] }) {
+function GruposPreview({
+  encuestaId,
+  categoriasConfig = [],
+  preguntasConfig = [],
+  camposPreestablecidos = {},
+}) {
   const [equipos, setEquipos] = useState([]);
   const [ver, setVer] = useState(null);
   const [editar, setEditar] = useState(null);
@@ -655,21 +663,46 @@ function GruposPreview({ encuestaId, categoriasConfig = [], preguntasConfig = []
   const exportExcel = () => {
     const data = equiposFiltrados;
     const maxIntegrantes = Math.max(0, ...data.map((e) => e.integrantes.length || 0));
+
+    const presetLabels = {
+      nombreEquipo: 'Nombre del Equipo',
+      nombreLider: 'Nombre del Líder del Equipo',
+      contactoEquipo: 'Contacto del Equipo',
+      categoria: 'Categoría',
+      cantidadParticipantes: 'Cantidad de Participantes',
+    };
+
+    const customMap = preguntas.reduce((acc, p) => {
+      acc[p.id] = p.etiqueta;
+      return acc;
+    }, {});
+
     const rows = data.map((e) => {
-      const row = {
-        NombreEquipo: e.nombreEquipo,
-        NombreLider: e.nombreLider,
-        Contacto: e.contactoEquipo,
-        Categoria: e.categoria,
-        CantidadParticipantes: e.cantidadParticipantes,
-        ...e.custom,
-        FechaRegistro: e.fechaRegistro ? e.fechaRegistro.toLocaleString('es-MX') : '',
-      };
+      const row = {};
+
+      Object.keys(presetLabels).forEach((k) => {
+        if (camposPreestablecidos[k]) {
+          row[presetLabels[k]] =
+            k === 'cantidadParticipantes' ? e.cantidadParticipantes : e[k] || '';
+        }
+      });
+
+      Object.entries(customMap).forEach(([id, label]) => {
+        const val = e.custom?.[id];
+        row[label] = Array.isArray(val) ? val.join(', ') : val ?? '';
+      });
+
+      row['Fecha de Registro'] = e.fechaRegistro
+        ? e.fechaRegistro.toLocaleString('es-MX')
+        : '';
+
       for (let i = 0; i < maxIntegrantes; i++) {
-        row[`Integrante${i + 1}`] = e.integrantes[i] || '';
+        row[`Integrante ${i + 1}`] = e.integrantes[i] || '';
       }
+
       return row;
     });
+
     const wb = listToWorkbook(rows);
     const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
     const file = `equipos-${new Date().toISOString().slice(0, 10)}.xlsx`;
