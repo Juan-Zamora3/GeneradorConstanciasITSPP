@@ -32,7 +32,7 @@ export default function RegistroGrupo() {
   const [formAppearance, setFormAppearance] = useState(null);
   const [loading,        setLoading]        = useState(true);
   const [preset,         setPreset]         = useState({
-    nombreEquipo: '', nombreLider: '', contactoEquipo: '',
+    nombreEquipo: '', nombreLider: '', contactoEquipo: '', categoria: '',
     cantidadParticipantes: 1, integrantes: [''],
   });
   const [custom,         setCustom]         = useState({});
@@ -114,6 +114,7 @@ export default function RegistroGrupo() {
     nombreEquipo: '',
     nombreLider: '',
     contactoEquipo: '',
+    categoria: '',
   }));
   setOk(false);
   setFormAppearance(null);
@@ -158,12 +159,13 @@ export default function RegistroGrupo() {
 
   // Re-inicializa campos preestablecidos cuando cambia su configuración
   useEffect(() => {
-    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '',  });
+    setPreset({ nombreEquipo: '', nombreLider: '', contactoEquipo: '', categoria: '' });
   setOk(false);
   }, [
     encuesta?.camposPreestablecidos?.nombreEquipo,
     encuesta?.camposPreestablecidos?.nombreLider,
     encuesta?.camposPreestablecidos?.contactoEquipo,
+    encuesta?.camposPreestablecidos?.categoria,
    // ⬅️ asegura reset si cambian
   ]);
 
@@ -282,6 +284,7 @@ export default function RegistroGrupo() {
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
+    categoria: true,
     cantidadParticipantes: true,
   };
 
@@ -352,30 +355,43 @@ export default function RegistroGrupo() {
                 />
               </div>
             )}
-          
-{campos.cantidadParticipantes && cupo > 0 && (
-  <div className="space-y-4">
-    {Array.from({ length: cupo }).map((_, i) => (
-      <div key={i}>
-        <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
-          Integrante {i + 1}
-        </label>
-        <input
-          className="border rounded px-3 py-2 w-full"
-          value={preset.integrantes?.[i] ?? ''}
-          onChange={(e) =>
-            setPreset(p => {
-              const next = resizeArray(p.integrantes, cupo);
-              next[i] = e.target.value;
-              return { ...p, integrantes: next };
-            })
-          }
-          required
-        />
-      </div>
-    ))}
-  </div>
-)}
+            {campos.categoria && (
+              <div>
+                <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
+                  Categoría *
+                </label>
+                <input
+                  className="border rounded px-3 py-2 w-full"
+                  value={preset.categoria}
+                  onChange={(e) => setPreset((p) => ({ ...p, categoria: e.target.value }))}
+                  required
+                />
+              </div>
+            )}
+
+            {campos.cantidadParticipantes && cupo > 0 && (
+              <div className="space-y-4">
+                {Array.from({ length: cupo }).map((_, i) => (
+                  <div key={i}>
+                    <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
+                      Integrante {i + 1}
+                    </label>
+                    <input
+                      className="border rounded px-3 py-2 w-full"
+                      value={preset.integrantes?.[i] ?? ''}
+                      onChange={(e) =>
+                        setPreset(p => {
+                          const next = resizeArray(p.integrantes, cupo);
+                          next[i] = e.target.value;
+                          return { ...p, integrantes: next };
+                        })
+                      }
+                      required
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
 
             {/* Preguntas personalizadas */}

@@ -49,11 +49,12 @@ export default function CourseModal({
         nombreEquipo: true,
         nombreLider: true,
         contactoEquipo: true,
+        categoria: true,
         cantidadParticipantes: true,
       },
       cantidadParticipantes: 1,
       preguntasPersonalizadas: [],
-      
+
     },
   }), []);
 
@@ -109,6 +110,7 @@ export default function CourseModal({
             nombreEquipo: true,
             nombreLider: true,
             contactoEquipo: true,
+            categoria: true,
             cantidadParticipantes: true, // ⬅️ nuevo campo
             ...(initialData.formularioGrupos?.camposPreestablecidos || {}),
           },
@@ -228,6 +230,7 @@ const submit = async (e) => {
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
+    categoria: true,
     cantidadParticipantes: true,
     ...(form.formularioGrupos?.camposPreestablecidos || {}),
   };
@@ -651,7 +654,8 @@ function GruposSection({
             { key: 'nombreEquipo', label: 'Nombre del Equipo' },
             { key: 'nombreLider', label: 'Nombre del Líder del Equipo' },
             { key: 'contactoEquipo', label: 'Contacto del Equipo' },
-              { key: 'cantidadParticipantes', label: 'Cantidad de Participantes' },
+            { key: 'categoria', label: 'Categoría' },
+            { key: 'cantidadParticipantes', label: 'Cantidad de Participantes' },
           ].map(c => (
             <label key={c.key} className="flex items-center">
               <input
@@ -936,6 +940,12 @@ function GruposSection({
               Contacto del Equipo (requerido)
             </div>
           )}
+          {form.formularioGrupos.camposPreestablecidos.categoria && (
+            <div className="flex items-center text-gray-600">
+              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+              Categoría (requerido)
+            </div>
+          )}
           {form.formularioGrupos.camposPreestablecidos.cantidadParticipantes && (
            <div className="flex items-center text-gray-600">
              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
@@ -954,6 +964,7 @@ function GruposSection({
           {form.formularioGrupos.camposPreestablecidos.nombreEquipo === false &&
            form.formularioGrupos.camposPreestablecidos.nombreLider === false &&
            form.formularioGrupos.camposPreestablecidos.contactoEquipo === false &&
+           form.formularioGrupos.camposPreestablecidos.categoria === false &&
            form.formularioGrupos.preguntasPersonalizadas.length === 0 && (
             <div className="text-gray-400 italic">No hay campos configurados</div>
           )}
