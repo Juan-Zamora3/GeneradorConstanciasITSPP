@@ -32,8 +32,6 @@ import {
 // CONFIG
 // ==========================================
 
-// Si usas otra colección para respuestas del registro de equipos, cámbiala aquí:
-const COL_E_R = 'encuestas_respuestas';
 
 // Convierte ArrayBuffer → Base64 en el navegador
 // URL relativa en prod / localhost en dev
@@ -98,13 +96,13 @@ export default function Constancias() {
   const [checkedEquipos, setCheckedEquipos] = useState({});
   const [categoriaFiltro, setCategoriaFiltro] = useState('');
   const categoriasEquipos = useMemo(() => {
-    const set = new Set();
+    const set = new Set(curso?.formularioGrupos?.categorias || []);
     equipos.forEach(e => {
       const cat = e?.preset?.categoria;
       if (cat) set.add(cat);
     });
     return Array.from(set);
-  }, [equipos]);
+  }, [equipos, curso?.formularioGrupos?.categorias]);
 
   // Config por plantilla
   const [cfgMap, setCfgMap]               = useState({});
@@ -215,14 +213,13 @@ export default function Constancias() {
       setAsistencias(rawAsis);
 
       // ============= EQUIPOS (registro por encuesta) ============
-      // Si el curso tiene encuestaId, traemos los equipos
+      // Si el curso tiene encuestaId, traemos los equipos desde la subcolección
       if (data.encuestaId) {
-        const snapEquipos = await getDocs(
-          query(collection(db, COL_E_R), where('encuestaId', '==', data.encuestaId))
-        );
+        const resRef = collection(doc(db, 'encuestas', data.encuestaId), 'respuestas');
+        const snapEquipos = await getDocs(resRef);
         const eq = snapEquipos.docs.map(d => ({
           id: d.id,
-          ...d.data(), // {encuestaId, preset:{nombreEquipo, nombreLider, contactoEquipo}, custom:{...}}
+          ...d.data(), // {preset:{nombreEquipo, nombreLider, contactoEquipo, categoria}, custom:{...}}
         }));
         setEquipos(eq);
         setCheckedEquipos(eq.reduce((o,e)=> (o[e.id] = false, o), {}));
@@ -683,7 +680,7 @@ export default function Constancias() {
               </table>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              * Las respuestas se leen de <code>{COL_E_R}</code> filtradas por <code>encuestaId</code>.
+              * Las respuestas se leen de la subcolección <code>encuestas/encuestaId/respuestas</code>.
             </p>
           </div>
         )}
