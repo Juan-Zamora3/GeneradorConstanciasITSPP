@@ -3,7 +3,7 @@ import ImageCarousel from '../common/ImageCarousel';
 import QrCanvas from './QrCanvas'; // si ya lo usas en otras partes; aquí usamos QRCodeCanvas directamente
 import { useSurveys } from '../../utilidades/useSurveys';
 import { QRCodeCanvas } from 'qrcode.react';
-import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -545,6 +545,49 @@ function CuestionarioPreview({ data }) {
 
 function GruposPreview({ encuestaId }) {
   const [equipos, setEquipos] = useState([]);
+  const verEquipo = (grupo) => {
+    const info = [
+      `Equipo: ${grupo.nombreEquipo}`,
+      `Líder: ${grupo.nombreLider}`,
+      `Contacto: ${grupo.contactoEquipo}`,
+      '',
+      'Integrantes:',
+      ...(grupo.integrantes || [])
+    ].join('\n');
+    alert(info);
+  };
+
+  const editarEquipo = async (grupo) => {
+    const nombreEquipo = prompt('Nombre del equipo', grupo.nombreEquipo);
+    if (nombreEquipo === null) return;
+    const nombreLider = prompt('Nombre del líder', grupo.nombreLider);
+    if (nombreLider === null) return;
+    const contactoEquipo = prompt('Contacto del equipo', grupo.contactoEquipo);
+    if (contactoEquipo === null) return;
+
+    const integrantes = [];
+    for (let i = 0; i < grupo.cantidadParticipantes; i++) {
+      const val = prompt(`Integrante ${i + 1}`, grupo.integrantes[i] || '');
+      if (val === null) return;
+      integrantes.push(val);
+    }
+
+    await updateDoc(
+      doc(db, 'encuestas', encuestaId, 'respuestas', grupo.id),
+      {
+        'preset.nombreEquipo': nombreEquipo,
+        'preset.nombreLider': nombreLider,
+        'preset.contactoEquipo': contactoEquipo,
+        'preset.integrantes': integrantes,
+        'preset.cantidadParticipantes': integrantes.length,
+      }
+    );
+  };
+
+  const eliminarEquipo = async (grupo) => {
+    if (!confirm(`¿Eliminar el equipo "${grupo.nombreEquipo}"?`)) return;
+    await deleteDoc(doc(db, 'encuestas', encuestaId, 'respuestas', grupo.id));
+  };
 
   useEffect(() => {
     if (!encuestaId) return;
@@ -557,7 +600,10 @@ function GruposPreview({ encuestaId }) {
           nombreEquipo: info.preset?.nombreEquipo || '',
           nombreLider: info.preset?.nombreLider || '',
           contactoEquipo: info.preset?.contactoEquipo || '',
-          cantidadParticipantes: info.preset?.cantidadParticipantes || '',
+          cantidadParticipantes: info.preset?.cantidadParticipantes || 0,
+          integrantes: Array.isArray(info.preset?.integrantes)
+            ? info.preset.integrantes
+            : [],
           custom: info.custom || {},
           fechaRegistro: info.createdAt?.toDate ? info.createdAt.toDate() : null,
         };
@@ -568,14 +614,26 @@ function GruposPreview({ encuestaId }) {
   }, [encuestaId]);
 
   const exportExcel = () => {
-    const rows = equipos.map(e => ({
-      NombreEquipo: e.nombreEquipo,
-      NombreLider: e.nombreLider,
-      Contacto: e.contactoEquipo,
-      CantidadParticipantes: e.cantidadParticipantes,
-      ...e.custom,
-      FechaRegistro: e.fechaRegistro ? e.fechaRegistro.toLocaleString('es-MX') : '',
-    }));
+    const maxIntegrantes = Math.max(
+      0,
+      ...equipos.map(e => e.integrantes.length || 0)
+    );
+    const rows = equipos.map(e => {
+      const row = {
+        NombreEquipo: e.nombreEquipo,
+        NombreLider: e.nombreLider,
+        Contacto: e.contactoEquipo,
+        CantidadParticipantes: e.cantidadParticipantes,
+        ...e.custom,
+        FechaRegistro: e.fechaRegistro
+          ? e.fechaRegistro.toLocaleString('es-MX')
+          : '',
+      };
+      for (let i = 0; i < maxIntegrantes; i++) {
+        row[`Integrante${i + 1}`] = e.integrantes[i] || '';
+      }
+      return row;
+    });
     const wb = listToWorkbook(rows);
     const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
     const file = `equipos-${new Date().toISOString().slice(0, 10)}.xlsx`;
@@ -637,9 +695,24 @@ function GruposPreview({ encuestaId }) {
                   </div>
                 </div>
                 <div className="flex flex-col space-y-2 ml-4">
-                  <button className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium shadow-sm">👁️ Ver</button>
-                  <button className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm">✏️ Editar</button>
-                  <button className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-medium shadow-sm">🗑️ Eliminar</button>
+                  <button
+                    onClick={() => verEquipo(grupo)}
+                    className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-medium shadow-sm"
+                  >
+                    👁️ Ver
+                  </button>
+                  <button
+                    onClick={() => editarEquipo(grupo)}
+                    className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm"
+                  >
+                    ✏️ Editar
+                  </button>
+                  <button
+                    onClick={() => eliminarEquipo(grupo)}
+                    className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-medium shadow-sm"
+                  >
+                    🗑️ Eliminar
+                  </button>
                 </div>
               </div>
             </div>

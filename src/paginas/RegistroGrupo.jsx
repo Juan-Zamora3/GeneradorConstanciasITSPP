@@ -264,12 +264,14 @@ export default function RegistroGrupo() {
             <div className="text-5xl mb-4">✅</div>
             <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
             <p className="text-gray-600 mb-6">Gracias por registrar tu equipo.</p>
+
             <button
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
               onClick={() => setOk(false)}
             >
               Registrar otro equipo
             </button>
+
           </div>
         </div>
       </div>
