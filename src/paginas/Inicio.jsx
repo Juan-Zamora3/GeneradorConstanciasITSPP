@@ -5,8 +5,7 @@ import {
   collection,
   onSnapshot,
   query,
-  orderBy,
-  where
+  orderBy
 } from 'firebase/firestore'
 import { db } from '../servicios/firebaseConfig'
 
@@ -108,9 +107,8 @@ export default function Inicio() {
   }, [participantes, cursos])
 
   // Obtener próximos cursos (solo próximos o en curso, ordenados por fecha)
-  const getProximosCursos = () => {
-    const today = new Date()
-    let cursosProximos = cursos
+    const getProximosCursos = () => {
+      let cursosProximos = cursos
       .filter(curso => {
         if (!curso.fechaInicio) return false
         const fechaInicio = new Date(curso.fechaInicio)
@@ -152,11 +150,7 @@ export default function Inicio() {
       .slice(0, 5)
   }
 
-  const formatTrend = (value) => {
-    return value >= 0 ? `+${value}%` : `${value}%`;
-  }
-
-  const formatearFecha = (fecha) => {
+    const formatearFecha = (fecha) => {
     if (!fecha) return 'Sin fecha'
     return new Date(fecha).toLocaleDateString('es-MX', {
       day: '2-digit',
@@ -338,7 +332,7 @@ export default function Inicio() {
             </select>
           </div>
           <div className="h-64 flex items-end justify-between space-x-2 border-b border-l border-gray-200 pl-2 pb-2">
-            {proximosCursos.slice(0, 5).map((curso, index) => {
+            {proximosCursos.slice(0, 5).map(curso => {
               const participantesCount = Array.isArray(curso.participantes) ? curso.participantes.length : 0;
               const cursosParaEscala = proximosCursos.slice(0, 5);
               const maxParticipantes = Math.max(...cursosParaEscala.map(c => Array.isArray(c.participantes) ? c.participantes.length : 0), 1);

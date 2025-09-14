@@ -23,10 +23,9 @@ import {
   FONT_LOOKUP,
   FONT_OPTIONS,
   toRGB,
-  fechaLarga,
-  wrapText,
-  drawTextBox   // ⬅️ AGREGA ESTA LÍNEA
-} from '@/utilidades/pdfHelpers';
+    fechaLarga,
+    fitTextToHeight
+  } from '@/utilidades/pdfHelpers';
 
 
 // ==========================================

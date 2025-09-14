@@ -167,10 +167,6 @@ export default function RegistroGrupo() {
    // ⬅️ asegura reset si cambian
   ]);
 
-  // Normaliza theme/appearance
-
-
-  // Normaliza theme/appearance combinando formularios + overrides en encuesta
 
   const theme = useMemo(() => {
     const raw = {
@@ -283,6 +279,7 @@ export default function RegistroGrupo() {
           >
             Registrar otro equipo
           </button>
+
 
         </div>
       </div>

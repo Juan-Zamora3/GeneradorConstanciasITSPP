@@ -52,7 +52,6 @@ export default function DetailsModal({
     textColor: '#374151',
     overlayOpacity: 0.35, // 0–1
   });
-  const [savingTheme, setSavingTheme] = useState(false);
 
   const isGroupCourse = data?.tipoCurso === 'grupos';
 
@@ -184,26 +183,6 @@ export default function DetailsModal({
     }
   };
 
-  /** Guardar cambios de tema (queda por si lo necesitas; no se muestra UI aquí) */
-  const guardarTema = async () => {
-    if (!encuestaId) {
-      alert('Primero genera el link/encuesta.');
-      return;
-    }
-    setSavingTheme(true);
-    try {
-      await updateDoc(doc(db, 'encuestas', encuestaId), {
-        theme,
-        updatedAt: new Date(),
-      });
-      alert('Apariencia del formulario guardada.');
-    } catch (e) {
-      console.error('guardarTema error', e);
-      alert('No se pudo guardar el tema.');
-    } finally {
-      setSavingTheme(false);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -447,7 +426,9 @@ function CopyButton({ text }) {
       await navigator.clipboard.writeText(text);
       setCopiado(true);
       setTimeout(() => setCopiado(false), 1200);
-    } catch {}
+    } catch (err) {
+      console.error(err);
+    }
   };
   return (
     <button
