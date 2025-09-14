@@ -46,15 +46,18 @@ export function useCourses() {
               theme: data.theme || {},
               encuestaId: data.encuestaId || '',
               encuestaLink: data.encuestaLink || '',
-              formularioGrupos: data.formularioGrupos || {
+              formularioGrupos: {
                 camposPreestablecidos: {
                   nombreEquipo: true,
                   nombreLider: true,
                   contactoEquipo: true,
                   categoria: true,
                   cantidadParticipantes: true,
+                  ...(data.formularioGrupos?.camposPreestablecidos || {}),
                 },
-                preguntasPersonalizadas: []
+                cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes,
+                preguntasPersonalizadas: data.formularioGrupos?.preguntasPersonalizadas || [],
+                categorias: data.formularioGrupos?.categorias || [],
               },
               grupos: data.grupos || []
             };
@@ -107,7 +110,8 @@ export function useCourses() {
             categoria: true,
             cantidadParticipantes: true,
           },
-          preguntasPersonalizadas: []
+          preguntasPersonalizadas: [],
+          categorias: [],
         },
         grupos: []
       });
@@ -159,7 +163,8 @@ export function useCourses() {
           categoria: true,
           cantidadParticipantes: true,
         },
-        preguntasPersonalizadas: []
+        preguntasPersonalizadas: [],
+        categorias: [],
       }
     };
 

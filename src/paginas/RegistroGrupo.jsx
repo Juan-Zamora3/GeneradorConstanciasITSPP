@@ -176,7 +176,11 @@ export default function RegistroGrupo() {
     if (!encuesta?.id) return;
     const ref = collection(doc(db, 'encuestas', encuesta.id), 'respuestas');
     const unsub = onSnapshot(ref, snap => {
+
+      const setCat = new Set(encuesta.formularioGrupos?.categorias || []);
+
       const setCat = new Set();
+
       snap.forEach(d => {
         const cat = d.data()?.preset?.categoria;
         if (cat) setCat.add(cat);
@@ -184,6 +188,9 @@ export default function RegistroGrupo() {
       setCategorias([...setCat]);
     });
     return () => unsub();
+
+  }, [encuesta?.id, encuesta?.formularioGrupos?.categorias]);
+
   }, [encuesta?.id]);
 
 
@@ -282,14 +289,7 @@ export default function RegistroGrupo() {
           <div className="rounded-xl bg-white/90 backdrop-blur shadow-xl p-10 text-center">
             <div className="text-5xl mb-4">✅</div>
             <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
-            <p className="text-gray-600 mb-6">Gracias por registrar tu equipo.</p>
-
-            <button
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              onClick={() => setOk(false)}
-            >
-              Registrar otro equipo
-            </button>
+            <p className="text-gray-600">Gracias por registrar tu equipo.</p>
 
           </div>
         </div>

@@ -353,7 +353,10 @@ export default function DetailsModal({
                   <CuestionarioPreview data={data} />
                 )}
                 {activeTab === 'grupos' && (
-                  <GruposPreview encuestaId={encuestaId} />
+                  <GruposPreview
+                    encuestaId={encuestaId}
+                    categoriasConfig={data.formularioGrupos?.categorias || []}
+                  />
                 )}
               </div>
             )}
@@ -552,25 +555,53 @@ function CuestionarioPreview({ data }) {
   );
 }
 
-function GruposPreview({ encuestaId }) {
+function GruposPreview({ encuestaId, categoriasConfig = [] }) {
   const [equipos, setEquipos] = useState([]);
   const [ver, setVer] = useState(null);
   const [editar, setEditar] = useState(null);
   const [filterCat, setFilterCat] = useState('');
 
   const categorias = useMemo(() => {
+
+    const s = new Set(categoriasConfig);
+
     const s = new Set();
+
     equipos.forEach((e) => {
       if (e.categoria) s.add(e.categoria);
     });
     return Array.from(s);
+
+  }, [equipos, categoriasConfig]);
+
   }, [equipos]);
+
 
   const equiposFiltrados = filterCat
     ? equipos.filter((e) => e.categoria === filterCat)
     : equipos;
 
   const verEquipo = (grupo) => setVer(grupo);
+
+  const editarEquipo = (grupo) =>
+    setEditar({
+      ...grupo,
+      integrantes: [...grupo.integrantes],
+    });
+
+  const guardarEdicion = async (e) => {
+    e.preventDefault();
+    await updateDoc(doc(db, 'encuestas', encuestaId, 'respuestas', editar.id), {
+      'preset.nombreEquipo': editar.nombreEquipo,
+      'preset.nombreLider': editar.nombreLider,
+      'preset.contactoEquipo': editar.contactoEquipo,
+      'preset.categoria': editar.categoria,
+      'preset.integrantes': editar.integrantes,
+      'preset.cantidadParticipantes': editar.integrantes.length,
+    });
+    setEditar(null);
+  };
+
 
   const editarEquipo = (grupo) =>
     setEditar({
