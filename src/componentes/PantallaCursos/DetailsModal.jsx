@@ -112,54 +112,71 @@ export default function DetailsModal({
     try {
       let id = encuestaId;
       let link = encuestaLink;
+      const cats = Array.from(
+        new Set(
+          (data.formularioGrupos?.categorias || [])
+            .map((c) => (c || '').trim())
+            .filter(Boolean)
+        )
+      );
 
       if (!id) {
         const preguntas = mapPreguntasForSurvey();
         const res = await createForCourse({
-  cursoId: data.id,
-  titulo: `Registro de Grupos – ${data.titulo || ''}`,
-  descripcion: data.descripcion || '',
-  preguntas,
-  theme,
-  user: null,
-  // 🔽 añade:
-  cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes ?? 1,
-  camposPreestablecidos: data.formularioGrupos?.camposPreestablecidos ?? {
-    nombreEquipo: true,
-    nombreLider: true,
-    contactoEquipo: true,
-    categoria: true,
-    cantidadParticipantes: true,
-  },
-});
+          cursoId: data.id,
+          titulo: `Registro de Grupos – ${data.titulo || ''}`,
+          descripcion: data.descripcion || '',
+          preguntas,
+          theme,
+          user: null,
+          cantidadParticipantes:
+            data.formularioGrupos?.cantidadParticipantes ?? 1,
+          camposPreestablecidos:
+            data.formularioGrupos?.camposPreestablecidos ?? {
+              nombreEquipo: true,
+              nombreLider: true,
+              contactoEquipo: true,
+              categoria: true,
+              cantidadParticipantes: true,
+            },
+          categorias: cats,
+        });
         id = res.id;
-        
       }
 
       // Construye link corto con slug
-      const slug = slugify(data.titulo || `curso-${data.id?.slice?.(0, 6) || ''}`);
+      const slug = slugify(
+        data.titulo || `curso-${data.id?.slice?.(0, 6) || ''}`
+      );
       const base = getBaseUrl();
       link = `${base}/${slug}`;
 
       // Guardar en colección 'encuestas'
       try {
-       await updateDoc(doc(db, 'encuestas', id), {
-  link,
-  linkSlug: slug,
-  theme,
-  titulo: `Registro de Grupos – ${data.titulo || ''}`,
-  descripcion: data.descripcion || '',
-  // 🔽 añade:
-  cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes ?? 1,
-  camposPreestablecidos: data.formularioGrupos?.camposPreestablecidos ?? {
-    nombreEquipo: true,
-    nombreLider: true,
-    contactoEquipo: true,
-    categoria: true,
-    cantidadParticipantes: true,
-  },
-  updatedAt: new Date(),
-});
+        await updateDoc(doc(db, 'encuestas', id), {
+          link,
+          linkSlug: slug,
+          theme,
+          titulo: `Registro de Grupos – ${data.titulo || ''}`,
+          descripcion: data.descripcion || '',
+          cantidadParticipantes:
+            data.formularioGrupos?.cantidadParticipantes ?? 1,
+          camposPreestablecidos:
+            data.formularioGrupos?.camposPreestablecidos ?? {
+              nombreEquipo: true,
+              nombreLider: true,
+              contactoEquipo: true,
+              categoria: true,
+              cantidadParticipantes: true,
+            },
+          formularioGrupos: {
+            ...(data.formularioGrupos || {}),
+            cantidadParticipantes:
+              data.formularioGrupos?.cantidadParticipantes ?? 1,
+            categorias: cats,
+          },
+          updatedAt: new Date(),
+        });
       } catch (e) {
         console.warn('No se pudo actualizar la encuesta:', e);
       }

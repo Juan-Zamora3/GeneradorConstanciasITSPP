@@ -127,6 +127,10 @@ export default function CourseModal({
     }
   }, [initialData, isOpen, resetState]);
 
+  useEffect(() => {
+    if (!isOpen) resetState();
+  }, [isOpen, resetState]);
+
   // Personal
   useEffect(() => {
     const fetchPersonal = async () => {
