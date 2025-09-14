@@ -1,5 +1,5 @@
 // src/paginas/Constancias.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Rnd } from 'react-rnd';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
@@ -96,6 +96,15 @@ export default function Constancias() {
   // Equipos
   const [equipos, setEquipos]             = useState([]);
   const [checkedEquipos, setCheckedEquipos] = useState({});
+  const [categoriaFiltro, setCategoriaFiltro] = useState('');
+  const categoriasEquipos = useMemo(() => {
+    const set = new Set();
+    equipos.forEach(e => {
+      const cat = e?.preset?.categoria;
+      if (cat) set.add(cat);
+    });
+    return Array.from(set);
+  }, [equipos]);
 
   // Config por plantilla
   const [cfgMap, setCfgMap]               = useState({});
@@ -426,9 +435,11 @@ export default function Constancias() {
         const base64 = arrayBufferToBase64(buf);
 
         // Correo destino:
-        // - Individual: ent.correo
-        // - Equipo: intenta preset.contactoEquipo o custom.correo (ajústalo a tu estructura)
-        let destino = ent?.correo || ent?.preset?.contactoEquipo || '';
+        // - Individual: usa `ent.correo`
+        // - Equipo: usa `preset.contactoEquipo`
+        let destino = modo === 'individual'
+          ? (ent?.correo || '')
+          : (ent?.preset?.contactoEquipo || '');
         if (!destino) {
           // si no hay correo, omite envío pero no rompas el bucle
           console.warn('Sin correo para:', ent);
@@ -625,6 +636,18 @@ export default function Constancias() {
           // MODO EQUIPOS
           <div>
             <h4 className="font-semibold mb-1">Equipos registrados</h4>
+            {categoriasEquipos.length > 0 && (
+              <select
+                className="mb-2 w-full p-2 border rounded"
+                value={categoriaFiltro}
+                onChange={e=>setCategoriaFiltro(e.target.value)}
+              >
+                <option value="">Todas las categorías</option>
+                {categoriasEquipos.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
             <div className="border rounded max-h-64 overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-gray-200">
@@ -633,10 +656,13 @@ export default function Constancias() {
                     <th className="p-2">Equipo</th>
                     <th className="p-2">Líder</th>
                     <th className="p-2">Contacto</th>
+                    <th className="p-2">Categoría</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {equipos.length ? equipos.map(eq => (
+                  {equipos.length ? equipos
+                    .filter(eq => !categoriaFiltro || eq?.preset?.categoria === categoriaFiltro)
+                    .map(eq => (
                     <tr key={eq.id} className="odd:bg-gray-100 hover:bg-gray-200">
                       <td className="text-center p-2">
                         <input
@@ -648,9 +674,10 @@ export default function Constancias() {
                       <td className="p-2 break-words">{eq?.preset?.nombreEquipo || '—'}</td>
                       <td className="p-2 break-words">{eq?.preset?.nombreLider  || '—'}</td>
                       <td className="p-2 break-words">{eq?.preset?.contactoEquipo|| '—'}</td>
+                      <td className="p-2 break-words">{eq?.preset?.categoria || '—'}</td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={4} className="text-center p-3 text-gray-500">No hay equipos</td></tr>
+                    <tr><td colSpan={5} className="text-center p-3 text-gray-500">No hay equipos</td></tr>
                   )}
                 </tbody>
               </table>
