@@ -256,6 +256,7 @@ export default function RegistroGrupo() {
   if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
   if (ok)
     return (
+
       <div className="min-h-screen" style={containerStyle}>
         {theme._bgUrl && theme.overlayOpacity > 0 && (
           <div
@@ -270,6 +271,19 @@ export default function RegistroGrupo() {
             <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
             <p className="text-gray-600">Gracias por registrar tu equipo.</p>
           </div>
+=======
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
+          <p className="text-gray-600 mb-6">Gracias por registrar tu equipo.</p>
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            onClick={() => setOk(false)}
+          >
+            Registrar otro equipo
+          </button>
+
         </div>
       </div>
     );
