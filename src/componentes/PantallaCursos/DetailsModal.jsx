@@ -356,6 +356,7 @@ export default function DetailsModal({
                   <GruposPreview
                     encuestaId={encuestaId}
                     categoriasConfig={data.formularioGrupos?.categorias || []}
+                    preguntasConfig={data.formularioGrupos?.preguntasPersonalizadas || []}
                   />
                 )}
               </div>
@@ -555,11 +556,23 @@ function CuestionarioPreview({ data }) {
   );
 }
 
-function GruposPreview({ encuestaId, categoriasConfig = [] }) {
+function GruposPreview({ encuestaId, categoriasConfig = [], preguntasConfig = [] }) {
   const [equipos, setEquipos] = useState([]);
   const [ver, setVer] = useState(null);
   const [editar, setEditar] = useState(null);
   const [filterCat, setFilterCat] = useState('');
+
+  // Preguntas personalizadas del curso
+  const preguntas = useMemo(() => {
+    const tipoMap = { abierta: 'text', combobox: 'select', multiple: 'radio', checklist: 'checkbox' };
+    return preguntasConfig.map((p, i) => ({
+      id: `p${i + 1}`,
+      etiqueta: p.titulo?.trim() || `Pregunta ${i + 1}`,
+      tipo: tipoMap[p.tipo] || 'text',
+      opciones: Array.isArray(p.opciones) ? p.opciones.filter(Boolean) : [],
+      requerida: !!p.requerida,
+    }));
+  }, [preguntasConfig]);
 
   const categorias = useMemo(() => {
     const s = new Set(categoriasConfig);
@@ -580,6 +593,7 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
     setEditar({
       ...grupo,
       integrantes: [...grupo.integrantes],
+      custom: { ...grupo.custom },
     });
 
   const guardarEdicion = async (e) => {
@@ -591,6 +605,7 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
       'preset.categoria': editar.categoria,
       'preset.integrantes': editar.integrantes,
       'preset.cantidadParticipantes': editar.integrantes.length,
+      custom: editar.custom || {},
     });
     setEditar(null);
   };
@@ -776,6 +791,15 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
                 ))}
               </ul>
             </div>
+            {preguntas.map((p) => {
+              let val = ver.custom?.[p.id];
+              if (Array.isArray(val)) val = val.join(', ');
+              return (
+                <p key={p.id}>
+                  <span className="font-semibold">{p.etiqueta}:</span> {val || '—'}
+                </p>
+              );
+            })}
             <div className="text-right">
               <button
                 onClick={() => setVer(null)}
@@ -845,6 +869,89 @@ function GruposPreview({ encuestaId, categoriasConfig = [] }) {
                     setEditar({ ...editar, integrantes: arr });
                   }}
                 />
+              </div>
+            ))}
+            {preguntas.map((p) => (
+              <div key={p.id}>
+                <label className="block text-sm mb-1">{p.etiqueta}</label>
+                {p.tipo === 'text' && (
+                  <input
+                    className="border rounded px-3 py-2 w-full"
+                    value={editar.custom?.[p.id] ?? ''}
+                    onChange={(e) =>
+                      setEditar((prev) => ({
+                        ...prev,
+                        custom: { ...prev.custom, [p.id]: e.target.value },
+                      }))
+                    }
+                  />
+                )}
+                {p.tipo === 'select' && (
+                  <select
+                    className="border rounded px-3 py-2 w-full"
+                    value={editar.custom?.[p.id] ?? ''}
+                    onChange={(e) =>
+                      setEditar((prev) => ({
+                        ...prev,
+                        custom: { ...prev.custom, [p.id]: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="">Seleccione…</option>
+                    {(p.opciones || []).map((op) => (
+                      <option key={op} value={op}>
+                        {op}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {p.tipo === 'radio' && (
+                  <div className="space-y-1">
+                    {(p.opciones || []).map((op) => (
+                      <label key={op} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={p.id}
+                          checked={editar.custom?.[p.id] === op}
+                          onChange={() =>
+                            setEditar((prev) => ({
+                              ...prev,
+                              custom: { ...prev.custom, [p.id]: op },
+                            }))
+                          }
+                        />
+                        {op}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {p.tipo === 'checkbox' && (
+                  <div className="space-y-1">
+                    {(p.opciones || []).map((op) => {
+                      const arr = Array.isArray(editar.custom?.[p.id])
+                        ? editar.custom[p.id]
+                        : [];
+                      const checked = arr.includes(op);
+                      return (
+                        <label key={op} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = new Set(arr);
+                              e.target.checked ? next.add(op) : next.delete(op);
+                              setEditar((prev) => ({
+                                ...prev,
+                                custom: { ...prev.custom, [p.id]: Array.from(next) },
+                              }));
+                            }}
+                          />
+                          {op}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
             <div className="flex justify-end gap-2 pt-2">
