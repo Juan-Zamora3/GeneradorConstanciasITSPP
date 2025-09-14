@@ -271,7 +271,7 @@ export default function RegistroGrupo() {
             <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
             <p className="text-gray-600">Gracias por registrar tu equipo.</p>
           </div>
-=======
+
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <div className="text-5xl mb-4">✅</div>

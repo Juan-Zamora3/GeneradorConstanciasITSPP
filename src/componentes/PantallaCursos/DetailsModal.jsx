@@ -124,15 +124,14 @@ export default function DetailsModal({
   theme,
   user: null,
   // 🔽 añade:
+  cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes ?? 1,
   camposPreestablecidos: data.formularioGrupos?.camposPreestablecidos ?? {
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
     cantidadParticipantes: true,
-      cantidadParticipantes: data.formularioGrupos?.cantidadParticipantes ?? 1,
-
   },
-}); 
+});
         id = res.id;
         
       }
