@@ -280,8 +280,19 @@ export default function Constancias() {
   const selAsis  = asistencias;
   const selInd   = [...selInit, ...selAsis];
 
-  // Equipos seleccionados
-  const selEquip = equipos.filter(e => checkedEquipos[e.id]);
+  // Equipos seleccionados -> se expanden por integrante
+  const selEquip = equipos
+    .filter(e => checkedEquipos[e.id])
+    .flatMap(eq => {
+      const preset = eq.preset || {};
+      const miembros = [preset.nombreLider, ...(preset.integrantes || [])].filter(Boolean);
+      return miembros.map((nombre, idx) => ({
+        ...eq,
+        teamId: eq.id,
+        id: `${eq.id}-m${idx}`,
+        miembro: nombre,
+      }));
+    });
 
   // === NOMBRE Y TEXTO POR MODO ===
   const buildTextContext = (ent) => {
@@ -296,12 +307,12 @@ export default function Constancias() {
       return { nombre, nombreEquipo, puesto, tituloCurso, ini, fin };
     } else {
       const preset       = ent?.preset || {};
-      const nombre       = (preset.nombreLider || '').toUpperCase();
+      const nombre       = (ent.miembro || '').toUpperCase();
       const nombreEquipo = (preset.nombreEquipo || 'EQUIPO').toUpperCase();
       const tituloCurso  = getCursoTitulo(curso);
       const ini          = getFechaInicio(curso);
       const fin          = getFechaFin(curso);
-      const puesto       = preset.nombreLider ? `Líder: ${preset.nombreLider}` : '';
+      const puesto       = ent.miembro === preset.nombreLider ? 'Líder' : 'Integrante';
       return { nombre, nombreEquipo, puesto, tituloCurso, ini, fin };
     }
   };
@@ -445,8 +456,9 @@ export default function Constancias() {
           const nm  = getNombreCompleto(ent).replace(/\s+/g,'_') || 'Sin_Nombre';
           baseName  = `${baseName}_${getCursoTitulo(curso,ent)}_${nm}`;
         } else {
-          const equipo = (ent?.preset?.nombreEquipo || 'Equipo').replace(/\s+/g,'_');
-          baseName  = `${baseName}_${getCursoTitulo(curso)}_${equipo}`;
+          const equipo   = (ent?.preset?.nombreEquipo || 'Equipo').replace(/\s+/g,'_');
+          const miembro  = (ent.miembro || 'Integrante').replace(/\s+/g,'_');
+          baseName  = `${baseName}_${getCursoTitulo(curso)}_${equipo}_${miembro}`;
         }
         zip.file(`${baseName}.pdf`, buf);
       }

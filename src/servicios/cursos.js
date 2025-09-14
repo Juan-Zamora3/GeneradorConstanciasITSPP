@@ -1,6 +1,11 @@
 import { db } from '@/servicios/firebaseConfig';
 import {
-  collection, doc, getDocs, query, where, writeBatch
+  collection,
+  doc,
+  getDocs,
+  query,
+  where,
+  writeBatch
 } from 'firebase/firestore';
 
 // Borra curso + encuestas referenciadas por campo cursoId
@@ -13,7 +18,14 @@ export async function deleteCourseAndSurveys(cursoId) {
   const snap = await getDocs(q);
 
   const batch = writeBatch(db);
-  snap.docs.forEach(d => batch.delete(d.ref));
+
+  for (const encDoc of snap.docs) {
+    // borrar respuestas de la encuesta
+    const resSnap = await getDocs(collection(encDoc.ref, 'respuestas'));
+    resSnap.forEach((r) => batch.delete(r.ref));
+    // borrar encuesta
+    batch.delete(encDoc.ref);
+  }
 
   // 2) curso (colección 'Cursos')
   batch.delete(doc(db, 'Cursos', cursoId));
