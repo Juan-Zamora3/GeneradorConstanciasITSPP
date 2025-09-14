@@ -1,6 +1,6 @@
 import { db } from '@/servicios/firebaseConfig';
 import {
-  collection, deleteDoc, doc, getDocs, query, where, writeBatch
+  collection, doc, getDocs, query, where, writeBatch
 } from 'firebase/firestore';
 
 // Borra curso + encuestas referenciadas por campo cursoId

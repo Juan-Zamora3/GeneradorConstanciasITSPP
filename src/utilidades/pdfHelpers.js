@@ -121,6 +121,20 @@ export function wrapTextAdvanced(text, font, size, maxWidth, letterSpacing = 0) 
   return lines;
 }
 
+export function fitTextToHeight({ font, text, boxW, boxH, baseSize, minSize = 10, lineGap = 0 }) {
+  let size = baseSize;
+  let lines = wrapTextAdvanced(text, font, size, boxW);
+
+  const getHeight = s => lines.length * s + Math.max(0, lines.length - 1) * lineGap;
+
+  while (getHeight(size) > boxH && size > minSize) {
+    size -= 1;
+    lines = wrapTextAdvanced(text, font, size, boxW);
+  }
+
+  return { size, lines };
+}
+
 // Alias compatible con tu import en Constancias.jsx
 export function wrapText(text, font, size, maxWidth) {
   return wrapTextAdvanced(text, font, size, maxWidth, 0);
@@ -135,7 +149,7 @@ export function wrapText(text, font, size, maxWidth) {
 -------------------------------------------- */
 export function drawTextBox(page, {
   text, x, y, w, align = 'left', font, size, color,
-  bold, lineHeight = 1.0, letterSpacing = 0, opacity = 1, rotate = 0, transform = 'none',
+  lineHeight = 1.0, letterSpacing = 0, opacity = 1, rotate = 0, transform = 'none',
 }) {
   let t = String(text || '');
   if (transform === 'uppercase') t = t.toUpperCase();

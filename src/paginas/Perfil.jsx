@@ -6,7 +6,6 @@ import { FaUser, FaEnvelope, FaLock, FaHistory, FaCamera, FaEdit } from 'react-i
 // 🔗 Firebase ------------------------------------------------------------
 import {
   doc,
-  getDoc,
   updateDoc,
   onSnapshot,
   setDoc          // por si el doc aún no existe
@@ -21,7 +20,7 @@ import {
 
 export default function Perfil () {
   const navigate = useNavigate()
-  const { usuario, logout } = useContext(AuthContext)   // logout quizá lo uses luego
+  const { usuario } = useContext(AuthContext)
   const [cargando, setCargando] = useState(false)
   const [imagenPreview, setImagenPreview] = useState(null)
   const [imagenFile, setImagenFile] = useState(null)

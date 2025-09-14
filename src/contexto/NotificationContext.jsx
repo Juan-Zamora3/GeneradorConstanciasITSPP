@@ -4,13 +4,12 @@ import {
   collection, 
   addDoc, 
   query, 
-  orderBy, 
-  onSnapshot, 
-  updateDoc, 
-  doc,
-  serverTimestamp,
-  where 
-} from 'firebase/firestore';
+    orderBy,
+    onSnapshot,
+    updateDoc,
+    doc,
+    serverTimestamp
+  } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 import { AuthContext } from './AuthContext';
 
