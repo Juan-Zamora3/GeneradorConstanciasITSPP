@@ -128,6 +128,7 @@ export default function DetailsModal({
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
+    categoria: true,
     cantidadParticipantes: true,
   },
 });
@@ -154,6 +155,7 @@ export default function DetailsModal({
     nombreEquipo: true,
     nombreLider: true,
     contactoEquipo: true,
+    categoria: true,
     cantidadParticipantes: true,
   },
   updatedAt: new Date(),
@@ -482,12 +484,19 @@ function CuestionarioPreview({ data }) {
               <span className="ml-auto text-red-500 text-sm">*</span>
             </div>
           )}
+          {data.formularioGrupos?.camposPreestablecidos?.categoria && (
+            <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
+              <span className="text-blue-500 mr-3">🏷️</span>
+              <span className="text-gray-700 font-medium">Categoría</span>
+              <span className="ml-auto text-red-500 text-sm">*</span>
+            </div>
+          )}
           {data.formularioGrupos?.camposPreestablecidos?.cantidadParticipantes && (
            <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
            <span className="text-blue-500 mr-3">👥</span>
            <span className="text-gray-700 font-medium">Cantidad de Participantes</span>
-           <span className="ml-auto text-red-500 text-sm">*</span>
-           </div>
+            <span className="ml-auto text-red-500 text-sm">*</span>
+            </div>
           )}
         </div>
       </div>

@@ -50,7 +50,9 @@ export function useCourses() {
                 camposPreestablecidos: {
                   nombreEquipo: true,
                   nombreLider: true,
-                  contactoEquipo: true
+                  contactoEquipo: true,
+                  categoria: true,
+                  cantidadParticipantes: true,
                 },
                 preguntasPersonalizadas: []
               },
@@ -101,7 +103,9 @@ export function useCourses() {
           camposPreestablecidos: {
             nombreEquipo: true,
             nombreLider: true,
-            contactoEquipo: true
+            contactoEquipo: true,
+            categoria: true,
+            cantidadParticipantes: true,
           },
           preguntasPersonalizadas: []
         },
@@ -151,7 +155,9 @@ export function useCourses() {
         camposPreestablecidos: {
           nombreEquipo: true,
           nombreLider: true,
-          contactoEquipo: true
+          contactoEquipo: true,
+          categoria: true,
+          cantidadParticipantes: true,
         },
         preguntasPersonalizadas: []
       }
