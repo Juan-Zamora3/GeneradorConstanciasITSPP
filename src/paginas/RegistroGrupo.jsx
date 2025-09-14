@@ -35,6 +35,7 @@ export default function RegistroGrupo() {
     nombreEquipo: '', nombreLider: '', contactoEquipo: '', categoria: '',
     cantidadParticipantes: 1, integrantes: [''],
   });
+  const [categorias,     setCategorias]     = useState([]);
   const [custom,         setCustom]         = useState({});
   const [enviando,       setEnviando]       = useState(false);
   const [ok,             setOk]             = useState(false);
@@ -168,6 +169,22 @@ export default function RegistroGrupo() {
     encuesta?.camposPreestablecidos?.categoria,
    // ⬅️ asegura reset si cambian
   ]);
+
+
+  // Cargar categorías existentes para sugerencias
+  useEffect(() => {
+    if (!encuesta?.id) return;
+    const ref = collection(doc(db, 'encuestas', encuesta.id), 'respuestas');
+    const unsub = onSnapshot(ref, snap => {
+      const setCat = new Set();
+      snap.forEach(d => {
+        const cat = d.data()?.preset?.categoria;
+        if (cat) setCat.add(cat);
+      });
+      setCategorias([...setCat]);
+    });
+    return () => unsub();
+  }, [encuesta?.id]);
 
 
   const theme = useMemo(() => {
@@ -361,11 +378,17 @@ export default function RegistroGrupo() {
                   Categoría *
                 </label>
                 <input
+                  list="categoria-list"
                   className="border rounded px-3 py-2 w-full"
                   value={preset.categoria}
                   onChange={(e) => setPreset((p) => ({ ...p, categoria: e.target.value }))}
                   required
                 />
+                <datalist id="categoria-list">
+                  {categorias.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
             )}
 

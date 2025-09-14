@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ImageCarousel from '../common/ImageCarousel';
 import QrCanvas from './QrCanvas'; // si ya lo usas en otras partes; aquí usamos QRCodeCanvas directamente
 import { useSurveys } from '../../utilidades/useSurveys';
 import { QRCodeCanvas } from 'qrcode.react';
-import { doc, updateDoc, collection, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -554,61 +554,55 @@ function CuestionarioPreview({ data }) {
 
 function GruposPreview({ encuestaId }) {
   const [equipos, setEquipos] = useState([]);
-  const verEquipo = (grupo) => {
-    const info = [
-      `Equipo: ${grupo.nombreEquipo}`,
-      `Líder: ${grupo.nombreLider}`,
-      `Contacto: ${grupo.contactoEquipo}`,
-      '',
-      'Integrantes:',
-      ...(grupo.integrantes || [])
-    ].join('\n');
-    alert(info);
-  };
+  const [ver, setVer] = useState(null);
+  const [editar, setEditar] = useState(null);
+  const [filterCat, setFilterCat] = useState('');
 
-  const editarEquipo = async (grupo) => {
-    const nombreEquipo = prompt('Nombre del equipo', grupo.nombreEquipo);
-    if (nombreEquipo === null) return;
-    const nombreLider = prompt('Nombre del líder', grupo.nombreLider);
-    if (nombreLider === null) return;
-    const contactoEquipo = prompt('Contacto del equipo', grupo.contactoEquipo);
-    if (contactoEquipo === null) return;
+  const categorias = useMemo(() => {
+    const s = new Set();
+    equipos.forEach((e) => {
+      if (e.categoria) s.add(e.categoria);
+    });
+    return Array.from(s);
+  }, [equipos]);
 
-    const integrantes = [];
-    for (let i = 0; i < grupo.cantidadParticipantes; i++) {
-      const val = prompt(`Integrante ${i + 1}`, grupo.integrantes[i] || '');
-      if (val === null) return;
-      integrantes.push(val);
-    }
+  const equiposFiltrados = filterCat
+    ? equipos.filter((e) => e.categoria === filterCat)
+    : equipos;
 
-    await updateDoc(
-      doc(db, 'encuestas', encuestaId, 'respuestas', grupo.id),
-      {
-        'preset.nombreEquipo': nombreEquipo,
-        'preset.nombreLider': nombreLider,
-        'preset.contactoEquipo': contactoEquipo,
-        'preset.integrantes': integrantes,
-        'preset.cantidadParticipantes': integrantes.length,
-      }
-    );
-  };
+  const verEquipo = (grupo) => setVer(grupo);
 
-  const eliminarEquipo = async (grupo) => {
-    if (!confirm(`¿Eliminar el equipo "${grupo.nombreEquipo}"?`)) return;
-    await deleteDoc(doc(db, 'encuestas', encuestaId, 'respuestas', grupo.id));
+  const editarEquipo = (grupo) =>
+    setEditar({
+      ...grupo,
+      integrantes: [...grupo.integrantes],
+    });
+
+  const guardarEdicion = async (e) => {
+    e.preventDefault();
+    await updateDoc(doc(db, 'encuestas', encuestaId, 'respuestas', editar.id), {
+      'preset.nombreEquipo': editar.nombreEquipo,
+      'preset.nombreLider': editar.nombreLider,
+      'preset.contactoEquipo': editar.contactoEquipo,
+      'preset.categoria': editar.categoria,
+      'preset.integrantes': editar.integrantes,
+      'preset.cantidadParticipantes': editar.integrantes.length,
+    });
+    setEditar(null);
   };
 
   useEffect(() => {
     if (!encuestaId) return;
     const ref = collection(doc(db, 'encuestas', encuestaId), 'respuestas');
-    const unsub = onSnapshot(ref, snap => {
-      const list = snap.docs.map(d => {
+    const unsub = onSnapshot(ref, (snap) => {
+      const list = snap.docs.map((d) => {
         const info = d.data();
         return {
           id: d.id,
           nombreEquipo: info.preset?.nombreEquipo || '',
           nombreLider: info.preset?.nombreLider || '',
           contactoEquipo: info.preset?.contactoEquipo || '',
+          categoria: info.preset?.categoria || '',
           cantidadParticipantes: info.preset?.cantidadParticipantes || 0,
           integrantes: Array.isArray(info.preset?.integrantes)
             ? info.preset.integrantes
@@ -623,20 +617,17 @@ function GruposPreview({ encuestaId }) {
   }, [encuestaId]);
 
   const exportExcel = () => {
-    const maxIntegrantes = Math.max(
-      0,
-      ...equipos.map(e => e.integrantes.length || 0)
-    );
-    const rows = equipos.map(e => {
+    const data = equiposFiltrados;
+    const maxIntegrantes = Math.max(0, ...data.map((e) => e.integrantes.length || 0));
+    const rows = data.map((e) => {
       const row = {
         NombreEquipo: e.nombreEquipo,
         NombreLider: e.nombreLider,
         Contacto: e.contactoEquipo,
+        Categoria: e.categoria,
         CantidadParticipantes: e.cantidadParticipantes,
         ...e.custom,
-        FechaRegistro: e.fechaRegistro
-          ? e.fechaRegistro.toLocaleString('es-MX')
-          : '',
+        FechaRegistro: e.fechaRegistro ? e.fechaRegistro.toLocaleString('es-MX') : '',
       };
       for (let i = 0; i < maxIntegrantes; i++) {
         row[`Integrante${i + 1}`] = e.integrantes[i] || '';
@@ -653,11 +644,25 @@ function GruposPreview({ encuestaId }) {
     <div className="space-y-6">
       <div className="text-center">
         <h4 className="text-xl font-bold text-gray-800 mb-2">👥 Equipos registrados</h4>
-        <div className="flex justify-center items-center space-x-2">
+        <div className="flex flex-wrap justify-center items-center gap-2">
           <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-full text-base font-semibold shadow-lg">
-            {equipos.length} {equipos.length === 1 ? 'equipo' : 'equipos'} registrados
+            {equiposFiltrados.length} {equiposFiltrados.length === 1 ? 'equipo' : 'equipos'} registrados
           </span>
-          {equipos.length > 0 && (
+          {categorias.length > 0 && (
+            <select
+              className="border rounded px-2 py-1 text-sm"
+              value={filterCat}
+              onChange={(e) => setFilterCat(e.target.value)}
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
+          {equiposFiltrados.length > 0 && (
             <button
               onClick={exportExcel}
               className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm"
@@ -668,10 +673,13 @@ function GruposPreview({ encuestaId }) {
         </div>
       </div>
 
-      {equipos.length > 0 ? (
+      {equiposFiltrados.length > 0 ? (
         <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-          {equipos.map((grupo, index) => (
-            <div key={grupo.id} className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200">
+          {equiposFiltrados.map((grupo, index) => (
+            <div
+              key={grupo.id}
+              className="bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200"
+            >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center mb-3">
@@ -696,6 +704,12 @@ function GruposPreview({ encuestaId }) {
                       </div>
                     </div>
                   </div>
+                  {grupo.categoria && (
+                    <div className="mb-2 text-xs text-gray-500">
+                      <span className="mr-1">🏷️</span>
+                      {grupo.categoria}
+                    </div>
+                  )}
                   <div className="flex items-center text-xs text-gray-500">
                     <span className="mr-1">📅</span>
                     <span>
@@ -716,12 +730,6 @@ function GruposPreview({ encuestaId }) {
                   >
                     ✏️ Editar
                   </button>
-                  <button
-                    onClick={() => eliminarEquipo(grupo)}
-                    className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-medium shadow-sm"
-                  >
-                    🗑️ Eliminar
-                  </button>
                 </div>
               </div>
             </div>
@@ -731,11 +739,126 @@ function GruposPreview({ encuestaId }) {
         <div className="bg-gray-50 p-12 rounded-xl border-2 border-dashed border-gray-200 text-center">
           <div className="text-6xl mb-4">👥</div>
           <h6 className="text-lg font-semibold text-gray-700 mb-2">No hay equipos registrados</h6>
-          <p className="text-gray-500 text-sm mb-4">Los equipos aparecerán aquí cuando se registren usando el código QR o el link de registro.</p>
+          <p className="text-gray-500 text-sm mb-4">
+            Los equipos aparecerán aquí cuando se registren usando el código QR o el link de registro.
+          </p>
           <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
             <span className="mr-2">💡</span>
             Comparte el QR o link para que los equipos se registren
           </div>
+        </div>
+      )}
+
+      {ver && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-3">
+            <h5 className="text-lg font-bold">{ver.nombreEquipo}</h5>
+            <p>
+              <span className="font-semibold">Líder:</span> {ver.nombreLider}
+            </p>
+            <p>
+              <span className="font-semibold">Contacto:</span> {ver.contactoEquipo}
+            </p>
+            {ver.categoria && (
+              <p>
+                <span className="font-semibold">Categoría:</span> {ver.categoria}
+              </p>
+            )}
+            <div>
+              <p className="font-semibold mb-1">Integrantes:</p>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                {ver.integrantes.map((n, i) => (
+                  <li key={i}>{n || '—'}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="text-right">
+              <button
+                onClick={() => setVer(null)}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <form onSubmit={guardarEdicion} className="bg-white rounded-lg p-6 w-full max-w-md space-y-4">
+            <h5 className="text-lg font-bold">Editar equipo</h5>
+            <div>
+              <label className="block text-sm mb-1">Nombre del equipo</label>
+              <input
+                className="border rounded px-3 py-2 w-full"
+                value={editar.nombreEquipo}
+                onChange={(e) => setEditar({ ...editar, nombreEquipo: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Nombre del líder</label>
+              <input
+                className="border rounded px-3 py-2 w-full"
+                value={editar.nombreLider}
+                onChange={(e) => setEditar({ ...editar, nombreLider: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Contacto del equipo</label>
+              <input
+                className="border rounded px-3 py-2 w-full"
+                value={editar.contactoEquipo}
+                onChange={(e) => setEditar({ ...editar, contactoEquipo: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Categoría</label>
+              <input
+                list="edit-categorias"
+                className="border rounded px-3 py-2 w-full"
+                value={editar.categoria}
+                onChange={(e) => setEditar({ ...editar, categoria: e.target.value })}
+              />
+              <datalist id="edit-categorias">
+                {categorias.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </div>
+            {editar.integrantes.map((n, i) => (
+              <div key={i}>
+                <label className="block text-sm mb-1">Integrante {i + 1}</label>
+                <input
+                  className="border rounded px-3 py-2 w-full"
+                  value={n}
+                  onChange={(e) => {
+                    const arr = [...editar.integrantes];
+                    arr[i] = e.target.value;
+                    setEditar({ ...editar, integrantes: arr });
+                  }}
+                />
+              </div>
+            ))}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditar(null)}
+                className="px-4 py-2 rounded bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
