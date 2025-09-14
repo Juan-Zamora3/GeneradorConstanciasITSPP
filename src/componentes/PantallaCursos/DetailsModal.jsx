@@ -53,6 +53,12 @@ export default function DetailsModal({
 
   const isGroupCourse = data?.tipoCurso === 'grupos';
 
+  // Asegura que el tema inicial provenga de la configuración del curso
+  useEffect(() => {
+    if (!isOpen) return;
+    if (data?.theme) setTheme(t => ({ ...t, ...data.theme }));
+  }, [isOpen, data?.theme]);
+
   // Cargar encuesta si ya existe para este curso
   useEffect(() => {
     if (!isOpen || !data?.id) return;

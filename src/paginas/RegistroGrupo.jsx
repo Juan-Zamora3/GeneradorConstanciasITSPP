@@ -6,7 +6,7 @@ import {
 import { db } from '../servicios/firebaseConfig';
 import { saveResponse } from '../utilidades/useSurveys';
 
-// helpers: clamp01, nonEmpty, clampInt, resizeArray…
+// helpers: clamp01, nonEmpty, resizeArray…
 function clamp01(n) {
   const x = Number(n);
   return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : null;
@@ -15,12 +15,6 @@ function clamp01(n) {
 function nonEmpty(v) {
   // convierte '' en undefined para que los fallback funcionen
   return typeof v === 'string' && v.trim() === '' ? undefined : v;
-}
-
-function clampInt(n, min = 1, max = 6) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return min;
-  return Math.min(max, Math.max(min, Math.round(x)));
 }
 
 function resizeArray(arr, len, fill = '') {
@@ -260,7 +254,22 @@ export default function RegistroGrupo() {
 
   if (loading)   return <div className="p-6">Cargando…</div>;
   if (!encuesta) return <div className="p-6">Formulario no encontrado.</div>;
-  if (ok)        return <div className="p-6 text-green-700">¡Registro enviado! ✅</div>;
+  if (ok)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-semibold mb-2">¡Registro enviado!</h2>
+          <p className="text-gray-600 mb-6">Gracias por registrar tu equipo.</p>
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            onClick={() => setOk(false)}
+          >
+            Registrar otro equipo
+          </button>
+        </div>
+      </div>
+    );
   
 
   const campos = encuesta.camposPreestablecidos ?? {
