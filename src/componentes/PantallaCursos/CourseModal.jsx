@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, query, where, limit, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 
+// fuera del componente
+const cleanCats = (arr = []) =>
+  Array.from(new Set(arr.map(c => (c || '').trim()).filter(Boolean)));
+
+
 const toSurveyQuestions = (lista = []) => {
   const tipoMap = { abierta: 'text', combobox: 'select', multiple: 'radio', checklist: 'checkbox' };
   return lista.map((p, i) => ({
@@ -50,7 +55,7 @@ export default function CourseModal({
         nombreLider: true,
         contactoEquipo: true,
         categoria: true,
-        cantidadParticipantes: true,
+        
       },
       cantidadParticipantes: 1,
       preguntasPersonalizadas: [],
@@ -126,6 +131,7 @@ export default function CourseModal({
       resetState();
     }
   }, [initialData, isOpen, resetState]);
+  const [formError, setFormError] = useState(null);
 
   useEffect(() => {
     if (!isOpen) resetState();
@@ -191,7 +197,7 @@ export default function CourseModal({
     if (themeFileRef.current) themeFileRef.current.value = '';
   };
 
-  // Filtros de personal
+  // Filtros de personal 
   const personalFiltrado = personalList.filter(a => {
     const nombre = `${a.Nombres} ${a.ApellidoP} ${a.ApellidoM}`.toLowerCase();
     const matchSearch = !searchPersonal || nombre.includes(searchPersonal.toLowerCase());
@@ -202,20 +208,32 @@ export default function CourseModal({
   // Guardar (llama al padre y asegura persistencia en edición)
 const submit = async (e) => {
   e.preventDefault();
+  setFormError(null);
 
+  // Limpia y valida categorías
+  const cats = cleanCats(form.formularioGrupos?.categorias || []);
+  const categoriaActiva = !!form.formularioGrupos?.camposPreestablecidos?.categoria;
+
+  if (categoriaActiva && cats.length === 0) {
+    setFormError('Debes agregar al menos una categoría o desactivar el campo "Categoría".');
+    return;
+  }
+
+  // Cantidad de participantes (se usa en ambos updates)
+  const cantidad = Math.max(1, Number(form.formularioGrupos?.cantidadParticipantes ?? 1) || 1);
+
+  // Si pasa validación, recién aquí avisamos al padre
   onSubmit?.({ ...form, imageUrl: imagePreview }, imageFile);
 
-  const cats = Array.from(new Set(
-    (form.formularioGrupos?.categorias || [])
-      .map(c => (c || '').trim())
-      .filter(Boolean)
-  ));
-
-  // Guarda el curso (cuando editas)
+  // -- Guardar curso (cuando editas)
   if (isEdit) {
     await updateDoc(doc(db, 'Cursos', initialData.id), {
       ...form,
-      formularioGrupos: { ...form.formularioGrupos, categorias: cats },
+      formularioGrupos: {
+        ...form.formularioGrupos,
+        cantidadParticipantes: cantidad,
+        categorias: cats,
+      },
       imageUrl: imagePreview || initialData.imageUrl || '',
       updatedAt: new Date(),
     });
@@ -225,36 +243,28 @@ const submit = async (e) => {
   // 1) Resuelve el id de encuesta
   let encuestaId = initialData.encuestaId;
   if (!encuestaId && initialData.id) {
-    const q = query(
-      collection(db, 'encuestas'),
-      where('cursoId', '==', initialData.id),
-      limit(1)
-    );
+    const q = query(collection(db, 'encuestas'), where('cursoId', '==', initialData.id), limit(1));
     const snap = await getDocs(q);
     if (!snap.empty) encuestaId = snap.docs[0].id;
   }
   if (!encuestaId) return; // no hay encuesta que actualizar
 
-  // 2) Calcula payload
-  const cantidad = Math.max(1, Number(form.formularioGrupos?.cantidadParticipantes ?? 1) || 1);
+  // 2) Payload
   const campos = {
-    nombreEquipo: true,
-    nombreLider: true,
-    contactoEquipo: true,
-    categoria: true,
-    cantidadParticipantes: true,
-    ...(form.formularioGrupos?.camposPreestablecidos || {}),
+   nombreEquipo: true,
+   nombreLider: true,
+   contactoEquipo: true,
+   categoria: true,
+   ...(form.formularioGrupos?.camposPreestablecidos || {}),
+   cantidadParticipantes: true, // ← siempre activo
   };
-
-  // 👇 Usa la función ya definida arriba
   const preguntas = toSurveyQuestions(form.formularioGrupos?.preguntasPersonalizadas || []);
 
-  // 3) Un SOLO update al doc correcto
+  // 3) Un solo update
   await updateDoc(doc(db, 'encuestas', encuestaId), {
     titulo: `Registro de Grupos – ${form.titulo || ''}`,
     descripcion: form.descripcion || '',
     theme: form.theme,
-
     cantidadParticipantes: cantidad,
     camposPreestablecidos: campos,
     formularioGrupos: {
@@ -262,16 +272,14 @@ const submit = async (e) => {
       cantidadParticipantes: cantidad,
       categorias: cats,
     },
-
-    // claves que lee RegistroGrupo
     preguntas,
-    form: { preguntas },            // compat opcional
-    questions: preguntas,           // compat opcional
-    questionsVersion: Date.now(),   // fuerza refresh
-
+    form: { preguntas },
+    questions: preguntas,
+    questionsVersion: Date.now(),
     updatedAt: new Date(),
   });
 };
+
 
 
   if (!isOpen) return null;
@@ -535,13 +543,15 @@ const submit = async (e) => {
 
               {/* Configuración del formulario por grupos */}
               <GruposSection
-                form={form}
-                setForm={setForm}
-                editandoPregunta={editandoPregunta}
-                setEditandoPregunta={setEditandoPregunta}
-                nuevaPregunta={nuevaPregunta}
-                setNuevaPregunta={setNuevaPregunta}
-              />
+  form={form}
+  setForm={setForm}
+  editandoPregunta={editandoPregunta}
+  setEditandoPregunta={setEditandoPregunta}
+  nuevaPregunta={nuevaPregunta}
+  setNuevaPregunta={setNuevaPregunta}
+  formError={formError}
+  setFormError={setFormError}
+/>
             </>
           )}
 
@@ -594,10 +604,10 @@ function PersonalSection({
           onChange={e => setFilterArea(e.target.value)}
           className="w-full sm:w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">Todas las áreas</option>
-          {[...new Set(personalList.map(a => a.Puesto).filter(Boolean))].map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
+         {[...new Set(personalList.map(a => a.Puesto).filter(Boolean))].map((p, i) => (
+  <option key={`${p}-${i}`} value={p}>{p}</option>
+))}
+
         </select>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -652,7 +662,8 @@ function PersonalSection({
 }
 
 function GruposSection({
-  form, setForm, editandoPregunta, setEditandoPregunta, nuevaPregunta, setNuevaPregunta
+  form, setForm, editandoPregunta, setEditandoPregunta,
+  nuevaPregunta, setNuevaPregunta, formError, setFormError
 }) {
   return (
     <div className="bg-gray-50 p-4 rounded-lg">
@@ -665,24 +676,44 @@ function GruposSection({
           {[
             { key: 'nombreEquipo', label: 'Nombre del Equipo' },
             { key: 'nombreLider', label: 'Nombre del Líder del Equipo' },
-            { key: 'contactoEquipo', label: 'Contacto del Equipo' },
+            { key: 'contactoEquipo', label: 'Correo electrónico del Equipo' },
             { key: 'categoria', label: 'Categoría' },
-            { key: 'cantidadParticipantes', label: 'Cantidad de Participantes' },
           ].map(c => (
             <label key={c.key} className="flex items-center">
               <input
                 type="checkbox"
                 checked={form.formularioGrupos.camposPreestablecidos[c.key]}
-                onChange={(e) => setForm(prev => ({
-                  ...prev,
-                  formularioGrupos: {
-                    ...prev.formularioGrupos,
-                    camposPreestablecidos: {
-                      ...prev.formularioGrupos.camposPreestablecidos,
-                      [c.key]: e.target.checked,
-                    },
-                  },
-                }))}
+              onChange={(e) => {
+  const checked = e.target.checked;
+  setFormError(null); // limpia el error visual si lo hubiera
+
+  setForm((prev) => {
+    // armamos el siguiente estado base
+    const next = {
+      ...prev,
+      formularioGrupos: {
+        ...prev.formularioGrupos,
+        camposPreestablecidos: {
+          ...prev.formularioGrupos.camposPreestablecidos,
+          [c.key]: checked,
+        },
+      },
+    };
+
+    // si el toggle es "categoria", preparamos/limpiamos el arreglo
+    if (c.key === 'categoria') {
+      next.formularioGrupos.categorias = checked
+        ? (prev.formularioGrupos.categorias?.length
+            ? prev.formularioGrupos.categorias
+            : [''] // al menos un input vacío para obligar a llenar
+          )
+        : [];     // si se desactiva, limpiamos
+    }
+
+    return next;
+  });
+}}
+
                 className="mr-2"
               />
               <span className="text-sm text-gray-700">{c.label}</span>
@@ -690,58 +721,59 @@ function GruposSection({
           ))}
         </div>
       </div>
-      {form.formularioGrupos.camposPreestablecidos.categoria && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Opciones
-          </label>
-          <div className="space-y-2">
-            {(form.formularioGrupos.categorias?.length
-              ? form.formularioGrupos.categorias
-              : ['']
-            ).map((cat, idx) => (
-              <input
-                key={idx}
-                type="text"
-                className="border rounded px-3 py-2 w-full"
-                placeholder={`Opción ${idx + 1}`}
-                value={cat}
-                onChange={(e) =>
-                  setForm((prev) => {
-                    const arr = [...(prev.formularioGrupos.categorias || [])];
-                    arr[idx] = e.target.value;
-                    return {
-                      ...prev,
-                      formularioGrupos: {
-                        ...prev.formularioGrupos,
-                        categorias: arr,
-                      },
-                    };
-                  })
-                }
-              />
-            ))}
-            <button
-              type="button"
-              onClick={() =>
-                setForm((prev) => ({
-                  ...prev,
-                  formularioGrupos: {
-                    ...prev.formularioGrupos,
-                    categorias: [
-                      ...(prev.formularioGrupos.categorias || []),
-                      '',
-                    ],
-                  },
-                }))
-              }
-              className="text-sm text-blue-600 hover:underline"
-            >
-              + Agregar opción
-            </button>
-          </div>
-        </div>
+   {/* bloque de categorías */}
+{form.formularioGrupos.camposPreestablecidos.categoria && (
+  <div className="mb-6">
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Agregar categorías <span className="text-red-500">*</span>
+    </label>
+
+    <div className={`space-y-2 ${formError ? 'border border-red-300 rounded p-2' : ''}`}>
+      {(form.formularioGrupos.categorias?.length
+        ? form.formularioGrupos.categorias
+        : ['']
+      ).map((cat, idx) => (
+        <input
+          key={idx}
+          type="text"
+          className="border rounded px-3 py-2 w-full"
+          placeholder={`Opción ${idx + 1}`}
+          value={cat}
+          onChange={(e) => {
+  setFormError(null); // ← limpia el error
+  setForm((prev) => {
+    const arr = [...(prev.formularioGrupos.categorias || [])];
+    arr[idx] = e.target.value;
+    return { ...prev, formularioGrupos: { ...prev.formularioGrupos, categorias: arr } };
+  });
+}}
+           
+        />
+      ))}
+      <button
+        type="button"
+      onClick={() => {
+  setFormError(null);
+  setForm(prev => ({
+    ...prev,
+    formularioGrupos: {
+      ...prev.formularioGrupos,
+      categorias: [...(prev.formularioGrupos.categorias || []), ''],
+    },
+  }));
+}}
+        className="text-sm text-blue-600 hover:underline"
+      >
+        + Agregar opción
+      </button>
+
+      {formError && (
+        <p className="text-sm text-red-600">{formError}</p>
       )}
+    </div>
+  </div>
+)}
+
       <div className="mt-4">
   <label className="block text-sm font-medium text-gray-700 mb-1">
     Cantidad de Participantes
@@ -1010,12 +1042,11 @@ function GruposSection({
               Categoría (requerido)
             </div>
           )}
-          {form.formularioGrupos.camposPreestablecidos.cantidadParticipantes && (
-           <div className="flex items-center text-gray-600">
-             <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
-            Cantidad de Participantes (requerido)
-          </div>
-          )}
+        <div className="flex items-center text-gray-600">
+   <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+   Cantidad de Participantes (requerido)
+ </div>
+          
           {form.formularioGrupos.preguntasPersonalizadas.map((pregunta, index) => (
             <div key={index} className="flex items-center text-gray-600">
               <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>

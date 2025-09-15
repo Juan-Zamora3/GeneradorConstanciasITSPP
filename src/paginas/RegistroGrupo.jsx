@@ -330,7 +330,7 @@ export default function RegistroGrupo() {
             {campos.nombreEquipo && (
               <div>
                 <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
-                  Nombre del Equipo *
+                   Nombre del Equipo. (El nombre no debe contener palabras o denominaciones que se consideren inapropiadas). *
                 </label>
                 <input
                   className="border rounded px-3 py-2 w-full"
@@ -343,7 +343,7 @@ export default function RegistroGrupo() {
             {campos.nombreLider && (
               <div>
                 <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
-                  Nombre del Líder *
+                  Nombre del líder del equipo. (Importante: este dato se utilizará para generar su constancia de participación) *
                 </label>
                 <input
                   className="border rounded px-3 py-2 w-full"
@@ -354,18 +354,29 @@ export default function RegistroGrupo() {
               </div>
             )}
             {campos.contactoEquipo && (
-              <div>
-                <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
-                  Contacto del Equipo *
-                </label>
-                <input
-                  className="border rounded px-3 py-2 w-full"
-                  value={preset.contactoEquipo}
-                  onChange={(e) => setPreset((p) => ({ ...p, contactoEquipo: e.target.value }))}
-                  required
-                />
-              </div>
-            )}
+  <div>
+    <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>
+      Correo del Equipo (para recibir la constancia) *
+    </label>
+    <input
+      type="email"
+      inputMode="email"
+      autoComplete="email"
+      placeholder="nombre@dominio.com"
+      className="border rounded px-3 py-2 w-full"
+      value={preset.contactoEquipo}
+      onChange={(e) => setPreset((p) => ({ ...p, contactoEquipo: e.target.value }))}
+      required
+      pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
+      title="Ingresa un correo válido, por ejemplo nombre@dominio.com"
+      onInvalid={(e) =>
+        e.currentTarget.setCustomValidity('Ingresa un correo válido (ej. nombre@dominio.com).')
+      }
+      onInput={(e) => e.currentTarget.setCustomValidity('')}
+    />
+   
+  </div>
+)}
             {campos.categoria && (
               <div>
                 <label className="block text-sm mb-1" style={{ color: theme.textColor || '#374151' }}>

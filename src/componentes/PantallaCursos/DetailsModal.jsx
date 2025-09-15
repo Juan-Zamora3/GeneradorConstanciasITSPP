@@ -515,7 +515,7 @@ function CuestionarioPreview({ data }) {
               <span className="ml-auto text-red-500 text-sm">*</span>
             </div>
           )}
-          {data.formularioGrupos?.camposPreestablecidos?.cantidadParticipantes && (
+          {data.formularioGrupos?.camposPreestablecidos?.cantidadParticipantes && ( 
            <div className="flex items-center bg-white p-3 rounded-lg shadow-sm">
            <span className="text-blue-500 mr-3">👥</span>
            <span className="text-gray-700 font-medium">Cantidad de Participantes</span>
