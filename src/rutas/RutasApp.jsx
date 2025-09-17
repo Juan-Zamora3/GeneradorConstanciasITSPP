@@ -14,13 +14,13 @@ import Equipos        from '../paginas/Equipos';
 import AsistenciaForm from '../paginas/AsistenciaForm';
 import Layout         from '../componentes/Layout';
 import RegistroGrupo  from '../paginas/RegistroGrupo';
+
 import {
   LOGIN_PATH,
   ROOT_REDIRECTS_TO_LOGIN,
   KEEP_LEGACY_LOGIN_PATH,
   LEGACY_LOGIN_PATH,
 } from '../utilidades/rutasConfig';
-
 
 const PROTECTED_ROUTES = [
   '/inicio',
@@ -32,37 +32,32 @@ const PROTECTED_ROUTES = [
   '/Equipos',
 ];
 
-
-
 export default function RutasApp() {
   const { usuario } = useContext(AuthContext);
   const location = useLocation();
   const sanitizedPath = location.pathname.replace(/\/+$/u, '') || '/';
 
+  // Fallback para usuarios no autenticados
   let unauthenticatedFallback = <Navigate to={LOGIN_PATH} replace />;
 
   if (!KEEP_LEGACY_LOGIN_PATH) {
     if (LOGIN_PATH !== LEGACY_LOGIN_PATH && sanitizedPath === LEGACY_LOGIN_PATH) {
       unauthenticatedFallback = <Navigate to="/" replace />;
-    } else if (!PROTECTED_ROUTES.includes(sanitizedPath) && sanitizedPath !== LOGIN_PATH) {
+    } else if (
+      !PROTECTED_ROUTES.includes(sanitizedPath) &&
+      sanitizedPath !== LOGIN_PATH
+    ) {
       unauthenticatedFallback = <Navigate to="/" replace />;
     }
   }
 
+  // 🔹 loginRoutes se define solo una vez
   const loginRoutes = [LOGIN_PATH];
   if (KEEP_LEGACY_LOGIN_PATH && LOGIN_PATH !== LEGACY_LOGIN_PATH) {
     loginRoutes.push(LEGACY_LOGIN_PATH);
   }
 
-  const landingElement = ROOT_REDIRECTS_TO_LOGIN
-    ? <Navigate to={LOGIN_PATH} replace />
-    : <RegistroGrupo />;
-
-  const loginRoutes = [LOGIN_PATH];
-  if (KEEP_LEGACY_LOGIN_PATH && LOGIN_PATH !== LEGACY_LOGIN_PATH) {
-    loginRoutes.push(LEGACY_LOGIN_PATH);
-  }
-
+  // 🔹 landingElement se define solo una vez
   const landingElement = ROOT_REDIRECTS_TO_LOGIN
     ? <Navigate to={LOGIN_PATH} replace />
     : <RegistroGrupo />;
@@ -75,7 +70,7 @@ export default function RutasApp() {
       {/* Formulario por ID antiguo */}
       <Route path="/registro/:encuestaId" element={<RegistroGrupo />} />
 
-      {/* Formulario por slug (NUEVO) → permite /seguridad-industrial */}
+      {/* Formulario por slug */}
       <Route path="/:slug" element={<RegistroGrupo />} />
 
       {/* Formulario de asistencia público */}
@@ -95,59 +90,31 @@ export default function RutasApp() {
         <>
           <Route
             path="/inicio"
-            element={
-              <Layout>
-                <Inicio />
-              </Layout>
-            }
+            element={<Layout><Inicio /></Layout>}
           />
           <Route
             path="/personal"
-            element={
-              <Layout>
-                <Personal />
-              </Layout>
-            }
+            element={<Layout><Personal /></Layout>}
           />
           <Route
             path="/constancias"
-            element={
-              <Layout>
-                <Constancias />
-              </Layout>
-            }
+            element={<Layout><Constancias /></Layout>}
           />
           <Route
             path="/cursos"
-            element={
-              <Layout>
-                <Cursos />
-              </Layout>
-            }
+            element={<Layout><Cursos /></Layout>}
           />
           <Route
             path="/perfil"
-            element={
-              <Layout>
-                <Perfil />
-              </Layout>
-            }
+            element={<Layout><Perfil /></Layout>}
           />
           <Route
             path="/usuarios"
-            element={
-              <Layout>
-                <CrearUsuarios />
-              </Layout>
-            }
+            element={<Layout><CrearUsuarios /></Layout>}
           />
           <Route
             path="/Equipos"
-            element={
-              <Layout>
-                <Equipos />
-              </Layout>
-            }
+            element={<Layout><Equipos /></Layout>}
           />
         </>
       )}
@@ -155,11 +122,7 @@ export default function RutasApp() {
       {/* ---------- Fallback ---------- */}
       <Route
         path="*"
-
         element={usuario ? <Navigate to="/inicio" replace /> : unauthenticatedFallback}
-
-        element={usuario ? <Navigate to="/inicio" replace /> : <Navigate to={LOGIN_PATH} replace />}
-
       />
     </Routes>
   );
