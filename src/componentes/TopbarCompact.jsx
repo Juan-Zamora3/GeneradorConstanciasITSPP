@@ -6,6 +6,7 @@ import { AuthContext } from '../contexto/AuthContext';
 import { useNotifications } from '../contexto/NotificationContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
+import { LOGIN_PATH } from '../utilidades/rutasConfig';
 
 export default function TopbarCompact({ isOpen }) {
   const { logout, usuario } = useContext(AuthContext);
@@ -53,7 +54,7 @@ export default function TopbarCompact({ isOpen }) {
 
   const handleLogout = () => {
     logout();
-    navigate('/login', { replace: true });
+    navigate(LOGIN_PATH, { replace: true });
   };
 
  return (
