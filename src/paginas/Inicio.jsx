@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AuthContext } from '../contexto/AuthContext'
+import { LOGIN_PATH } from '../utilidades/rutasConfig'
 import {
   collection,
   onSnapshot,
@@ -29,7 +30,7 @@ export default function Inicio() {
 
   useEffect(() => {
     if (!usuario) {
-      navigate('/login', { replace: true })
+      navigate(LOGIN_PATH, { replace: true })
     } else {
       setUser(usuario)
     }
@@ -191,7 +192,7 @@ export default function Inicio() {
 
   const handleLogout = () => {
     logout()
-    navigate('/login', { replace: true })
+    navigate(LOGIN_PATH, { replace: true })
   }
 
   const proximosCursos = getProximosCursos()
