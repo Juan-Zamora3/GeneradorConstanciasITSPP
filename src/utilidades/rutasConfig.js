@@ -6,11 +6,16 @@ const sanitizedLogin = rawLoginPath.replace(/^\/+/u, '').replace(/\/+$/u, '') ||
 
 export const LOGIN_PATH = `/${sanitizedLogin}`;
 
+
 const rootRedirectSetting = (import.meta.env.VITE_ROOT_REDIRECT_TO_LOGIN ?? 'false')
   .toString()
   .trim()
   .toLowerCase();
 export const ROOT_REDIRECTS_TO_LOGIN = rootRedirectSetting === 'true';
+
+const rootRedirectSetting = import.meta.env.VITE_ROOT_REDIRECT_TO_LOGIN ?? 'true';
+export const ROOT_REDIRECTS_TO_LOGIN = rootRedirectSetting !== 'false';
+
 
 const legacySetting = import.meta.env.VITE_KEEP_LEGACY_LOGIN_PATH ?? 'false';
 export const KEEP_LEGACY_LOGIN_PATH = legacySetting === 'true';
