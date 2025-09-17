@@ -161,19 +161,7 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-gray-600 text-sm">
-            {isRegister ? '¿Ya tienes cuenta? ' : '¿No tienes cuenta? '}
-            <button
-              type="button"
-              onClick={() => {
-                resetMessages()
-                setIsRegister(prev => !prev)
-              }}
-              className="inline-block border border-gray-300 px-4 py-2 rounded-full hover:bg-gray-100 transition"
-            >
-              {isRegister ? 'Iniciar sesión' : 'Regístrate'}
-            </button>
-          </p>
+
         </div>
 
         {/* Imagen lateral */}
