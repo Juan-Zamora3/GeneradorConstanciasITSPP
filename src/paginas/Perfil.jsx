@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AuthContext } from '../contexto/AuthContext'
 import { FaUser, FaEnvelope, FaLock, FaHistory, FaCamera, FaEdit } from 'react-icons/fa'
+import { LOGIN_PATH } from '../utilidades/rutasConfig'
 
 // 🔗 Firebase ------------------------------------------------------------
 import {
@@ -41,7 +42,7 @@ export default function Perfil () {
    *  -------------------------------------------------- */
   useEffect(() => {
     if (!usuario) {
-      navigate('/login', { replace: true })
+      navigate(LOGIN_PATH, { replace: true })
       return
     }
 

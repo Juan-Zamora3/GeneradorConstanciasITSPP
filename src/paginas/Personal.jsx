@@ -8,6 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';           // 🆕 estilos rápid
 import { AuthContext } from '../contexto/AuthContext';
 import { useParticipants } from '../utilidades/useParticipants';
 import { listToWorkbook, fileToList } from '../utilidades/excelHelpers';
+import { LOGIN_PATH } from '../utilidades/rutasConfig';
 
 import ParticipantList from '../componentes/PantallaPersonal/ParticipantList';
 import NewEditParticipantModal from '../componentes/PantallaPersonal/NewEditParticipantModal';
@@ -98,7 +99,7 @@ export default function Personal() {
   }, [participants]);
 
   /* ---------- seguridad ---------- */
-  if (!usuario) { navigate('/login', { replace:true }); return null; }
+  if (!usuario) { navigate(LOGIN_PATH, { replace:true }); return null; }
 
   /* ---------- handlers modales ---------- */
   const open  = (type,p=null)=>{ setSelected(p); setModalType(type); };
