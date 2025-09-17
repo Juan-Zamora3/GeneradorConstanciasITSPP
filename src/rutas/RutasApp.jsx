@@ -1,6 +1,6 @@
 // src/rutas/RutasApp.jsx
 import React, { useContext } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../contexto/AuthContext';
 
 import Login          from '../paginas/Login';
@@ -21,8 +21,42 @@ import {
   LEGACY_LOGIN_PATH,
 } from '../utilidades/rutasConfig';
 
+
+const PROTECTED_ROUTES = [
+  '/inicio',
+  '/personal',
+  '/constancias',
+  '/cursos',
+  '/perfil',
+  '/usuarios',
+  '/Equipos',
+];
+
+
+
 export default function RutasApp() {
   const { usuario } = useContext(AuthContext);
+  const location = useLocation();
+  const sanitizedPath = location.pathname.replace(/\/+$/u, '') || '/';
+
+  let unauthenticatedFallback = <Navigate to={LOGIN_PATH} replace />;
+
+  if (!KEEP_LEGACY_LOGIN_PATH) {
+    if (LOGIN_PATH !== LEGACY_LOGIN_PATH && sanitizedPath === LEGACY_LOGIN_PATH) {
+      unauthenticatedFallback = <Navigate to="/" replace />;
+    } else if (!PROTECTED_ROUTES.includes(sanitizedPath) && sanitizedPath !== LOGIN_PATH) {
+      unauthenticatedFallback = <Navigate to="/" replace />;
+    }
+  }
+
+  const loginRoutes = [LOGIN_PATH];
+  if (KEEP_LEGACY_LOGIN_PATH && LOGIN_PATH !== LEGACY_LOGIN_PATH) {
+    loginRoutes.push(LEGACY_LOGIN_PATH);
+  }
+
+  const landingElement = ROOT_REDIRECTS_TO_LOGIN
+    ? <Navigate to={LOGIN_PATH} replace />
+    : <RegistroGrupo />;
 
   const loginRoutes = [LOGIN_PATH];
   if (KEEP_LEGACY_LOGIN_PATH && LOGIN_PATH !== LEGACY_LOGIN_PATH) {
@@ -121,7 +155,11 @@ export default function RutasApp() {
       {/* ---------- Fallback ---------- */}
       <Route
         path="*"
+
+        element={usuario ? <Navigate to="/inicio" replace /> : unauthenticatedFallback}
+
         element={usuario ? <Navigate to="/inicio" replace /> : <Navigate to={LOGIN_PATH} replace />}
+
       />
     </Routes>
   );
