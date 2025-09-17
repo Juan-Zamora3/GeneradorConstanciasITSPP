@@ -18,7 +18,11 @@ El formulario de login puede exponerse en una ruta distinta sin modificar la ló
 | Variable | Descripción | Valor por defecto |
 | --- | --- | --- |
 | `VITE_LOGIN_PATH` | Segmento de URL donde vivirá el formulario de login. Solo se toman en cuenta los caracteres después del dominio. | `login` |
+
+| `VITE_ROOT_REDIRECT_TO_LOGIN` | Controla si la ruta `/` redirige automáticamente hacia la ruta del login. Útil para ocultar la ubicación real del formulario cuando se establece en `true`. | `false` |
+=======
 | `VITE_ROOT_REDIRECT_TO_LOGIN` | Controla si la ruta `/` redirige automáticamente hacia la ruta del login. Útil para ocultar la ubicación real del formulario. | `true` |
+
 | `VITE_KEEP_LEGACY_LOGIN_PATH` | Si se define en `true`, mantiene el camino antiguo `/login` como un alias que redirige al nuevo. Déjalo en `false` para ocultarlo. | `false` |
 
 Ejemplo de configuración para ocultar el acceso al panel:
