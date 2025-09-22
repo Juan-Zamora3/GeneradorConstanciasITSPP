@@ -1,4 +1,3 @@
-// src/paginas/Constancias.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Rnd } from 'react-rnd';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
@@ -13,6 +12,7 @@ import { saveAs } from 'file-saver';
 
 import { useCourses } from '@/utilidades/useCourses';
 import AttendanceModal from '@/componentes/AttendanceModal';
+import EmailSendReportModal from '@/componentes/EmailSendReportModal';
 import { ToastContainer, toast } from 'react-toastify';
 import { FiLoader } from 'react-icons/fi';
 import 'react-toastify/dist/ReactToastify.css';
@@ -23,19 +23,16 @@ import {
   FONT_LOOKUP,
   FONT_OPTIONS,
   toRGB,
-    fechaLarga,
-    fitTextToHeight
-  } from '@/utilidades/pdfHelpers';
+  fechaLarga,
+  fitTextToHeight
+} from '@/utilidades/pdfHelpers';
 
-
-// ==========================================
+// ==========================
 // CONFIG
-// ==========================================
-
-
-// Convierte ArrayBuffer → Base64 en el navegador
-// URL relativa en prod / localhost en dev
-const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:3000';
+// ==========================
+// Usa VITE_API_BASE_URL en producción (Render) cuando el backend esté en otro servicio.
+// Déjalo vacío cuando front y backend compartan el mismo host (mismo origen).
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Cajas por defecto (plantilla editable)
 const defaultBoxes = {
@@ -45,15 +42,15 @@ const defaultBoxes = {
   fecha:        { x:98, y:560, w:400, h:30,  color:'#a16207', size:15, bold:true,  align:'center', font:'Helvetica-Bold', preview:'FECHA' },
 };
 
-// ==========================================
-// PEQUEÑOS HELPERS
-// ==========================================
+// ==========================
+// HELPERS
+// ==========================
 const notify = (msg, type='info') =>
   toast[type](msg, { position:'top-right', theme:'colored', autoClose:3000 });
 
 const getNombreCompleto = part => {
   if (!part) return '';
-  if (part.Nombres && part.ApellidoP) return `${part.Nombres} ${part.ApellidoP}`;
+  if (part.Nombres && part.ApellidoP) return `${part.Nombres} ${part.ApellidoP}${part.ApellidoM ? ' '+part.ApellidoM : ''}`;
   if (part.Nombres) return part.Nombres;
   if (part.nombre) return part.nombre;
   return '';
@@ -66,13 +63,11 @@ const getFechaInicio = (curso, part) =>
 const getFechaFin = (curso, part) =>
   curso?.fechaFin || part?.fechaFin || '';
 
-// Ajuste suave de tamaño si el texto se desborda la altura de la caja (auto-fit)
+const historyKey = (cursoId, modo) => `sendHistory:${cursoId || 'sin-curso'}:${modo}`;
 
-
-
-// ==========================================
+// ==========================
 // COMPONENTE
-// ==========================================
+// ==========================
 export default function Constancias() {
   const { courses } = useCourses();
 
@@ -84,8 +79,8 @@ export default function Constancias() {
   const [cursoId, setCursoId]             = useState('');
   const [curso, setCurso]                 = useState(null);
 
-  // MODO: individuales (personal/asistencias) vs equipos (registro de grupos)
-  const [modo, setModo]                   = useState('individual'); // 'individual' | 'equipos'
+  // MODO: individuales vs equipos
+  const [modo, setModo]                   = useState('individual');
 
   // Individuales
   const [participantes, setParticipantes] = useState([]);
@@ -128,7 +123,32 @@ export default function Constancias() {
   const [showAttendance, setShowAttendance] = useState(false);
   const [attendanceData, setAttendanceData] = useState(null);
 
+  // Modal de reporte de envío
+  const [showSendReport, setShowSendReport] = useState(false);
+  // report items:
+  //   - modo individual: {id, nombre, email, status, error?}
+  //   - modo equipos:    {id: teamId, nombre: nombreEquipo, email: contacto, status, error?}
+  const [sendReport, setSendReport] = useState([]);
+
   const fileRef = useRef(null);
+
+  // Cargar historial guardado cuando cambie curso o modo
+  useEffect(() => {
+    const raw = localStorage.getItem(historyKey(cursoId, modo));
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setSendReport(parsed);
+      } catch {}
+    } else {
+      setSendReport([]);
+    }
+  }, [cursoId, modo]);
+
+  // Guardar historial cuando cambie
+  useEffect(() => {
+    localStorage.setItem(historyKey(cursoId, modo), JSON.stringify(sendReport || []));
+  }, [sendReport, cursoId, modo]);
 
   // Blob URL de la plantilla
   useEffect(() => {
@@ -165,7 +185,7 @@ export default function Constancias() {
   const cfg   = cfgMap[plantillaKey] || {};
   const boxes = cfg.boxes || defaultBoxes;
 
-  // ─── Hook: carga curso y datos asociados ───
+  // Carga curso + datos
   useEffect(() => {
     if (!cursoId) {
       setCurso(null);
@@ -181,23 +201,15 @@ export default function Constancias() {
       const data = snap.data();
       setCurso(data);
 
-      // ============= INDIVIDUALES (personal y asistencias) ============
-      // Participantes iniciales (lista del curso)
-      const idsInit = Array.isArray(data.listas?.[0]) 
-        ? data.listas[0] 
-        : data.listas || [];
+      // Participantes iniciales
+      const idsInit = Array.isArray(data.listas?.[0]) ? data.listas[0] : data.listas || [];
       let iniciales = [];
       if (idsInit.length) {
         const batches = [];
-        for (let i = 0; i < idsInit.length; i += 30) {
-          batches.push(idsInit.slice(i, i + 30));
-        }
+        for (let i = 0; i < idsInit.length; i += 30) batches.push(idsInit.slice(i, i + 30));
         const snapsInit = await Promise.all(
           batches.map(batch =>
-            getDocs(query(
-              collection(db, 'Personal'),
-              where(documentId(), 'in', batch)
-            ))
+            getDocs(query(collection(db, 'Personal'), where(documentId(), 'in', batch)))
           )
         );
         iniciales = snapsInit.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -206,22 +218,18 @@ export default function Constancias() {
       setParticipantes(iniciales);
       setCheckedInit(iniciales.reduce((o,_,i)=>(o[i]=false,o), {}));
 
-      // Asistencias registradas en colección independiente
+      // Asistencias
       const snapAsis = await getDocs(
         query(collection(db, 'Asistencias'), where('cursoId', '==', cursoId))
       );
       const rawAsis = snapAsis.docs.map(d => ({ id: d.id, ...d.data() }));
       setAsistencias(rawAsis);
 
-      // ============= EQUIPOS (registro por encuesta) ============
-      // Si el curso tiene encuestaId, traemos los equipos desde la subcolección
+      // Equipos (si hay encuesta)
       if (data.encuestaId) {
         const resRef = collection(doc(db, 'encuestas', data.encuestaId), 'respuestas');
         const snapEquipos = await getDocs(resRef);
-        const eq = snapEquipos.docs.map(d => ({
-          id: d.id,
-          ...d.data(), // {preset:{nombreEquipo, nombreLider, contactoEquipo, categoria}, custom:{...}}
-        }));
+        const eq = snapEquipos.docs.map(d => ({ id: d.id, ...d.data() }));
         setEquipos(eq);
         setCheckedEquipos(eq.reduce((o,e)=> (o[e.id] = false, o), {}));
       } else {
@@ -274,13 +282,10 @@ export default function Constancias() {
   };
 
   // ============ SELECCIÓN ============
-
-  // Individuales: unión de seleccionados de "iniciales" + todas las asistencias (checkbox fijo)
   const selInit  = participantes.filter((_,i)=>checkedInit[i]);
-  const selAsis  = asistencias;
+  const selAsis  = asistencias; // todas se incluyen
   const selInd   = [...selInit, ...selAsis];
 
-  // Equipos seleccionados -> se expanden por integrante
   const selEquip = equipos
     .filter(e => checkedEquipos[e.id])
     .flatMap(eq => {
@@ -294,12 +299,14 @@ export default function Constancias() {
       }));
     });
 
+  // Selección final
+  const sel = modo === 'individual' ? selInd : selEquip;
+
   // === NOMBRE Y TEXTO POR MODO ===
   const buildTextContext = (ent) => {
     if (modo === 'individual') {
       const nombre       = getNombreCompleto(ent).toUpperCase();
-      const nombreEquipo = (ent?.nombreEquipo || ent?.preset?.nombreEquipo || '')
-        .toUpperCase();
+      const nombreEquipo = (ent?.nombreEquipo || ent?.preset?.nombreEquipo || '').toUpperCase();
       const puesto       = getPuesto(ent);
       const tituloCurso  = getCursoTitulo(curso, ent);
       const ini          = getFechaInicio(curso, ent);
@@ -318,7 +325,6 @@ export default function Constancias() {
   };
 
   // ============ GENERADOR DE PDF ============
-
   const genPDF = async (ent) => {
     const pdf   = await PDFDocument.load(plantilla);
     pdf.registerFontkit(fontkit);
@@ -335,8 +341,6 @@ export default function Constancias() {
       if (key==='nombre') texto = nombre;
       else if (key==='nombreEquipo') texto = nombreEquipo;
       else if (key==='mensaje') {
-        // placeholders disponibles:
-        // {nombre}, {curso}, {puesto}, {fechainicio}, {fechafin}
         texto = (txt || '')
           .replace('{nombre}', nombre)
           .replace('{equipo}', nombreEquipo)
@@ -345,7 +349,6 @@ export default function Constancias() {
           .replace('{fechainicio}', fechaLarga(ini))
           .replace('{fechafin}',    fechaLarga(fin));
 
-        // fallback si faltan reemplazos
         if (!texto || texto.includes('{')) {
           texto = `Por su participación en “${tituloCurso}”, del ${fechaLarga(ini)} al ${fechaLarga(fin)}.`;
         }
@@ -353,19 +356,17 @@ export default function Constancias() {
         texto = fechaLarga(fin);
       }
 
-      // Fuente y color
       const fontRef = FONT_LOOKUP[cfgBox.font] || StandardFonts.Helvetica;
-      const font  = await pdf.embedFont(fontRef);
+      const font  = await PDFDocument.load(plantilla).then(()=>pdf.embedFont(fontRef));
       const color = toRGB(cfgBox.color);
 
-      // Auto-fit
       const { size: finalSize, lines } = fitTextToHeight({
         font,
         text: texto,
         boxW: cfgBox.w,
         boxH: cfgBox.h,
         baseSize: cfgBox.size,
-        minSize: Math.min(10, cfgBox.size), // evita degradar demasiado
+        minSize: Math.min(10, cfgBox.size),
         align: cfgBox.align,
         lineGap: 2
       });
@@ -386,10 +387,7 @@ export default function Constancias() {
 
   const blobUrl = buf => URL.createObjectURL(new Blob([buf],{ type:'application/pdf' }));
 
-  // === Selección final según modo ===
-  const sel = modo === 'individual' ? selInd : selEquip;
-
-  // Entidad utilizada para previsualizar datos en los cuadros de texto.
+  // Preview text helpers
   const previewEnt = useMemo(() => {
     if (editId) return sel.find(e => e.id === editId) || null;
     return sel.length === 1 ? sel[0] : null;
@@ -423,6 +421,32 @@ export default function Constancias() {
     return boxes[id]?.preview || '';
   };
 
+  // ====== Helpers envío ======
+  const resolveDestino = (ent) =>
+    modo === 'individual' ? (ent?.Correo || ent?.correo || '') : (ent?.preset?.contactoEquipo || '');
+
+  const upsertReportItem = (id, patch) => {
+    setSendReport(prev => {
+      const idx = prev.findIndex(r => r.id === id);
+      if (idx === -1) return prev;
+      const next = prev.slice();
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
+  };
+
+  // Guarda / fusiona items en el reporte (para historial)
+  const primeReport = (items) => {
+    setSendReport(prev => {
+      const map = new Map(prev.map(r => [r.id, r]));
+      for (const it of items) {
+        const old = map.get(it.id);
+        map.set(it.id, { ...(old||{}), ...it });
+      }
+      return Array.from(map.values());
+    });
+  };
+
   // ============ ACCIONES ============
 
   const handlePreview = async () => {
@@ -453,7 +477,7 @@ export default function Constancias() {
         const buf = await genPDF(ent);
         let baseName = 'Constancia';
         if (modo === 'individual') {
-          const nm  = getNombreCompleto(ent).replace(/\s+/g,'_') || 'Sin_Nombre';
+          const nm  = (getNombreCompleto(ent) || 'Sin_Nombre').replace(/\s+/g,'_');
           baseName  = `${baseName}_${getCursoTitulo(curso,ent)}_${nm}`;
         } else {
           const equipo   = (ent?.preset?.nombreEquipo || 'Equipo').replace(/\s+/g,'_');
@@ -471,48 +495,173 @@ export default function Constancias() {
     }
   };
 
+  // Enviar por correo
+  // - Individual: 1 PDF por persona (igual que antes)
+  // - Equipos:    1 ZIP por equipo al correo de contacto del equipo
   const handleSend = async () => {
     if (!plantilla)  return notify('Sube una plantilla PDF','warning');
     if (!sel.length) return notify('Selecciona participantes o equipos','warning');
-    setLoadingSend(true);
 
-    try {
-      for (const ent of sel) {
-        const buf    = await genPDF(ent);
-        const base64 = arrayBufferToBase64(buf);
+    if (modo === 'equipos') {
+      // Prepara reporte por EQUIPO
+      const equiposSel = equipos.filter(e => checkedEquipos[e.id]);
+      const pre = equiposSel.map(eq => ({
+        id: eq.id,
+        nombre: eq?.preset?.nombreEquipo || 'Equipo',
+        email:  eq?.preset?.contactoEquipo || '',
+        status: eq?.preset?.contactoEquipo ? 'pendiente' : 'sin correo',
+        error:  eq?.preset?.contactoEquipo ? '' : 'No hay correo para este equipo',
+      }));
+      primeReport(pre);
+      setShowSendReport(true);
 
-        // Correo destino:
-        // - Individual: usa `ent.correo`
-        // - Equipo: usa `preset.contactoEquipo`
-        let destino = modo === 'individual'
-          ? (ent?.correo || '')
-          : (ent?.preset?.contactoEquipo || '');
-        if (!destino) {
-          // si no hay correo, omite envío pero no rompas el bucle
-          console.warn('Sin correo para:', ent);
-          continue;
+      setLoadingSend(true);
+      try {
+        // agrupa miembros por equipo seleccionado
+        const byTeam = new Map();
+        for (const ent of sel) {
+          if (!byTeam.has(ent.teamId)) byTeam.set(ent.teamId, []);
+          byTeam.get(ent.teamId).push(ent);
         }
 
-        // Nombre para saludo
-        const { nombre } = buildTextContext(ent);
-        const msg = (participantOverrides[ent.id]?.msgMail||cfg.mensajeCorreo || '')
-                      .replace('{nombre}', nombre);
+        for (const [teamId, miembros] of byTeam.entries()) {
+          const eq = equipos.find(e => e.id === teamId);
+          const destino = eq?.preset?.contactoEquipo || '';
+          if (!destino) continue;
 
-        const payload = {
-          Correo:        destino,
-          Nombres:       nombre,
-          Puesto:        getCursoTitulo(curso, ent),
-          pdf:           base64,
-          mensajeCorreo: msg
-        };
-        const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
-          method:  'POST',
-          headers: { 'Content-Type':'application/json' },
-          body:    JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error(`Status ${res.status}`);
+          let ok = false, errText = '';
+
+          try {
+            // genera un zip por equipo
+            const zip = new JSZip();
+            for (const ent of miembros) {
+              const buf = await genPDF(ent);
+              const equipo   = (eq?.preset?.nombreEquipo || 'Equipo').replace(/\s+/g,'_');
+              const miembro  = (ent.miembro || 'Integrante').replace(/\s+/g,'_');
+              const baseName = `Constancia_${getCursoTitulo(curso)}_${equipo}_${miembro}`;
+              zip.file(`${baseName}.pdf`, buf);
+            }
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const base64  = await new Promise(res => {
+              const r = new FileReader();
+              r.onload = () => res((r.result || '').toString().split(',')[1] || '');
+              r.readAsDataURL(zipBlob);
+            });
+
+            const nombreEquipo = eq?.preset?.nombreEquipo || 'Equipo';
+            const asuntoCurso  = getCursoTitulo(curso);
+            const msg = (cfg.mensajeCorreo || 'Hola {nombre}, adjunto tu constancia.')
+                          .replace('{nombre}', nombreEquipo);
+
+            const payload = {
+              Correo: destino,
+              Nombres: nombreEquipo,
+              Puesto:  asuntoCurso,             // lo reutilizamos para filename base si backend lo necesita
+              pdf:     base64,                  // contenido base64
+              mensajeCorreo: msg,
+              Filename: `Constancias_${asuntoCurso}_${nombreEquipo}.zip`,
+              ContentType: 'application/zip'
+            };
+
+            const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
+              method: 'POST',
+              headers: { 'Content-Type':'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            ok = res.ok;
+            if (!ok) {
+              const t = await res.text().catch(()=> '');
+              errText = t || `HTTP ${res.status}`;
+            }
+          } catch (e) {
+            ok = false;
+            errText = e?.message || 'Error de red';
+          }
+
+          if (ok) {
+            upsertReportItem(teamId, { status: 'enviado', error: '' });
+          } else {
+            upsertReportItem(teamId, { status: 'error', error: errText || 'Falló el envío' });
+          }
+        }
+
+        notify('Proceso de envío finalizado','success');
+      } catch (err) {
+        console.error(err);
+        notify('Error enviando correos','error');
+      } finally {
+        setLoadingSend(false);
       }
-      notify('Correos enviados','success');
+
+      return;
+    }
+
+    // ---- MODO INDIVIDUAL (igual que antes) ----
+    const preReport = sel.map((ent) => {
+      const { nombre } = buildTextContext(ent);
+      const email = resolveDestino(ent);
+      return {
+        id: ent.id,
+        nombre,
+        email,
+        status: email ? 'pendiente' : 'sin correo',
+        error: email ? '' : 'No hay correo para este destinatario',
+      };
+    });
+    primeReport(preReport);
+    setShowSendReport(true);
+
+    setLoadingSend(true);
+    try {
+      for (const ent of sel) {
+        const destino = resolveDestino(ent);
+        if (!destino) continue;
+
+        let ok = false, errText = '';
+
+        try {
+          const buf    = await genPDF(ent);
+          const base64 = arrayBufferToBase64(buf);
+
+          const { nombre } = buildTextContext(ent);
+          const msg = (participantOverrides[ent.id]?.msgMail||cfg.mensajeCorreo || '')
+                        .replace('{nombre}', nombre);
+
+          const payload = {
+            Correo:        destino,
+            Nombres:       nombre,
+            Puesto:        getCursoTitulo(curso, ent), // se usa en nombre de archivo
+            pdf:           base64,
+            mensajeCorreo: msg,
+            Filename: `Constancia_${getCursoTitulo(curso, ent)}_${nombre}.pdf`,
+            ContentType: 'application/pdf'
+          };
+
+          const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
+            method:  'POST',
+            headers: { 'Content-Type':'application/json' },
+            body:    JSON.stringify(payload)
+          });
+
+          ok = res.ok;
+          if (!ok) {
+            const t = await res.text().catch(()=> '');
+            errText = t || `HTTP ${res.status}`;
+          }
+        } catch (e) {
+          ok = false;
+          errText = e?.message || 'Error de red';
+        }
+
+        if (ok) {
+          upsertReportItem(ent.id, { status: 'enviado', error: '' });
+        } else {
+          upsertReportItem(ent.id, { status: 'error', error: errText || 'Falló el envío' });
+        }
+      }
+
+      notify('Proceso de envío finalizado','success');
     } catch (err) {
       console.error(err);
       notify('Error enviando correos','error');
@@ -521,12 +670,136 @@ export default function Constancias() {
     }
   };
 
+  // Reintento de UNO
+  const retryOne = async (id) => {
+    if (loadingSend) return;
+    setLoadingSend(true);
+    try {
+      if (modo === 'equipos') {
+        const eq = equipos.find(e => e.id === id);
+        if (!eq) return;
+        const destino = eq?.preset?.contactoEquipo || '';
+        if (!destino) {
+          upsertReportItem(id, { status: 'sin correo', error: 'No hay correo para este equipo' });
+          return;
+        }
+        // miembros del equipo id presentes en 'sel'
+        const miembros = sel.filter(e => e.teamId === id);
+        let ok=false, errText='';
+        try {
+          const zip = new JSZip();
+          for (const ent of miembros) {
+            const buf = await genPDF(ent);
+            const equipo   = (eq?.preset?.nombreEquipo || 'Equipo').replace(/\s+/g,'_');
+            const miembro  = (ent.miembro || 'Integrante').replace(/\s+/g,'_');
+            const baseName = `Constancia_${getCursoTitulo(curso)}_${equipo}_${miembro}`;
+            zip.file(`${baseName}.pdf`, buf);
+          }
+          const zipBlob = await zip.generateAsync({ type:'blob' });
+          const base64  = await new Promise(res => {
+            const r = new FileReader();
+            r.onload = () => res((r.result || '').toString().split(',')[1] || '');
+            r.readAsDataURL(zipBlob);
+          });
+
+          const nombreEquipo = eq?.preset?.nombreEquipo || 'Equipo';
+          const asuntoCurso  = getCursoTitulo(curso);
+          const msg = (cfg.mensajeCorreo || 'Hola {nombre}, adjunto tu constancia.')
+                        .replace('{nombre}', nombreEquipo);
+
+          const payload = {
+            Correo: destino,
+            Nombres: nombreEquipo,
+            Puesto:  asuntoCurso,
+            pdf:     base64,
+            mensajeCorreo: msg,
+            Filename: `Constancias_${asuntoCurso}_${nombreEquipo}.zip`,
+            ContentType: 'application/zip'
+          };
+
+          const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          ok = res.ok;
+          if (!ok) {
+            const t = await res.text().catch(()=> '');
+            errText = t || `HTTP ${res.status}`;
+          }
+        } catch (e) {
+          ok=false; errText = e?.message || 'Error de red';
+        }
+        if (ok) upsertReportItem(id, { status:'enviado', error:'' });
+        else    upsertReportItem(id, { status:'error',   error:errText || 'Falló el envío' });
+        return;
+      }
+
+      // Individual
+      const ent = sel.find(e => e.id === id);
+      if (!ent) return;
+      const destino = resolveDestino(ent);
+      if (!destino) {
+        upsertReportItem(id, { status: 'sin correo', error: 'No hay correo' });
+        return;
+      }
+
+      let ok=false, errText='';
+      try {
+        const buf    = await genPDF(ent);
+        const base64 = arrayBufferToBase64(buf);
+        const { nombre } = buildTextContext(ent);
+        const msg = (participantOverrides[ent.id]?.msgMail||cfg.mensajeCorreo || '')
+                      .replace('{nombre}', nombre);
+
+        const payload = {
+          Correo: destino,
+          Nombres: nombre,
+          Puesto:  getCursoTitulo(curso, ent),
+          pdf:     base64,
+          mensajeCorreo: msg,
+          Filename: `Constancia_${getCursoTitulo(curso, ent)}_${nombre}.pdf`,
+          ContentType: 'application/pdf'
+        };
+
+        const res = await fetch(`${API_BASE_URL}/EnviarCorreo`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        ok = res.ok;
+        if (!ok) {
+          const t = await res.text().catch(()=> '');
+          errText = t || `HTTP ${res.status}`;
+        }
+      } catch (e) {
+        ok=false; errText = e?.message || 'Error de red';
+      }
+      if (ok) upsertReportItem(id, { status:'enviado', error:'' });
+      else    upsertReportItem(id, { status:'error',   error:errText || 'Falló el envío' });
+
+    } finally {
+      setLoadingSend(false);
+    }
+  };
+
+  const retryFailed = async () => {
+    const pendientes = sendReport.filter(r => r.status === 'error');
+    for (const it of pendientes) {
+      // eslint-disable-next-line no-await-in-loop
+      await retryOne(it.id);
+    }
+    notify('Reintento finalizado', 'success');
+  };
+
   const toggleInit = i => setCheckedInit(o => ({ ...o, [i]: !o[i] }));
   const toggleEquipo = id => setCheckedEquipos(o => ({ ...o, [id]: !o[id] }));
 
-  // ==========================================
+  // ==========================
   // RENDER
-  // ==========================================
+  // ==========================
   return (
     <div className="h-full flex bg-gray-50">
       {/* SIDEBAR */}
@@ -626,7 +899,7 @@ export default function Constancias() {
                   </thead>
                   <tbody>
                     {participantes.map((p,i)=>(
-                      <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
+                      <tr key={(p.id ? `p-${p.id}` : `pi-${i}`)} className="odd:bg-gray-100 hover:bg-gray-200">
                         <td className="text-center p-2">
                           <input
                             type="checkbox"
@@ -658,7 +931,7 @@ export default function Constancias() {
                   </thead>
                   <tbody>
                     {asistencias.map((p,i)=>(
-                      <tr key={p.id||i} className="odd:bg-gray-100 hover:bg-gray-200">
+                      <tr key={(p.id ? `a-${p.id}` : `ai-${i}`)} className="odd:bg-gray-100 hover:bg-gray-200">
                         <td className="text-center p-2">
                           <input type="checkbox" checked disabled />
                         </td>
@@ -710,7 +983,7 @@ export default function Constancias() {
                   {equipos.length ? equipos
                     .filter(eq => !categoriaFiltro || eq?.preset?.categoria === categoriaFiltro)
                     .map(eq => (
-                    <tr key={eq.id} className="odd:bg-gray-100 hover:bg-gray-200">
+                    <tr key={`eq-${eq.id}`} className="odd:bg-gray-100 hover:bg-gray-200">
                       <td className="text-center p-2">
                         <input
                           type="checkbox"
@@ -821,7 +1094,7 @@ export default function Constancias() {
               .filter(([id]) => modo === 'equipos' || id !== 'nombreEquipo')
               .map(([id,cfg])=>(
               <Rnd
-                key={id}
+                key={`bx-${id}`}
                 bounds="parent"
                 position={{ x:cfg.x, y:cfg.y }}
                 size={{ width:cfg.w, height:cfg.h }}
@@ -888,7 +1161,7 @@ export default function Constancias() {
                 .filter(([id]) => modo === 'equipos' || id !== 'nombreEquipo')
                 .map(([id,cfg])=>(
                 <Rnd
-                  key={id}
+                  key={`editbx-${id}`}
                   bounds="parent"
                   position={{ x:cfg.x, y:cfg.y }}
                   size={{ width:cfg.w, height:cfg.h }}
@@ -904,7 +1177,7 @@ export default function Constancias() {
                   }}
                   onClick={e=>{ e.stopPropagation(); setActiveBox(id); setPanelOpen(true); }}
                 >
-                <div className="w-full h-full overflow-hidden break-all whitespace-pre-wrap"
+                  <div className="w-full h-full overflow-hidden break-all whitespace-pre-wrap"
                     style={{
                       fontFamily: cfg.font,
                       fontSize: cfg.size,
@@ -1052,7 +1325,7 @@ export default function Constancias() {
               onChange={e=>patchBox(activeBox,{ align:e.target.value }, tgt)}
               className="w-full p-1 border rounded text-sm"
             >
-              {['left','center','right','justify'].map(a=> <option key={a} value={a}>{a}</option>)}
+              {['left','center','right','justify'].map(a=> <option key={`al-${a}`} value={a}>{a}</option>)}
             </select>
             <label className="inline-flex items-center mt-2 text-sm">
               <input
@@ -1079,6 +1352,16 @@ export default function Constancias() {
           onClose={()=>setShowAttendance(false)}
         />
       )}
+
+      {/* Modal reporte envío */}
+      <EmailSendReportModal
+        open={showSendReport}
+        onClose={() => setShowSendReport(false)}
+        report={sendReport}
+        loadingSend={loadingSend}
+        onRetryFailed={retryFailed}
+        onRetryOne={retryOne}      // <— NUEVO: reintento por fila
+      />
 
       <ToastContainer/>
     </div>
