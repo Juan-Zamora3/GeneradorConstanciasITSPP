@@ -34,6 +34,18 @@ export default function Login() {
     resetMessages()
 
     try {
+      // Verificar si es la cuenta de cajero
+      if (email === 'admin@cajero.com' && password === 'cajero123') {
+        const userData = {
+          name: 'Administrador Cajero',
+          email: email,
+          role: 'cajero'
+        }
+        login(userData)
+        navigate('/pantalla-cajero', { replace: true })
+        return
+      }
+
       const snap = await getDoc(doc(db, 'Usuarios', email))
       if (!snap.exists() || snap.data().password !== password) {
         setErrorMsg('Credenciales incorrectas.')

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <!-- Logo ITSPP simplificado -->
+  <defs>
+    <style>
+      .globe-green { fill: #2d5a3d; }
+      .globe-light { fill: #4a7c59; }
+      .text-black { fill: #000; }
+      .red-blocks { fill: #8b2635; }
+    </style>
+  </defs>
+  
+  <!-- Globo terráqueo -->
+  <circle cx="200" cy="80" r="45" class="globe-green"/>
+  <path d="M160 80 Q200 50 240 80 Q200 110 160 80" class="globe-light"/>
+  <path d="M170 70 Q200 60 230 70" class="globe-light"/>
+  <path d="M170 90 Q200 100 230 90" class="globe-light"/>
+  
+  <!-- Bloques rojos -->
+  <rect x="120" y="100" width="15" height="20" class="red-blocks"/>
+  <rect x="140" y="95" width="12" height="25" class="red-blocks"/>
+  <rect x="155" y="105" width="10" height="15" class="red-blocks"/>
+  <rect x="170" y="100" width="8" height="20" class="red-blocks"/>
+  
+  <!-- Texto ITSPP -->
+  <text x="200" y="160" text-anchor="middle" class="text-black" font-family="Arial, sans-serif" font-size="36" font-weight="bold">ITSPP</text>
+  
+  <!-- Texto descriptivo -->
+  <text x="200" y="185" text-anchor="middle" class="text-black" font-family="Arial, sans-serif" font-size="10">INSTITUTO TECNOLÓGICO SUPERIOR</text>
+  <text x="200" y="200" text-anchor="middle" class="text-black" font-family="Arial, sans-serif" font-size="10">DE PUERTO PEÑASCO</text>
+</svg>

@@ -14,6 +14,14 @@ import Equipos        from '../paginas/Equipos';
 import AsistenciaForm from '../paginas/AsistenciaForm';
 import Layout         from '../componentes/Layout';
 import RegistroGrupo  from '../paginas/RegistroGrupo';
+import PantallaCajero from '../paginas/PantallaCajero';
+import CursosCajero from '../paginas/CursosCajero';
+import EquiposCurso from '../paginas/EquiposCurso';
+import SeleccionarIntegrantes from '../paginas/SeleccionarIntegrantes';
+import EditarConstancias from '../paginas/EditarConstancias';
+import ConfirmarPago from '../paginas/ConfirmarPago';
+import ProcesoPago from '../paginas/ProcesoPago';
+import ImprimirConstancias from '../paginas/ImprimirConstancias';
 
 import {
   LOGIN_PATH,
@@ -81,13 +89,32 @@ export default function RutasApp() {
         <Route
           key={path}
           path={path}
-          element={!usuario ? <Login /> : <Navigate to="/inicio" replace />}
+          element={!usuario ? <Login /> : <Navigate to={usuario.role === 'cajero' ? '/pantalla-cajero' : '/inicio'} replace />}
         />
       ))}
 
       {/* ---------- Rutas protegidas (requieren login) ---------- */}
       {usuario && (
         <>
+          {/* Ruta para usuario cajero */}
+          <Route 
+            path="/pantalla-cajero"
+            element={<PantallaCajero />}
+          />
+          <Route 
+            path="/cursos-cajero"
+            element={<CursosCajero />}
+          />
+          
+          {/* Ruta para equipos de un curso específico */}
+          <Route path="/equipos-curso/:cursoId" element={<EquiposCurso />} />
+          
+          {/* Rutas del flujo de constancias */}
+          <Route path="/seleccionar-integrantes/:cursoId/:equipoId" element={<SeleccionarIntegrantes />} />
+          <Route path="/editar-constancias/:cursoId/:equipoId" element={<EditarConstancias />} />
+          <Route path="/confirmar-pago/:cursoId/:equipoId" element={<ConfirmarPago />} />
+          <Route path="/proceso-pago/:cursoId/:equipoId" element={<ProcesoPago />} />
+          <Route path="/imprimir-constancias/:cursoId/:equipoId" element={<ImprimirConstancias />} />
           <Route
             path="/inicio"
             element={<Layout><Inicio /></Layout>}
@@ -122,7 +149,7 @@ export default function RutasApp() {
       {/* ---------- Fallback ---------- */}
       <Route
         path="*"
-        element={usuario ? <Navigate to="/inicio" replace /> : unauthenticatedFallback}
+        element={usuario ? <Navigate to={usuario.role === 'cajero' ? '/pantalla-cajero' : '/inicio'} replace /> : unauthenticatedFallback}
       />
     </Routes>
   );
