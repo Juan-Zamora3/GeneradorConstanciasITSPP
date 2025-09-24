@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '../servicios/firebaseConfig';
 import { IoMdArrowRoundBack } from "react-icons/io";
 import { MdSchool } from "react-icons/md";
@@ -23,36 +23,56 @@ export default function CursosCajero() {
     const cursosRef = collection(db, 'Cursos')
     const q = query(cursosRef, orderBy('fechaInicio', 'asc'))
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       const hoy = new Date()
       hoy.setHours(0, 0, 0, 0) // Establecer a medianoche para comparación de fechas
 
-      const cursosData = snapshot.docs
-        .map(doc => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            nombre: data.cursoNombre || 'Sin título',
-            instructor: data.asesor || 'Sin instructor',
-            participantes: Array.isArray(data.listas) ? data.listas.length : 0,
-            fechaInicio: data.fechaInicio || '',
-            fechaFin: data.fechaFin || '',
-            estado: data.estado || 'proximo',
-            categoria: data.categoria || '',
-            descripcion: data.descripcion || '',
-            ubicacion: data.ubicacion || '',
-            imagen: data.imageUrl || ''
-          }
-        })
-        .filter(curso => {
-          // Filtrar solo cursos activos (fecha fin no ha llegado)
-          if (!curso.fechaFin) return false
+      const cursosData = []
+
+      for (const doc of snapshot.docs) {
+        const data = doc.data()
+        
+        // Obtener el número real de equipos registrados desde las encuestas
+        let equiposRegistrados = 0
+        try {
+          const encuestasQuery = query(collection(db, 'encuestas'), where('cursoId', '==', doc.id))
+          const encuestasSnapshot = await getDocs(encuestasQuery)
           
+          for (const encuestaDoc of encuestasSnapshot.docs) {
+            const respuestasRef = collection(encuestaDoc.ref, 'respuestas')
+            const respuestasSnapshot = await getDocs(respuestasRef)
+            equiposRegistrados += respuestasSnapshot.size
+          }
+        } catch (error) {
+          console.error('Error al obtener equipos registrados:', error)
+          // Fallback al método anterior si hay error
+          equiposRegistrados = Array.isArray(data.listas) ? data.listas.length : 0
+        }
+
+        const curso = {
+          id: doc.id,
+          nombre: data.cursoNombre || 'Sin título',
+          instructor: data.asesor || 'Sin instructor',
+          participantes: equiposRegistrados,
+          fechaInicio: data.fechaInicio || '',
+          fechaFin: data.fechaFin || '',
+          estado: data.estado || 'proximo',
+          categoria: data.categoria || '',
+          descripcion: data.descripcion || '',
+          ubicacion: data.ubicacion || '',
+          imagen: data.imageUrl || ''
+        }
+
+        // Filtrar solo cursos activos (fecha fin no ha llegado)
+        if (curso.fechaFin) {
           const fechaFin = new Date(curso.fechaFin)
           fechaFin.setHours(23, 59, 59, 999) // Establecer al final del día
           
-          return fechaFin >= hoy
-        })
+          if (fechaFin >= hoy) {
+            cursosData.push(curso)
+          }
+        }
+      }
 
       setCursosActivos(cursosData)
       setLoading(false)
@@ -213,7 +233,7 @@ export default function CursosCajero() {
         <div className="h-full max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* Cursos Grid - Takes 3 columns */}
-          <div className="lg:col-span-3 overflow-y-auto ">
+          <div className="lg:col-span-3 overflow-y-auto">
             <motion.div 
               className="mb-8 text-center"
               initial={{ y: 50, opacity: 0 }}
@@ -246,7 +266,7 @@ export default function CursosCajero() {
                 </p>
               </motion.div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mx-4">
                 {cursosActivos.map((curso, index) => {
                   const { icon, color } = getIconAndColor(index, curso.categoria);
                   return (
@@ -276,53 +296,57 @@ export default function CursosCajero() {
                           className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} 
                         />
                         
-                        {/* Floating Elements */}
-                        <motion.div
-                          className="absolute top-4 right-4 opacity-10 group-hover:opacity-30 transition-opacity duration-500"
-                          animate={{
-                            rotate: hoveredCard === curso.id ? [0, 180, 360] : 0,
-                            scale: hoveredCard === curso.id ? [1, 1.2, 1] : 1
-                          }}
-                          transition={{ duration: 2, repeat: hoveredCard === curso.id ? Infinity : 0 }}
-                        >
-                          <Trophy className="w-16 h-16 text-gray-400" />
-                        </motion.div>
-
-                        <div className="pb-4 relative z-10 p-6">
-                          <div className="flex items-start justify-between mb-4">
-                            <motion.div 
-                              className={`w-16 h-16 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center text-white shadow-lg`}
-                              whileHover={{ rotate: 360, scale: 1.1 }}
-                              transition={{ duration: 0.6 }}
+                        {/* Course Image Header */}
+                        <div className="relative h-48 overflow-hidden">
+                          {curso.imagen ? (
+                            <img 
+                              src={curso.imagen} 
+                              alt={curso.nombre}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className={`w-full h-full bg-gradient-to-br ${color} flex items-center justify-center`}>
+                              <MdSchool className="w-16 h-16 text-white/80" />
+                            </div>
+                          )}
+                          {/* Overlay gradient for better text readability */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                          
+                          {/* Icon positioned in bottom-left corner */}
+                          <div className="absolute bottom-3 left-3 z-10">
+                            <div 
+                              className={`w-12 h-12 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center text-white shadow-lg backdrop-blur-sm bg-opacity-90`}
                             >
                               {icon}
-                            </motion.div>
+                            </div>
                           </div>
-                          
-                          <h3 className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-blue-900 group-hover:to-purple-800 transition-all duration-300 font-bold">
+                        </div>
+
+                        <div className="pb-2 relative z-10 p-4">
+                          <h3 className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-blue-900 group-hover:to-purple-800 transition-all duration-300 font-bold mb-2">
                             {curso.nombre}
                           </h3>
                           
                           <motion.div 
-                            className="text-sm font-medium mt-2"
+                            className="text-sm font-medium mb-2"
                             initial={{ x: -20, opacity: 0 }}
                             animate={{ x: 0, opacity: 1 }}
                             transition={{ duration: 0.6, delay: index * 0.1 + 0.3 }}
                           >
-                            <span className={`inline-block px-3 py-1 rounded-full border-2 bg-gradient-to-r ${color} bg-clip-text text-transparent border-current`}>
-                              {curso.categoria || 'General'}
+                            <span className={`inline-block px-3 py-1 rounded-full border-2 bg-gradient-to-r ${color} bg-clip-text text-transparent border-current`} style={{ letterSpacing: 'normal' }}>
+                              {curso.instructor || 'Sin coordinador'}
                             </span>
                           </motion.div>
                         </div>
                         
-                        <div className="space-y-6 relative z-10 px-6 pb-6">
+                        <div className="space-y-3 relative z-10 px-4 pb-4">
                           <motion.p 
                             className="text-gray-600 leading-relaxed text-sm"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.8, delay: index * 0.1 + 0.5 }}
                           >
-                            {curso.descripcion || `Curso impartido por ${curso.instructor}`}
+                            {curso.descripcion || `Curso coordinado por ${curso.instructor}`}
                           </motion.p>
                           
                           <div className="grid grid-cols-2 gap-3">
@@ -332,7 +356,7 @@ export default function CursosCajero() {
                               transition={{ duration: 0.2 }}
                             >
                               <Calendar className="w-3 h-3 text-blue-600" />
-                              <span className="text-xs text-blue-800">{curso.fechaInicio ? new Date(curso.fechaInicio).toLocaleDateString() : 'Fecha pendiente'}</span>
+                              <span className="text-xs text-blue-800">{curso.fechaFin ? new Date(curso.fechaFin).toLocaleDateString() : 'Fecha pendiente'}</span>
                             </motion.div>
                             <motion.div 
                               className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg"
@@ -340,15 +364,15 @@ export default function CursosCajero() {
                               transition={{ duration: 0.2 }}
                             >
                               <Users className="w-3 h-3 text-green-600" />
-                              <span className="text-xs text-green-800">{curso.participantes || 0} participantes</span>
+                              <span className="text-xs text-green-800">{curso.participantes || 0} equipos</span>
                             </motion.div>
                           </div>
                         </div>
                       </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
+                     </motion.div>
+                   );
+                 })}
+               </div>
             )}
           </div>
 
@@ -361,19 +385,9 @@ export default function CursosCajero() {
           >
             <div className="bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-200 shadow-xl sticky top-8 rounded-xl overflow-hidden">
               <div className="p-8 text-center">
-                <motion.div
-                  animate={{ 
-                    rotate: [0, 360],
-                    scale: [1, 1.1, 1]
-                  }}
-                  transition={{ 
-                    duration: 3, 
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                >
+                <div>
                   <Sparkles className="w-16 h-16 text-blue-600 mx-auto mb-6" />
-                </motion.div>
+                </div>
                 
                 <h3 className="text-2xl text-blue-900 mb-4">
                   Selecciona un Curso
