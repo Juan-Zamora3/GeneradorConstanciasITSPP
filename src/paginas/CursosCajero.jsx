@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'
-import { db } from '../servicios/firebaseConfig'
-import { IoMdArrowRoundBack } from "react-icons/io"
-import { MdSchool } from "react-icons/md"
-import itsppLogo from '../assets/logo.png'
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../servicios/firebaseConfig';
+import { IoMdArrowRoundBack } from "react-icons/io";
+import { MdSchool } from "react-icons/md";
+import { motion } from "framer-motion";
+import { ArrowLeft, Calendar, Users, Trophy, Sparkles, Zap, Target, Award } from "lucide-react";
+import itsppLogo from '../assets/logo.png';
 
 export default function CursosCajero() {
-  const navigate = useNavigate()
-  const [cursosActivos, setCursosActivos] = useState([])
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate();
+  const [cursosActivos, setCursosActivos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [hoveredCard, setHoveredCard] = useState(null);
 
   const handleGoBack = () => {
-    navigate('/pantalla-cajero')
-  }
+    navigate('/pantalla-cajero');
+  };
 
   // Cargar cursos desde Firebase
   useEffect(() => {
@@ -78,96 +81,327 @@ export default function CursosCajero() {
     return Math.round((tiempoTranscurrido / duracionTotal) * 100)
   }
 
+  // Asignar iconos y colores a los cursos
+  const getIconAndColor = (index, categoria) => {
+    const icons = [
+      <Zap className="w-8 h-8" />,
+      <Target className="w-8 h-8" />,
+      <Sparkles className="w-8 h-8" />,
+      <Award className="w-8 h-8" />
+    ];
+    
+    const colors = [
+      'from-blue-500 via-blue-600 to-cyan-600',
+      'from-green-500 via-green-600 to-emerald-600',
+      'from-red-500 via-red-600 to-pink-600',
+      'from-purple-500 via-purple-600 to-violet-600',
+      'from-orange-500 via-orange-600 to-red-600',
+      'from-teal-500 via-teal-600 to-cyan-600'
+    ];
+    
+    // Asignar color basado en categoría si existe, o por índice
+    let colorIndex = index % colors.length;
+    if (categoria) {
+      // Mapeo simple de categorías a colores
+      const categoriaLower = categoria.toLowerCase();
+      if (categoriaLower.includes('software') || categoriaLower.includes('informática')) {
+        colorIndex = 0; // Azul
+      } else if (categoriaLower.includes('mecatrónica') || categoriaLower.includes('mecánica')) {
+        colorIndex = 1; // Verde
+      } else if (categoriaLower.includes('administración') || categoriaLower.includes('empresarial')) {
+        colorIndex = 2; // Rojo
+      } else if (categoriaLower.includes('química') || categoriaLower.includes('biología')) {
+        colorIndex = 3; // Púrpura
+      } else if (categoriaLower.includes('electrónica') || categoriaLower.includes('eléctrica')) {
+        colorIndex = 4; // Naranja
+      } else if (categoriaLower.includes('civil') || categoriaLower.includes('construcción')) {
+        colorIndex = 5; // Teal
+      }
+    }
+    
+    return {
+      icon: icons[index % icons.length],
+      color: colors[colorIndex]
+    };
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-green-50">
-      {/* Header institucional */}
-      <div className="bg-white shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <button
-              onClick={handleGoBack}
-              className="flex items-center text-gray-600 hover:text-blue-600 transition-colors duration-200 group"
-            >
-              <IoMdArrowRoundBack className="w-6 h-6 mr-2 group-hover:-translate-x-1 transition-transform duration-200" />
-              <span className="font-medium">Volver al Inicio</span>
-            </button>
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 relative overflow-hidden flex flex-col">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl"
+          animate={{ 
+            rotate: [0, 360],
+            scale: [1, 1.2, 1]
+          }}
+          transition={{ 
+            duration: 20, 
+            repeat: Infinity, 
+            ease: "linear" 
+          }}
+        />
+        <motion.div
+          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-green-400/10 to-emerald-400/10 rounded-full blur-3xl"
+          animate={{ 
+            rotate: [360, 0],
+            scale: [1.2, 1, 1.2]
+          }}
+          transition={{ 
+            duration: 25, 
+            repeat: Infinity, 
+            ease: "linear" 
+          }}
+        />
+      </div>
+
+      {/* Header */}
+      <motion.header 
+        className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg flex-shrink-0"
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8 }}
+      >
+        <div className="max-w-7xl mx-auto px-8 py-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <img src={itsppLogo} alt="ITSPP Logo" className="w-12 h-12" />
-              <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900">Cursos Activos</h1>
-                <p className="text-sm text-blue-700">Instituto Tecnológico Superior de Puerto Peñasco</p>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <button
+                  onClick={handleGoBack}
+                  className="border border-blue-200 text-blue-900 hover:bg-blue-50 bg-white/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 p-3 rounded-full"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              </motion.div>
+              <div className="flex items-center space-x-4">
+                <motion.div 
+                  className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg"
+                  whileHover={{ scale: 1.05, rotate: 5 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <img src={itsppLogo} alt="ITSPP Logo" className="w-8 h-8" />
+                </motion.div>
+                <div>
+                  <motion.h1 
+                    className="text-3xl bg-gradient-to-r from-blue-900 to-cyan-700 bg-clip-text text-transparent"
+                    initial={{ x: -50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                  >
+                    Cursos Activos
+                  </motion.h1>
+                  <motion.p 
+                    className="text-blue-600"
+                    initial={{ x: -50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.4 }}
+                  >
+                    Instituto Tecnológico Superior de Puerto Peñasco
+                  </motion.p>
+                </div>
               </div>
             </div>
-            <div className="w-32"></div> {/* Spacer for centering */}
           </div>
         </div>
-      </div>
+      </motion.header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-
-
-        {/* Lista de cursos en cards */}
-        <div className="mb-8">
+      {/* Main Content - Full height grid */}
+      <main className="relative z-10 flex-1 overflow-hidden">
+        <div className="h-full max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
           
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-3 text-gray-600">Cargando cursos...</span>
-            </div>
-          ) : cursosActivos.length === 0 ? (
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No hay cursos activos</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                No se encontraron cursos con fecha de finalización pendiente.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {cursosActivos.map((curso) => {
-                return (
-                  <div key={curso.id} className="relative flex w-full flex-col rounded-xl bg-white bg-clip-border text-gray-700 shadow-md hover:shadow-lg transition-shadow duration-300">
-                    <div className="relative mx-4 -mt-6 h-40 overflow-hidden rounded-xl bg-clip-border shadow-lg bg-gradient-to-r from-blue-500 to-blue-600">
-                      {curso.imagen ? (
-                        <img 
-                          src={curso.imagen} 
-                          alt={curso.nombre}
-                          className="w-full h-full object-cover"
+          {/* Cursos Grid - Takes 3 columns */}
+          <div className="lg:col-span-3 overflow-y-auto ">
+            <motion.div 
+              className="mb-8 text-center"
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+            >
+            </motion.div>
+
+            {loading ? (
+              <motion.div 
+                className="flex items-center justify-center py-12"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600 text-lg">Cargando cursos...</span>
+              </motion.div>
+            ) : cursosActivos.length === 0 ? (
+              <motion.div 
+                className="text-center py-12"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Sparkles className="mx-auto h-16 w-16 text-blue-400 opacity-70" />
+                <h3 className="mt-4 text-xl font-medium text-gray-900">No hay cursos activos</h3>
+                <p className="mt-2 text-gray-500 max-w-md mx-auto">
+                  No se encontraron cursos con fecha de finalización pendiente. Los cursos aparecerán aquí cuando estén disponibles.
+                </p>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {cursosActivos.map((curso, index) => {
+                  const { icon, color } = getIconAndColor(index, curso.categoria);
+                  return (
+                    <motion.div
+                      key={curso.id}
+                      initial={{ opacity: 0, y: 100, rotateY: -15 }}
+                      animate={{ opacity: 1, y: 0, rotateY: 0 }}
+                      transition={{ 
+                        duration: 0.8, 
+                        delay: index * 0.1,
+                        type: "spring",
+                        stiffness: 100
+                      }}
+                      whileHover={{ 
+                        y: -10, 
+                        rotateY: 5,
+                        scale: 1.02
+                      }}
+                      onHoverStart={() => setHoveredCard(curso.id)}
+                      onHoverEnd={() => setHoveredCard(null)}
+                      className="h-full cursor-pointer"
+                      onClick={() => navigate(`/equipos-curso/${curso.id}`)}
+                    >
+                      <div className="group border-0 shadow-xl hover:shadow-2xl transition-all duration-500 h-full bg-white/80 backdrop-blur-sm overflow-hidden relative rounded-xl">
+                        {/* Gradient Background Overlay */}
+                        <div 
+                          className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} 
                         />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
-                          <svg className="w-16 h-16 text-white opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
+                        
+                        {/* Floating Elements */}
+                        <motion.div
+                          className="absolute top-4 right-4 opacity-10 group-hover:opacity-30 transition-opacity duration-500"
+                          animate={{
+                            rotate: hoveredCard === curso.id ? [0, 180, 360] : 0,
+                            scale: hoveredCard === curso.id ? [1, 1.2, 1] : 1
+                          }}
+                          transition={{ duration: 2, repeat: hoveredCard === curso.id ? Infinity : 0 }}
+                        >
+                          <Trophy className="w-16 h-16 text-gray-400" />
+                        </motion.div>
+
+                        <div className="pb-4 relative z-10 p-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <motion.div 
+                              className={`w-16 h-16 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center text-white shadow-lg`}
+                              whileHover={{ rotate: 360, scale: 1.1 }}
+                              transition={{ duration: 0.6 }}
+                            >
+                              {icon}
+                            </motion.div>
+                          </div>
+                          
+                          <h3 className="text-xl bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent group-hover:from-blue-900 group-hover:to-purple-800 transition-all duration-300 font-bold">
+                            {curso.nombre}
+                          </h3>
+                          
+                          <motion.div 
+                            className="text-sm font-medium mt-2"
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ duration: 0.6, delay: index * 0.1 + 0.3 }}
+                          >
+                            <span className={`inline-block px-3 py-1 rounded-full border-2 bg-gradient-to-r ${color} bg-clip-text text-transparent border-current`}>
+                              {curso.categoria || 'General'}
+                            </span>
+                          </motion.div>
                         </div>
-                      )}
-                    </div>
-                    <div className="p-6">
-                      <h5 className="mb-3 block font-sans text-xl font-semibold leading-snug tracking-normal text-blue-gray-900 antialiased">
-                        {curso.nombre}
-                      </h5>
-                      <p className="text-sm text-gray-600 mb-4">
-                        <strong>Instructor:</strong> {curso.instructor}
-                      </p>
-                    </div>
-                    <div className="p-6 pt-0">
-                      <button 
-                        onClick={() => navigate(`/equipos-curso/${curso.id}`)}
-                        className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors"
-                      >
-                        Ver Equipos
-                      </button>
-                    </div>
+                        
+                        <div className="space-y-6 relative z-10 px-6 pb-6">
+                          <motion.p 
+                            className="text-gray-600 leading-relaxed text-sm"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.8, delay: index * 0.1 + 0.5 }}
+                          >
+                            {curso.descripcion || `Curso impartido por ${curso.instructor}`}
+                          </motion.p>
+                          
+                          <div className="grid grid-cols-2 gap-3">
+                            <motion.div 
+                              className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg"
+                              whileHover={{ scale: 1.05 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Calendar className="w-3 h-3 text-blue-600" />
+                              <span className="text-xs text-blue-800">{curso.fechaInicio ? new Date(curso.fechaInicio).toLocaleDateString() : 'Fecha pendiente'}</span>
+                            </motion.div>
+                            <motion.div 
+                              className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg"
+                              whileHover={{ scale: 1.05 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Users className="w-3 h-3 text-green-600" />
+                              <span className="text-xs text-green-800">{curso.participantes || 0} participantes</span>
+                            </motion.div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right Sidebar - Action Panel */}
+          <motion.div 
+            className="lg:col-span-1 flex flex-col justify-center"
+            initial={{ x: 100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+          >
+            <div className="bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-200 shadow-xl sticky top-8 rounded-xl overflow-hidden">
+              <div className="p-8 text-center">
+                <motion.div
+                  animate={{ 
+                    rotate: [0, 360],
+                    scale: [1, 1.1, 1]
+                  }}
+                  transition={{ 
+                    duration: 3, 
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <Sparkles className="w-16 h-16 text-blue-600 mx-auto mb-6" />
+                </motion.div>
+                
+                <h3 className="text-2xl text-blue-900 mb-4">
+                  Selecciona un Curso
+                </h3>
+                
+                <p className="text-blue-700 mb-6 leading-relaxed">
+                  Haz clic en cualquier curso de la lista para ver los equipos participantes y generar constancias.
+                </p>
+                
+                <div className="space-y-3 text-sm text-blue-600">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span>Búsqueda por categoría</span>
                   </div>
-                )
-              })}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Equipos participantes</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span>Constancias oficiales</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
+          </motion.div>
         </div>
-      </div>
+      </main>
     </div>
-  )
+  );
 }

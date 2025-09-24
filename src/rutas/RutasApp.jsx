@@ -20,7 +20,6 @@ import EquiposCurso from '../paginas/EquiposCurso';
 import SeleccionarIntegrantes from '../paginas/SeleccionarIntegrantes';
 import EditarConstancias from '../paginas/EditarConstancias';
 import ConfirmarPago from '../paginas/ConfirmarPago';
-import ProcesoPago from '../paginas/ProcesoPago';
 import ImprimirConstancias from '../paginas/ImprimirConstancias';
 
 import {
@@ -113,7 +112,6 @@ export default function RutasApp() {
           <Route path="/seleccionar-integrantes/:cursoId/:equipoId" element={<SeleccionarIntegrantes />} />
           <Route path="/editar-constancias/:cursoId/:equipoId" element={<EditarConstancias />} />
           <Route path="/confirmar-pago/:cursoId/:equipoId" element={<ConfirmarPago />} />
-          <Route path="/proceso-pago/:cursoId/:equipoId" element={<ProcesoPago />} />
           <Route path="/imprimir-constancias/:cursoId/:equipoId" element={<ImprimirConstancias />} />
           <Route
             path="/inicio"
