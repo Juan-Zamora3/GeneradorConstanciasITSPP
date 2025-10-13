@@ -3,7 +3,7 @@ import ImageCarousel from '../common/ImageCarousel';
 import QrCanvas from './QrCanvas'; // si ya lo usas en otras partes; aquí usamos QRCodeCanvas directamente
 import { useSurveys } from '../../utilidades/useSurveys';
 import { QRCodeCanvas } from 'qrcode.react';
-import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { db } from '../../servicios/firebaseConfig';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -612,6 +612,19 @@ function GruposPreview({
     ? equipos.filter((e) => e.categoria === filterCat)
     : equipos;
 
+  const eliminarEquipo = async (grupo) => {
+    if (!encuestaId || !grupo?.id) return;
+    const ok = window.confirm(`¿Eliminar el equipo "${grupo.nombreEquipo || grupo.id}"? Esta acción no se puede deshacer.`);
+    if (!ok) return;
+    try {
+      await deleteDoc(doc(db, 'encuestas', encuestaId, 'respuestas', grupo.id));
+      setEquipos((prev) => prev.filter((e) => e.id !== grupo.id));
+    } catch (err) {
+      console.error('Error eliminando equipo:', err);
+      alert('No se pudo eliminar el equipo. Intenta de nuevo.');
+    }
+  };
+
   const verEquipo = (grupo) => setVer(grupo);
 
   const editarEquipo = (grupo) =>
@@ -798,6 +811,12 @@ function GruposPreview({
                     className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-xs font-medium shadow-sm"
                   >
                     ✏️ Editar
+                  </button>
+                  <button
+                    onClick={() => eliminarEquipo(grupo)}
+                    className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-medium shadow-sm"
+                  >
+                    🗑️ Eliminar
                   </button>
                 </div>
               </div>

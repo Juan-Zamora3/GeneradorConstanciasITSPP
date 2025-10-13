@@ -124,11 +124,11 @@ export default function EquiposCurso() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-50 via-green-50 to-cyan-50 relative overflow-hidden flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 relative overflow-hidden flex flex-col">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
-          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-green-400/10 to-cyan-400/10 rounded-full blur-3xl"
+          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl"
           animate={{ 
             rotate: [0, 360],
             scale: [1, 1.2, 1]
@@ -140,7 +140,7 @@ export default function EquiposCurso() {
           }}
         />
         <motion.div
-          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-3xl"
+          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-green-400/10 to-emerald-400/10 rounded-full blur-3xl"
           animate={{ 
             rotate: [360, 0],
             scale: [1.2, 1, 1.2]
@@ -169,14 +169,14 @@ export default function EquiposCurso() {
               >
                 <button
                   onClick={handleGoBack}
-                  className="border border-green-200 text-green-900 hover:bg-green-50 bg-white/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 p-3 rounded-full"
+                  className="border border-blue-200 text-blue-900 hover:bg-blue-50 bg-white/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 p-3 rounded-full"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
               </motion.div>
               <div className="flex items-center space-x-4">
                 <motion.div 
-                  className="w-12 h-12 bg-gradient-to-br from-green-600 to-green-700 rounded-2xl flex items-center justify-center shadow-lg"
+                  className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl flex items-center justify-center shadow-lg"
                   whileHover={{ scale: 1.05, rotate: 5 }}
                   transition={{ duration: 0.3 }}
                 >
@@ -184,7 +184,7 @@ export default function EquiposCurso() {
                 </motion.div>
                 <div>
                   <motion.h1 
-                    className="text-3xl bg-gradient-to-r from-green-900 to-cyan-700 bg-clip-text text-transparent"
+                    className="text-3xl bg-gradient-to-r from-blue-900 to-cyan-700 bg-clip-text text-transparent"
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.8, delay: 0.2 }}
@@ -192,7 +192,7 @@ export default function EquiposCurso() {
                     Equipos Participantes
                   </motion.h1>
                   <motion.p 
-                    className="text-green-600"
+                    className="text-blue-600"
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.8, delay: 0.4 }}
@@ -234,7 +234,7 @@ export default function EquiposCurso() {
                     placeholder="Buscar por nombre de equipo, líder o categoría..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border-green-200 focus:border-green-400 focus:ring-green-400 bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl font-medium"
+                    className="w-full pl-12 pr-4 py-3 border-blue-200 focus:border-blue-400 focus:ring-blue-400 bg-white/80 backdrop-blur-sm shadow-lg rounded-2xl font-medium"
                   />
                 </div>
                 <motion.p 
@@ -254,7 +254,7 @@ export default function EquiposCurso() {
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full"
+                  className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full"
                 />
               </div>
             ) : (
@@ -337,22 +337,22 @@ export default function EquiposCurso() {
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.5 }}
           >
-            <div className="bg-gradient-to-br from-green-100 to-cyan-100 border-green-200 shadow-xl sticky top-8 rounded-xl overflow-hidden">
+            <div className="bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-200 shadow-xl sticky top-8 rounded-xl overflow-hidden">
               <div className="p-8 text-center">
                 {/* Ícono sin animación de rotación */}
                 <div className="mb-6">
-                  <Sparkles className="w-16 h-16 text-green-600 mx-auto" />
+                  <Sparkles className="w-16 h-16 text-blue-600 mx-auto" />
                 </div>
                 
-                <h3 className="text-2xl text-green-900 mb-4 font-semibold">
+                <h3 className="text-2xl text-blue-900 mb-4 font-semibold">
                   Selecciona un Equipo
                 </h3>
                 
-                <p className="text-green-700 mb-6 leading-relaxed font-medium">
+                <p className="text-blue-700 mb-6 leading-relaxed font-medium">
                   Haz clic en cualquier equipo para ver sus integrantes y generar las constancias correspondientes.
                 </p>
                 
-                <div className="space-y-3 text-sm text-green-600">
+                <div className="space-y-3 text-sm text-blue-600">
                   <div className="flex items-center space-x-2">
                     <Star className="w-4 h-4 text-yellow-500" />
                     <span className="font-medium">Equipos por categoría</span>

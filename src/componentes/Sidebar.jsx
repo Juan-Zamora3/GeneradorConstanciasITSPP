@@ -1,6 +1,6 @@
 import React, { useContext, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FaHome, FaUser, FaFileSignature, FaBook, FaUserPlus, FaUsers, FaUserFriends } from 'react-icons/fa'
+import { FaHome, FaUser, FaFileSignature, FaBook, FaUserPlus, FaUsers, FaUserFriends, FaLayerGroup } from 'react-icons/fa'
 import { AuthContext } from '../contexto/AuthContext'
 import logoImg from '../assets/logo.png'
 
@@ -30,7 +30,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
         { path: '/constancias', name: 'Constancias', icon: <FaFileSignature /> },
         { path: '/cursos', name: 'Cursos', icon: <FaBook /> },
         { path: '/usuarios', name: 'Usuarios', icon: <FaUserPlus /> },
-        { path: '/Equipos', name: 'Equipos', icon: <FaUserFriends /> },
+        { path: '/plantillas', name: 'Plantillas', icon: <FaLayerGroup /> },
       ],
     },
   ]
@@ -77,7 +77,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                         ${isOpen ? 'px-4 py-3 justify-start' : 'p-4 justify-center'}
                       `}
                     >
-                      <div className={`${isOpen ? 'text-2xl' : 'text-5xl'}`}>{icon}</div>
+                      <div className={`${isOpen ? 'text-2xl' : 'text-4xl'}`}>{icon}</div>
                       {isOpen && <span className="ml-4 text-base font-medium truncate">{name}</span>}
                     </NavLink>
                   </li>

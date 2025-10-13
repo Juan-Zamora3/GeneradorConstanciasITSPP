@@ -201,6 +201,29 @@ export default function Constancias() {
       const data = snap.data();
       setCurso(data);
 
+      // Autocargar plantilla asignada para cursos por personal
+      if (data.tipoCurso === 'personal' && data.plantillaId) {
+        try {
+          const pSnap = await getDoc(doc(db, 'Plantillas', data.plantillaId));
+          if (pSnap.exists()) {
+            const pData = pSnap.data();
+            const buf = await fetch(pData.url).then(r=>r.arrayBuffer());
+            const key = `${buf.byteLength}`;
+            setCfgMap(m => ({
+              ...m,
+              [key]: {
+                boxes: pData.boxes || JSON.parse(JSON.stringify(defaultBoxes)),
+                mensajePDF: '',
+                mensajeCorreo: ''
+              }
+            }));
+            setPlantilla(buf);
+          }
+        } catch (e) {
+          console.warn('No se pudo cargar plantilla asignada al curso:', e);
+        }
+      }
+
       // Participantes iniciales
       const idsInit = Array.isArray(data.listas?.[0]) ? data.listas[0] : data.listas || [];
       let iniciales = [];
@@ -239,6 +262,35 @@ export default function Constancias() {
     })();
     return () => { alive = false; };
   }, [cursoId]);
+
+  // Autocargar plantilla por categoría cuando se filtran equipos
+  useEffect(() => {
+    if (!curso || modo !== 'equipos' || !categoriaFiltro) return;
+    const plantillaCatId = curso.plantillasPorCategoria?.[categoriaFiltro];
+    if (!plantillaCatId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const pSnap = await getDoc(doc(db, 'Plantillas', plantillaCatId));
+        if (!alive || !pSnap.exists()) return;
+        const pData = pSnap.data();
+        const buf = await fetch(pData.url).then(r=>r.arrayBuffer());
+        const key = `${buf.byteLength}`;
+        setCfgMap(m => ({
+          ...m,
+          [key]: {
+            boxes: pData.boxes || JSON.parse(JSON.stringify(defaultBoxes)),
+            mensajePDF: m[key]?.mensajePDF || '',
+            mensajeCorreo: m[key]?.mensajeCorreo || ''
+          }
+        }));
+        setPlantilla(buf);
+      } catch (e) {
+        console.warn('No se pudo cargar plantilla por categoría:', e);
+      }
+    })();
+    return () => { alive = false };
+  }, [curso, modo, categoriaFiltro]);
 
   // Mensajes por defecto al seleccionar curso + plantilla
   useEffect(() => {

@@ -10,7 +10,6 @@ import Constancias    from '../paginas/Constancias';
 import Cursos         from '../paginas/Cursos';
 import Perfil         from '../paginas/Perfil';
 import CrearUsuarios  from '../paginas/CrearUsuarios';
-import Equipos        from '../paginas/Equipos';
 import AsistenciaForm from '../paginas/AsistenciaForm';
 import Layout         from '../componentes/Layout';
 import RegistroGrupo  from '../paginas/RegistroGrupo';
@@ -21,6 +20,9 @@ import SeleccionarIntegrantes from '../paginas/SeleccionarIntegrantes';
 import EditarConstancias from '../paginas/EditarConstancias';
 import ConfirmarPago from '../paginas/ConfirmarPago';
 import ImprimirConstancias from '../paginas/ImprimirConstancias';
+import ProcesoPago from '../paginas/ProcesoPago';
+import Plantillas from '../paginas/plantillas';
+import EditorPlantilla from '../paginas/EditorPlantilla';
 
 import {
   LOGIN_PATH,
@@ -36,7 +38,7 @@ const PROTECTED_ROUTES = [
   '/cursos',
   '/perfil',
   '/usuarios',
-  '/Equipos',
+  '/plantillas',
 ];
 
 export default function RutasApp() {
@@ -112,6 +114,7 @@ export default function RutasApp() {
           <Route path="/seleccionar-integrantes/:cursoId/:equipoId" element={<SeleccionarIntegrantes />} />
           <Route path="/editar-constancias/:cursoId/:equipoId" element={<EditarConstancias />} />
           <Route path="/confirmar-pago/:cursoId/:equipoId" element={<ConfirmarPago />} />
+          <Route path="/proceso-pago/:cursoId/:equipoId" element={<ProcesoPago />} />
           <Route path="/imprimir-constancias/:cursoId/:equipoId" element={<ImprimirConstancias />} />
           <Route
             path="/inicio"
@@ -138,8 +141,12 @@ export default function RutasApp() {
             element={<Layout><CrearUsuarios /></Layout>}
           />
           <Route
-            path="/Equipos"
-            element={<Layout><Equipos /></Layout>}
+            path="/plantillas"
+            element={<Layout><Plantillas /></Layout>}
+          />
+          <Route
+            path="/plantillas/:id"
+            element={<EditorPlantilla />}
           />
         </>
       )}
