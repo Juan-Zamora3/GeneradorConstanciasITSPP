@@ -1,174 +1,258 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { PDFDocument } from 'pdf-lib';
-import { IoMdArrowRoundBack } from "react-icons/io";
-import { MdEdit, MdVisibility, MdPrint, MdPerson } from "react-icons/md";
-import { motion } from "framer-motion";
-import { ArrowLeft, Edit3, FileText, Save, Eye, User, Check, Users } from "lucide-react";
-import itsppLogo from '../assets/logo.png';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { getConfigConstancia } from '../servicios/constancias'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
+import { motion } from "framer-motion"
+import { ArrowLeft, Edit3, FileText, Save, Eye, User, Check, Users } from "lucide-react"
+import itsppLogo from '../assets/logo.png'
+
+// pdf.js worker
+GlobalWorkerOptions.workerPort = new pdfjsWorker()
 
 export default function EditarConstancias() {
-  const navigate = useNavigate();
-  const { cursoId, equipoId } = useParams();
-  const location = useLocation();
-  const { integrantesSeleccionados, equipo, curso } = location.state || {};
+  const navigate = useNavigate()
+  const { cursoId, equipoId } = useParams()
+  const location = useLocation()
+  const { integrantesSeleccionados, equipo, curso } = location.state || {}
 
-  const [constancias, setConstancias] = useState([]);
-  const [constanciaActual, setConstanciaActual] = useState(0);
-  const [editandoNombre, setEditandoNombre] = useState(false);
-  const [nombreEditado, setNombreEditado] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [cfg, setCfg] = useState(null) // { plantilla, campos[] }
+  const [constancias, setConstancias] = useState([])
+  const [constanciaActual, setConstanciaActual] = useState(0)
+  const [editandoNombre, setEditandoNombre] = useState(false)
+  const [nombreEditado, setNombreEditado] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  const handleGoBack = () => {
-    navigate(`/seleccionar-integrantes/${cursoId}/${equipoId}`);
-  };
+  // Preview A4 container & background canvas
+  const contRef = useRef(null)
+  const bgCanvasRef = useRef(null)
+  const [contSize, setContSize] = useState({ w: 595, h: 842 })
+
+  const handleGoBack = () => navigate(`/seleccionar-integrantes/${cursoId}/${equipoId}`)
 
   const handleEditarNombre = (index) => {
-    setConstanciaActual(index);
-    setNombreEditado(constancias[index].nombre);
-    setEditandoNombre(true);
-  };
+    setConstanciaActual(index)
+    setNombreEditado(constancias[index].nombre)
+    setEditandoNombre(true)
+  }
 
   const handleGuardarNombre = () => {
-    setConstancias(prev => prev.map((c, i) => 
-      i === constanciaActual ? { ...c, nombre: nombreEditado } : c
-    ));
-    setEditandoNombre(false);
-    setNombreEditado('');
-  };
+    setConstancias(prev => prev.map((c, i) => i === constanciaActual ? { ...c, nombre: nombreEditado } : c))
+    setEditandoNombre(false)
+    setNombreEditado('')
+  }
 
   const handleCancelarEdicion = () => {
-    setEditandoNombre(false);
-    setNombreEditado('');
-  };
+    setEditandoNombre(false)
+    setNombreEditado('')
+  }
 
   const handleContinuar = () => {
-    // Navegar a la pantalla de confirmación de pago
     navigate(`/confirmar-pago/${cursoId}/${equipoId}`, {
-      state: { 
-        constancias,
-        equipo,
-        curso
-      }
-    });
-  };
+      state: { constancias, equipo, curso }
+    })
+  }
 
   const formatearFecha = (fecha) => {
-    if (!fecha) return 'Fecha no disponible';
-    const date = new Date(fecha);
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+    if (!fecha) return 'Fecha no disponible'
+    const d = new Date(fecha)
+    return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+  }
 
+  // ------- Carga inicial: validar inputs + crear constancias + leer config del curso
   useEffect(() => {
     if (!integrantesSeleccionados || !equipo || !curso) {
-      navigate(`/equipos-curso/${cursoId}`);
-      return;
+      navigate(`/equipos-curso/${cursoId}`)
+      return
     }
 
-    // Crear constancias para cada integrante seleccionado
-    const constanciasData = integrantesSeleccionados.map((integrante, index) => ({
+    // Crea constancias base con info del integrante y del curso/equipo
+    const data = integrantesSeleccionados.map((integrante, index) => ({
       id: `${equipoId}-${index}`,
-      nombre: integrante.nombre || `Integrante ${index + 1}`,
-      email: integrante.email || '',
-      equipo: equipo.nombre,
-      lider: equipo.lider,
-      categoria: equipo.categoria,
-      curso: curso.nombre,
-      instructor: curso.instructor,
+      nombre: integrante?.nombre || `Integrante ${index + 1}`,
+      email: integrante?.email || '',
+      equipo: equipo?.nombre || '',
+      lider: equipo?.lider || '',
+      categoria: equipo?.categoria || '',
+      curso: curso?.nombre || curso?.cursoNombre || '',
+      instructor: curso?.instructor || '',
       fechaGeneracion: new Date(),
-      mensaje: `Por su participación en "${curso.nombre}" como ${integrante.nombre === equipo.lider ? 'Líder' : 'Integrante'} del equipo "${equipo.nombre}".`
-    }));
+      mensaje: `Por su participación en "${(curso?.nombre || curso?.cursoNombre || '')}" como ${integrante?.nombre === equipo?.lider ? 'Líder' : 'Integrante'} del equipo "${equipo?.nombre || ''}".`,
+      folio: integrante?.folio || ''
+    }))
+    setConstancias(data)
+    setLoading(false)
 
-    setConstancias(constanciasData);
-    setLoading(false);
-  }, [integrantesSeleccionados, equipo, curso, cursoId, equipoId, navigate]);
+    // Carga config guardada en el curso
+    ;(async () => {
+      try {
+        const conf = await getConfigConstancia(cursoId) // { plantilla, campos[] }
+        setCfg(conf || { campos: [] })
+      } catch (e) {
+        console.error('No se pudo cargar Cursos/{cursoId}.constancia:', e)
+        setCfg({ campos: [] })
+      }
+    })()
+  }, [integrantesSeleccionados, equipo, curso, cursoId, equipoId, navigate])
 
-  // Componente para la previsualización de la constancia
+  // ------- Medir contenedor A4 (para convertir % a px)
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (!contRef.current) return
+      const r = contRef.current.getBoundingClientRect()
+      const w = r.width
+      const h = (842 / 595) * w
+      setContSize({ w, h })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (contRef.current) ro.observe(contRef.current)
+    return () => ro.disconnect()
+  }, [])
+
+  // ------- Renderizar plantilla PDF de fondo (página 1)
+  useEffect(() => {
+    if (!cfg?.plantilla?.url || !bgCanvasRef.current || !contSize.w) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const loading = getDocument({ url: cfg.plantilla.url, isEvalSupported: false })
+        const pdf = await loading.promise
+        const page = await pdf.getPage(1)
+        const scale = contSize.w / 595
+        const viewport = page.getViewport({ scale })
+        const canvas = bgCanvasRef.current
+        const ctx = canvas.getContext('2d')
+        canvas.width = Math.floor(viewport.width)
+        canvas.height = Math.floor(viewport.height)
+        await page.render({ canvasContext: ctx, viewport }).promise
+        if (cancelled) return
+      } catch (e) {
+        console.warn('No se pudo mostrar PDF de fondo:', e)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [cfg?.plantilla?.url, contSize.w])
+
+  // ------- Helpers de valores y campo posicionado
+  const getValue = (key, c) => {
+    const map = {
+      NOMBRE: c?.nombre,
+      MENSAJE: c?.mensaje,
+      EQUIPO: c?.equipo || equipo?.nombre,
+      CATEGORIA: c?.categoria || curso?.categoria || curso?.categoriaNombre,
+      CURSO: c?.curso || curso?.cursoNombre || curso?.nombre,
+      FECHA: new Date().toLocaleDateString('es-MX'),
+      FOLIO: c?.folio,
+      CORREO: c?.email || c?.correo
+    }
+    return map[key] ?? c?.[key] ?? ''
+  }
+
+  const Campo = ({ campo, participante }) => {
+    const left   = (campo.xPct || 0) * contSize.w
+    const top    = (campo.yPct || 0) * contSize.h
+    const width  = (campo.wPct || 0.5) * contSize.w
+    const height = (campo.hPct || 0.06) * contSize.h
+    const fontPx = Math.max(8, (campo.fontSize || 16) * (contSize.w / 595))
+    const justify =
+      campo.align === 'center' ? 'center' :
+      campo.align === 'right'  ? 'flex-end' : 'flex-start'
+    const value = String(getValue(campo.key, participante) ?? '')
+
+    return (
+      <div className="absolute" style={{ left, top, width, height, pointerEvents: 'none' }}>
+        <div
+          className="w-full h-full flex items-center"
+          style={{
+            justifyContent: justify,
+            fontWeight: campo.bold ? 700 : 400,
+            fontSize: fontPx,
+            lineHeight: 1.1,
+            color: '#0f172a',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+          title={value}
+        >
+          {value}
+        </div>
+      </div>
+    )
+  }
+
+  // -------- Componente de previsualización (tu diseño + preview real)
   const CertificatePreview = ({ constancia }) => {
     return (
-      <motion.div 
+      <motion.div
         className="bg-white border-2 border-purple-200 rounded-2xl p-8 text-center space-y-6 shadow-xl relative overflow-hidden"
         initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
         animate={{ opacity: 1, scale: 1, rotateY: 0 }}
         transition={{ duration: 0.6 }}
       >
-        {/* Decorative Elements */}
+        {/* Decorativos de tu diseño */}
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-green-500 to-red-500"></div>
         <div className="absolute top-4 right-4 w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-30"></div>
         <div className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-30"></div>
 
-        <motion.div 
-          className="border-b border-purple-100 pb-6"
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <motion.div 
-            className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            transition={{ duration: 0.3 }}
+      
+
+        {/* Aquí va la PREVIEW REAL (PDF fondo + campos en coordenadas) */}
+        <div className="py-6">
+          <div
+            ref={contRef}
+            className="relative mx-auto rounded-xl overflow-hidden border border-purple-200 bg-white"
+            style={{
+              width: 'min(720px, 100%)',
+              aspectRatio: '595 / 842',
+              boxShadow: 'inset 0 0 32px rgba(124,58,237,.06)'
+            }}
           >
-            <img src={itsppLogo} alt="ITSPP Logo" className="w-12 h-12" />
-          </motion.div>
-          <h3 className="text-2xl text-blue-900">Instituto Tecnológico Superior</h3>
-          <h4 className="text-xl text-blue-900">de Puerto Peñasco</h4>
-        </motion.div>
+            {/* Fondo PDF (si hay plantilla) */}
+            <canvas ref={bgCanvasRef} className="absolute inset-0 w-full h-full" />
 
-        <motion.div 
-          className="py-6"
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <h2 className="text-3xl text-blue-900 mb-8">CONSTANCIA DE PARTICIPACIÓN</h2>
-          
-          <div className="space-y-6 text-gray-700">
-            <p className="text-lg">El Instituto Tecnológico Superior de Puerto Peñasco</p>
-            <p className="text-lg">otorga la presente constancia a:</p>
-            
-            <motion.div 
-              className="py-6"
-              whileHover={{ scale: 1.02 }}
-              transition={{ duration: 0.2 }}
-            >
-              <p className="text-3xl text-blue-900 border-b-2 border-purple-200 pb-3 mx-8 font-medium">
-                {constancia?.nombre || 'NOMBRE DEL PARTICIPANTE'}
-              </p>
-            </motion.div>
-            
-            <p className="text-lg">Por su participación en el curso:</p>
-            <p className="text-xl text-blue-800 font-medium">{constancia?.curso || 'Nombre del Curso'}</p>
-            
-            <p className="text-lg">Como integrante del equipo:</p>
-            <p className="text-xl text-blue-800 font-medium">{constancia?.equipo || 'Nombre del Equipo'}</p>
-            
-            <div className="pt-8 text-base">
-              <p>Puerto Peñasco, Sonora</p>
-              <p>{formatearFecha(constancia?.fechaGeneracion)}</p>
-            </div>
+            {/* Pintar campos si existen */}
+            {Array.isArray(cfg?.campos) && cfg.campos.length > 0 && constancia && (
+              cfg.campos.map((c, i) => (
+                <Campo key={i} campo={c} participante={constancia} />
+              ))
+            )}
+
+            {/* Fallback si no hay campos configurados */}
+            {(!cfg?.campos || cfg.campos.length === 0) && (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm p-6 text-center">
+                No hay campos configurados en <b className="mx-1">Cursos/{'{cursoId}'}.constancia.campos</b>
+              </div>
+            )}
           </div>
-        </motion.div>
 
-        <motion.div 
+          {/* Pie con fecha/categoría (tu diseño) */}
+          <div className="pt-8 text-base text-gray-700">
+            <p>Puerto Peñasco, Sonora</p>
+            <p>{formatearFecha(constancia?.fechaGeneracion)}</p>
+          </div>
+        </div>
+
+        <motion.div
           className="border-t border-purple-100 pt-4 text-sm text-gray-500"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
         >
           <p>Categoría: {constancia?.categoria || 'Sin categoría'}</p>
+          {cfg?.plantilla?.nombre && (
+            <p className="mt-1 text-indigo-700">Plantilla: {cfg.plantilla.nombre}</p>
+          )}
         </motion.div>
       </motion.div>
-    );
-  };
+    )
+  }
 
   if (loading) {
     return (
       <div className="h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <motion.div 
+        <motion.div
           className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 flex items-center space-x-4"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -178,41 +262,27 @@ export default function EditarConstancias() {
           <span className="text-gray-700 font-medium">Preparando constancias...</span>
         </motion.div>
       </div>
-    );
+    )
   }
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 relative overflow-hidden flex flex-col">
-      {/* Animated Background */}
+      {/* Fondos animados (tu diseño) */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"
-          animate={{ 
-            rotate: [0, 360],
-            scale: [1, 1.3, 1]
-          }}
-          transition={{ 
-            duration: 25, 
-            repeat: Infinity, 
-            ease: "linear" 
-          }}
+          animate={{ rotate: [0, 360], scale: [1, 1.3, 1] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
         />
         <motion.div
           className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl"
-          animate={{ 
-            rotate: [360, 0],
-            scale: [1.2, 1, 1.2]
-          }}
-          transition={{ 
-            duration: 30, 
-            repeat: Infinity, 
-            ease: "linear" 
-          }}
+          animate={{ rotate: [360, 0], scale: [1.2, 1, 1.2] }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
         />
       </div>
 
       {/* Header */}
-      <motion.header 
+      <motion.header
         className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg flex-shrink-0"
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -221,10 +291,7 @@ export default function EditarConstancias() {
         <div className="max-w-7xl mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <button
                   onClick={handleGoBack}
                   className="border border-purple-200 text-purple-900 hover:bg-purple-50 bg-white/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 p-3 rounded-full"
@@ -233,7 +300,7 @@ export default function EditarConstancias() {
                 </button>
               </motion.div>
               <div>
-                <motion.h1 
+                <motion.h1
                   className="text-3xl bg-gradient-to-r from-purple-900 to-pink-700 bg-clip-text text-transparent"
                   initial={{ x: -50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
@@ -241,13 +308,13 @@ export default function EditarConstancias() {
                 >
                   Editar Constancias
                 </motion.h1>
-                <motion.p 
+                <motion.p
                   className="text-purple-600"
                   initial={{ x: -50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ duration: 0.8, delay: 0.4 }}
                 >
-                  {curso?.nombre} • {equipo?.nombre}
+                  {curso?.nombre || curso?.cursoNombre} • {equipo?.nombre}
                 </motion.p>
               </div>
             </div>
@@ -255,12 +322,11 @@ export default function EditarConstancias() {
         </div>
       </motion.header>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="relative z-10 flex-1 overflow-hidden">
         <div className="h-full max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-          
-          {/* Left Sidebar - Member List */}
-          <motion.div 
+          {/* Sidebar izquierda: participantes */}
+          <motion.div
             className="lg:col-span-1"
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -274,12 +340,12 @@ export default function EditarConstancias() {
                 </div>
               </div>
               <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-300px)]">
-                {constancias.map((constancia, index) => (
+                {constancias.map((c, index) => (
                   <motion.div
-                    key={constancia.id}
+                    key={c.id}
                     className={`p-4 rounded-xl cursor-pointer border-2 transition-all duration-300 ${
-                      constanciaActual === index 
-                        ? 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-300 shadow-lg' 
+                      constanciaActual === index
+                        ? 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-300 shadow-lg'
                         : 'bg-white/50 border-gray-200 hover:border-purple-200 hover:bg-purple-50'
                     }`}
                     onClick={() => setConstanciaActual(index)}
@@ -290,20 +356,17 @@ export default function EditarConstancias() {
                       <div className={`w-3 h-3 rounded-full ${constanciaActual === index ? 'bg-purple-500' : 'bg-gray-300'}`} />
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-medium truncate ${constanciaActual === index ? 'text-purple-900' : 'text-gray-700'}`}>
-                          {constancia.nombre}
+                          {c.nombre}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {constancia.nombre === equipo?.lider ? 'Líder' : 'Integrante'}
+                          {c.nombre === equipo?.lider ? 'Líder' : 'Integrante'}
                         </p>
                       </div>
-                      <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
+                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                         <button
                           onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditarNombre(index);
+                            e.stopPropagation()
+                            handleEditarNombre(index)
                           }}
                           className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
                         >
@@ -311,11 +374,11 @@ export default function EditarConstancias() {
                         </button>
                       </motion.div>
                     </div>
-                    
+
                     <div className="mt-2 text-xs">
                       <div className="flex items-center space-x-1">
                         <User className="w-3 h-3 text-gray-400" />
-                        <span className="text-gray-600">{constancia.email || 'Sin correo'}</span>
+                        <span className="text-gray-600">{c.email || 'Sin correo'}</span>
                       </div>
                     </div>
                   </motion.div>
@@ -324,8 +387,8 @@ export default function EditarConstancias() {
             </div>
           </motion.div>
 
-          {/* Main Content - Certificate Preview and Edit */}
-          <motion.div 
+          {/* Centro: preview + edición de nombre */}
+          <motion.div
             className="lg:col-span-2 overflow-y-auto"
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -333,7 +396,6 @@ export default function EditarConstancias() {
           >
             {constancias.length > 0 && (
               <>
-                {/* Edit Controls */}
                 <div className="bg-white/80 backdrop-blur-xl border-purple-200 shadow-xl mb-6 rounded-xl overflow-hidden">
                   <div className="p-4 border-b border-purple-100">
                     <div className="flex items-center space-x-2 text-purple-900">
@@ -344,26 +406,22 @@ export default function EditarConstancias() {
                   <div className="p-6">
                     <div className="space-y-4">
                       <div>
-                        <label htmlFor={`name-${constanciaActual}`} className="text-purple-900 mb-2 block font-medium">
+                        <label className="text-purple-900 mb-2 block font-medium">
                           Nombre en la constancia
                         </label>
                         <div className="flex space-x-3">
                           <input
-                            id={`name-${constanciaActual}`}
                             value={editandoNombre ? nombreEditado : constancias[constanciaActual]?.nombre}
                             onChange={(e) => setNombreEditado(e.target.value)}
                             disabled={!editandoNombre}
                             className={`flex-1 px-4 py-2 rounded-lg border ${
-                              editandoNombre 
-                                ? 'border-purple-300 focus:border-purple-500 focus:ring-purple-500 bg-white' 
+                              editandoNombre
+                                ? 'border-purple-300 focus:border-purple-500 focus:ring-purple-500 bg-white'
                                 : 'bg-gray-50 border-gray-200'
                             }`}
                             placeholder="Nombre completo"
                           />
-                          <motion.div
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
+                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                             {editandoNombre ? (
                               <button
                                 onClick={handleGuardarNombre}
@@ -388,8 +446,8 @@ export default function EditarConstancias() {
                   </div>
                 </div>
 
-                {/* Certificate Preview */}
-                <motion.div 
+                {/* PREVIEW con tu diseño pero dibujando los campos reales */}
+                <motion.div
                   className="transform scale-90 origin-top"
                   key={constanciaActual}
                   initial={{ opacity: 0, rotateY: 90 }}
@@ -402,8 +460,8 @@ export default function EditarConstancias() {
             )}
           </motion.div>
 
-          {/* Right Sidebar - Action Panel */}
-          <motion.div 
+          {/* Derecha: panel de confirmación */}
+          <motion.div
             className="lg:col-span-1 flex flex-col justify-center"
             initial={{ x: 100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -411,14 +469,10 @@ export default function EditarConstancias() {
           >
             <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200 shadow-xl rounded-xl overflow-hidden">
               <div className="p-8 text-center">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.6, delay: 1 }}
-                >
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.6, delay: 1 }}>
                   <Eye className="w-16 h-16 text-purple-600 mx-auto mb-6" />
                 </motion.div>
-                <motion.h3 
+                <motion.h3
                   className="text-2xl text-purple-900 mb-3"
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
@@ -426,7 +480,7 @@ export default function EditarConstancias() {
                 >
                   ¿Todo se ve correcto?
                 </motion.h3>
-                <motion.p 
+                <motion.p
                   className="text-gray-600 mb-8 text-lg"
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
@@ -455,10 +509,10 @@ export default function EditarConstancias() {
         </div>
       </main>
 
-      {/* Modal de edición de nombre */}
+      {/* Modal: editar nombre */}
       {editandoNombre && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <motion.div 
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <motion.div
             className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4"
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -467,7 +521,7 @@ export default function EditarConstancias() {
             <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-900 to-pink-700 bg-clip-text text-transparent mb-6 text-center">
               Editar Nombre
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-purple-700 mb-2">
@@ -482,7 +536,7 @@ export default function EditarConstancias() {
                   autoFocus
                 />
               </div>
-              
+
               <div className="flex space-x-3 pt-4">
                 <motion.button
                   onClick={handleCancelarEdicion}
@@ -506,5 +560,5 @@ export default function EditarConstancias() {
         </div>
       )}
     </div>
-  );
+  )
 }

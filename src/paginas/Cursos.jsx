@@ -1,3 +1,4 @@
+// src/paginas/Cursos.jsx
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -16,8 +17,15 @@ import DetailsModal from '../componentes/PantallaCursos/DetailsModal';
 
 import { AuthContext } from '../contexto/AuthContext';
 
+// Firestore para listar Plantillas
+import { db } from '../servicios/firebaseConfig';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+
 // Borrado en cascada (curso + encuestas)
 import { deleteCourseAndSurveys } from '../servicios/cursos';
+
+// Constancias (asociar plantilla al curso preservando campos)
+import { getConfigConstancia, setCursoConstancia } from '../servicios/constancias';
 
 /* ---------------- VALIDADORES BÁSICOS ---------------- */
 function validateCourse(c) {
@@ -174,7 +182,91 @@ export default function Cursos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courses, reports]);
 
-  /* ----------- handlers ----------- */
+  /* ================== ASIGNAR CONSTANCIA ================== */
+  const [showPickConstancia, setShowPickConstancia] = useState(false);
+  const [targetCourse, setTargetCourse] = useState(null);
+
+  const [plantillas, setPlantillas] = useState([]);
+  const [loadingPlantillas, setLoadingPlantillas] = useState(false);
+  const [pickSearch, setPickSearch] = useState('');
+
+  // abrir modal y suscribirse a Plantillas
+  const openPickModal = (course) => {
+    setTargetCourse(course);
+    setShowPickConstancia(true);
+    setLoadingPlantillas(true);
+
+    const q = query(collection(db, 'Plantillas'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setPlantillas(list);
+        setLoadingPlantillas(false);
+      },
+      (err) => {
+        console.error(err);
+        setLoadingPlantillas(false);
+        toast.error('No se pudieron cargar las constancias');
+      }
+    );
+
+    // limpiar suscripción cuando se cierre el modal:
+    const stop = () => unsub();
+    // guardamos un método en ventana para cerrar (se elimina al cerrar modal)
+    window.__unsubPlantillas = stop;
+  };
+
+  const closePickModal = () => {
+    setShowPickConstancia(false);
+    setTargetCourse(null);
+    setPickSearch('');
+    setPlantillas([]);
+    if (typeof window.__unsubPlantillas === 'function') {
+      try { window.__unsubPlantillas(); } catch {}
+      delete window.__unsubPlantillas;
+    }
+  };
+
+  const filteredPlantillas = (() => {
+    if (!pickSearch.trim()) return plantillas;
+    const t = pickSearch.toLowerCase();
+    return plantillas.filter(p =>
+      (p?.nombre ?? '').toLowerCase().includes(t) ||
+      (p?.storagePath ?? '').toLowerCase().includes(t)
+    );
+  })();
+
+  const handleAssignPlantilla = async (p) => {
+    if (!targetCourse?.id || !p?.id) return;
+    try {
+      // preservar campos/tamaños existentes si ya estaban en el curso
+      const actual = await getConfigConstancia(targetCourse.id); // {plantilla, campos}
+      const campos = Array.isArray(actual?.campos) ? actual.campos : [];
+
+      await setCursoConstancia(
+        targetCourse.id,
+        {
+          plantilla: {
+            plantillaId: p.id,
+            nombre: p.nombre || 'Plantilla',
+            url: p.url,
+            storagePath: p.storagePath,
+          },
+          campos // se preservan tal cual
+        },
+        usuario?.email || usuario?.correo
+      );
+
+      toast.success(`Constancia asignada a "${targetCourse.titulo}"`);
+      closePickModal();
+    } catch (e) {
+      console.error(e);
+      toast.error('No se pudo asignar la constancia al curso');
+    }
+  };
+
+  /* ----------- handlers de reportes ----------- */
   const handleSaveReport = async (data, imgs) => {
     const fails = validateReport(data);
     if (fails.length) {
@@ -337,30 +429,48 @@ export default function Cursos() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {filteredCourses.map((c) => (
-                <CourseListItem
-                  key={c.id}
-                  course={c}
-                  deleting={isDeleting(c.id)}
-                  onView={() => {
-                    setDetailData(c);
-                    setDetailType('course');
-                    setShowDetail(true);
-                  }}
-                  onEdit={
-                    canManageCourses
-                      ? () => {
-                          setEditCourse(c);
-                          setShowCourseModal(true);
-                        }
-                      : undefined
-                  }
-                  onDelete={
-                    canManageCourses
-                      ? () => handleDeleteCourse(c)
-                      : undefined
-                  }
-                  canManage={canManageCourses}
-                />
+                <div key={c.id} className="flex flex-col gap-2">
+                  <CourseListItem
+                    course={c}
+                    deleting={isDeleting(c.id)}
+                    onView={() => {
+                      setDetailData(c);
+                      setDetailType('course');
+                      setShowDetail(true);
+                    }}
+                    onEdit={
+                      canManageCourses
+                        ? () => {
+                            setEditCourse(c);
+                            setShowCourseModal(true);
+                          }
+                        : undefined
+                    }
+                    onDelete={
+                      canManageCourses
+                        ? () => handleDeleteCourse(c)
+                        : undefined
+                    }
+                    canManage={canManageCourses}
+                  />
+
+                  {/* Acciones extra por curso */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openPickModal(c)}
+                      className="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
+                    >
+                      Asignar constancia
+                    </button>
+
+                    {/* Mostrar plantilla asignada si existe */}
+                    {c?.constancia?.plantilla?.nombre && (
+                      <span className="text-xs px-2 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {c.constancia.plantilla.nombre}
+                      </span>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -385,7 +495,11 @@ export default function Cursos() {
                     setEditReport(r);
                     setShowReportModal(true);
                   }}
-                  onDelete={() => handleDeleteReport(r)}
+                  onDelete={() => {
+                    if (window.confirm('¿Eliminar reporte?')) {
+                      handleDeleteReport(r);
+                    }
+                  }}
                 />
               ))}
             </div>
@@ -444,6 +558,66 @@ export default function Cursos() {
         onClose={() => setShowDetail(false)}
         onDelete={detailType === 'report' ? () => handleDeleteReport(detailData) : undefined}
       />
+
+      {/* Modal: Elegir constancia (Plantilla) */}
+      {showPickConstancia && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">
+                Asignar constancia al curso: <span className="text-indigo-700">{targetCourse?.titulo}</span>
+              </h3>
+              <button
+                onClick={closePickModal}
+                className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <input
+                placeholder="Buscar constancia por nombre…"
+                value={pickSearch}
+                onChange={(e) => setPickSearch(e.target.value)}
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {loadingPlantillas ? (
+              <div className="text-center text-gray-500 py-8">Cargando constancias…</div>
+            ) : filteredPlantillas.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">No hay constancias cargadas.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-auto">
+                {filteredPlantillas.map((p) => (
+                  <div key={p.id} className="border rounded-lg p-3 hover:shadow transition flex flex-col">
+                    <div className="text-sm font-medium truncate" title={p.nombre}>{p.nombre}</div>
+                    <div className="text-xs text-gray-500 truncate mt-1">{p.storagePath}</div>
+
+                    <div className="mt-3 flex gap-2">
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs"
+                      >
+                        Ver
+                      </a>
+                      <button
+                        onClick={() => handleAssignPlantilla(p)}
+                        className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                      >
+                        Usar esta
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ALERTAS GLOBALES */}
       <ToastContainer
