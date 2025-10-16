@@ -1,3 +1,4 @@
+// src/paginas/EditarConstancias.jsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { motion } from "framer-motion"
@@ -5,14 +6,32 @@ import { ArrowLeft, Edit3, FileText, Save, Eye, User, Check, Users } from "lucid
 import itsppLogo from '../assets/logo.png'
 import { getConfigConstancia } from '../servicios/constancias'
 
-// pdf.js (con fallback para Render)
+/* ========================= pdf.js ROBUSTO (Render-safe) ========================= */
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
+import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+
+// 1) intento: worker como instancia (rápido para Vite)
+let workerSet = false
 try {
   GlobalWorkerOptions.workerPort = new pdfjsWorker()
-} catch {
-  GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs'
+  workerSet = true
+} catch {}
+
+// 2) fallback: asset URL emitido por Vite
+if (!workerSet) {
+  try {
+    GlobalWorkerOptions.workerSrc = workerUrl
+    workerSet = true
+  } catch {}
 }
+
+// 3) último intento: CDN (evita fallos de worker en Render)
+if (!workerSet) {
+  GlobalWorkerOptions.workerSrc =
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs'
+}
+/* ============================================================================== */
 
 export default function EditarConstancias() {
   const navigate = useNavigate()
@@ -20,16 +39,14 @@ export default function EditarConstancias() {
   const location = useLocation()
   const { integrantesSeleccionados, equipo, curso } = location.state || {}
 
-  const [cfg, setCfg] = useState(null) // { plantilla, campos[] }
-  const [constancias, setConstancias] = useState([])
+  const [cfg, setCfg] = useState(null)                  // { plantilla:{url,nombre,...}, campos:[...] }
+  const [constancias, setConstancias] = useState([])   // participantes a editar
   const [constanciaActual, setConstanciaActual] = useState(0)
   const [editandoNombre, setEditandoNombre] = useState(false)
   const [nombreEditado, setNombreEditado] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const handleGoBack = () => {
-    navigate(`/seleccionar-integrantes/${cursoId}/${equipoId}`)
-  }
+  const handleGoBack = () => navigate(`/seleccionar-integrantes/${cursoId}/${equipoId}`)
 
   const handleEditarNombre = (index) => {
     setConstanciaActual(index)
@@ -59,20 +76,17 @@ export default function EditarConstancias() {
   const formatearFecha = (fecha) => {
     if (!fecha) return 'Fecha no disponible'
     const date = new Date(fecha)
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+    return date.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
-  // ====== Cargar datos base + config de constancia del curso ======
+  /* ======================== Cargar datos base + configuración ======================== */
   useEffect(() => {
     if (!integrantesSeleccionados || !equipo || !curso) {
       navigate(`/equipos-curso/${cursoId}`)
       return
     }
 
+    // Participantes a editar
     const constanciasData = integrantesSeleccionados.map((integrante, index) => ({
       id: `${equipoId}-${index}`,
       nombre: integrante?.nombre || `Integrante ${index + 1}`,
@@ -91,7 +105,7 @@ export default function EditarConstancias() {
 
     ;(async () => {
       try {
-        const conf = await getConfigConstancia(cursoId) // { plantilla, campos[] }
+        const conf = await getConfigConstancia(cursoId) // { plantilla, campos }
         setCfg(conf || { campos: [] })
       } catch (e) {
         console.error('No se pudo cargar Cursos/{cursoId}.constancia:', e)
@@ -100,7 +114,7 @@ export default function EditarConstancias() {
     })()
   }, [integrantesSeleccionados, equipo, curso, cursoId, equipoId, navigate])
 
-  // ====== Preview A4: medida del contenedor ======
+  /* ======================== Medidas del contenedor A4 ======================== */
   const contRef = useRef(null)
   const bgCanvasRef = useRef(null)
   const [contSize, setContSize] = useState({ w: 595, h: 842 })
@@ -108,8 +122,7 @@ export default function EditarConstancias() {
   useLayoutEffect(() => {
     const measure = () => {
       if (!contRef.current) return
-      const r = contRef.current.getBoundingClientRect()
-      const w = r.width
+      const w = contRef.current.getBoundingClientRect().width
       const h = (842 / 595) * w
       setContSize({ w, h })
     }
@@ -119,16 +132,19 @@ export default function EditarConstancias() {
     return () => ro.disconnect()
   }, [])
 
-  // ====== Fondo PDF: cargar como ArrayBuffer (Render-safe) ======
+  /* ======================== Pintar fondo PDF en canvas (Render-safe) ======================== */
   useEffect(() => {
-    if (!cfg?.plantilla?.url || !bgCanvasRef.current || !contSize.w) return
     let cancelled = false
-    ;(async () => {
+
+    const paint = async () => {
+      if (!cfg?.plantilla?.url || !bgCanvasRef.current || !contSize.w) return
       try {
+        // Cargar PDF como ArrayBuffer evita problemas de CORS/range en Render
         const ab = await fetch(cfg.plantilla.url, { mode: 'cors', cache: 'no-store' }).then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`)
           return r.arrayBuffer()
         })
+
         const loading = getDocument({
           data: ab,
           isEvalSupported: false,
@@ -137,24 +153,32 @@ export default function EditarConstancias() {
         })
         const pdf = await loading.promise
         const page = await pdf.getPage(1)
+
         const scale = contSize.w / 595
         const viewport = page.getViewport({ scale })
+
         const canvas = bgCanvasRef.current
-        const ctx = canvas.getContext('2d')
-        canvas.width = Math.floor(viewport.width)
-        canvas.height = Math.floor(viewport.height)
+        const ctx = canvas.getContext('2d', { willReadFrequently: false })
+
+        // IMPORTANTE: asignar width/height nativos al canvas
+        canvas.width = Math.ceil(viewport.width)
+        canvas.height = Math.ceil(viewport.height)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+
         await page.render({ canvasContext: ctx, viewport }).promise
         if (cancelled) return
       } catch (e) {
         console.warn('No se pudo mostrar PDF de fondo:', e)
         const c = bgCanvasRef.current
-        if (c) { const ctx = c.getContext('2d'); ctx?.clearRect(0,0,c.width,c.height) }
+        if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height)
       }
-    })()
+    }
+
+    paint()
     return () => { cancelled = true }
   }, [cfg?.plantilla?.url, contSize.w])
 
-  // ====== Helpers de valores / rendering de campos ======
+  /* ======================== Helpers de valores y campos ======================== */
   const getValue = (key, c) => {
     const map = {
       NOMBRE: c?.nombre,
@@ -202,79 +226,79 @@ export default function EditarConstancias() {
     )
   }
 
-  // ====== PREVIEW con tu diseño + campos reales ======
-  const CertificatePreview = ({ constancia }) => {
-    return (
+  /* ======================== PREVIEW (tu diseño + PDF real) ======================== */
+  const CertificatePreview = ({ constancia }) => (
+    <motion.div
+      className="bg-white border-2 border-purple-200 rounded-2xl p-8 text-center space-y-6 shadow-xl relative overflow-hidden"
+      initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
+      animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+      transition={{ duration: 0.6 }}
+    >
+      {/* Decorativos */}
+      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-green-500 to-red-500"></div>
+      <div className="absolute top-4 right-4 w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-30"></div>
+      <div className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-30"></div>
+
       <motion.div
-        className="bg-white border-2 border-purple-200 rounded-2xl p-8 text-center space-y-6 shadow-xl relative overflow-hidden"
-        initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
-        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-        transition={{ duration: 0.6 }}
+        className="border-b border-purple-100 pb-6"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
       >
-        {/* decorativos */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-green-500 to-red-500"></div>
-        <div className="absolute top-4 right-4 w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-30"></div>
-        <div className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-30"></div>
-
         <motion.div
-          className="border-b border-purple-100 pb-6"
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+          whileHover={{ scale: 1.05, rotate: 5 }}
+          transition={{ duration: 0.3 }}
         >
-          <motion.div
-            className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            transition={{ duration: 0.3 }}
-          >
-            <img src={itsppLogo} alt="ITSPP Logo" className="w-12 h-12" />
-          </motion.div>
-          <h3 className="text-2xl text-blue-900">Instituto Tecnológico Superior</h3>
-          <h4 className="text-xl text-blue-900">de Puerto Peñasco</h4>
+          <img src={itsppLogo} alt="ITSPP Logo" className="w-12 h-12" />
         </motion.div>
+        <h3 className="text-2xl text-blue-900">Instituto Tecnológico Superior</h3>
+        <h4 className="text-xl text-blue-900">de Puerto Peñasco</h4>
+      </motion.div>
 
-        {/* PREVIEW real (fondo PDF + campos) */}
-        <div className="py-6">
-          <div
-            ref={contRef}
-            className="relative mx-auto rounded-xl overflow-hidden border border-purple-200 bg-white"
-            style={{
-              width: 'min(720px, 100%)',
-              aspectRatio: '595 / 842',
-              boxShadow: 'inset 0 0 32px rgba(124,58,237,.06)'
-            }}
-          >
-            <canvas ref={bgCanvasRef} className="absolute inset-0 w-full h-full" />
-            {Array.isArray(cfg?.campos) && cfg.campos.length > 0 && constancia && (
-              cfg.campos.map((c, i) => <Campo key={i} campo={c} participante={constancia} />)
-            )}
-            {(!cfg?.campos || cfg.campos.length === 0) && (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm p-6 text-center">
-                No hay campos configurados en <b className="mx-1">Cursos/{'{cursoId}'}.constancia.campos</b>
-              </div>
-            )}
-          </div>
-
-          <div className="pt-8 text-base text-gray-700">
-            <p>Puerto Peñasco, Sonora</p>
-            <p>{formatearFecha(constancia?.fechaGeneracion)}</p>
-          </div>
+      {/* Preview real: PDF en canvas + campos encima */}
+      <div className="py-6">
+        <div
+          ref={contRef}
+          className="relative mx-auto rounded-xl overflow-hidden border border-purple-200 bg-white"
+          style={{
+            width: 'min(720px, 100%)',
+            aspectRatio: '595 / 842',
+            boxShadow: 'inset 0 0 32px rgba(124,58,237,.06)'
+          }}
+        >
+          <canvas
+            ref={bgCanvasRef}
+            className="absolute inset-0 w-full h-full"
+            style={{ imageRendering: 'auto' }}
+          />
+          {Array.isArray(cfg?.campos) && cfg.campos.length > 0 && constancia && (
+            cfg.campos.map((c, i) => <Campo key={i} campo={c} participante={constancia} />)
+          )}
+          {(!cfg?.campos || cfg.campos.length === 0) && (
+            <div className="absolute inset-0 flex items-start justify-start p-6 text-slate-500 text-sm pointer-events:none">
+              No hay campos configurados en <b className="mx-1">Cursos/{{cursoId}}.constancia.campos</b>
+            </div>
+          )}
         </div>
 
-        <motion.div
-          className="border-t border-purple-100 pt-4 text-sm text-gray-500"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
-          <p>Categoría: {constancia?.categoria || 'Sin categoría'}</p>
-          {cfg?.plantilla?.nombre && (
-            <p className="mt-1 text-indigo-700">Plantilla: {cfg.plantilla.nombre}</p>
-          )}
-        </motion.div>
+        <div className="pt-8 text-base text-gray-700">
+          <p>Puerto Peñasco, Sonora</p>
+          <p>{formatearFecha(constancia?.fechaGeneracion)}</p>
+        </div>
+      </div>
+
+      <motion.div
+        className="border-t border-purple-100 pt-4 text-sm text-gray-500"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.6 }}
+      >
+        <p>Categoría: {constancia?.categoria || 'Sin categoría'}</p>
+        {cfg?.plantilla?.nombre && <p className="mt-1 text-indigo-700">Plantilla: {cfg.plantilla.nombre}</p>}
       </motion.div>
-    )
-  }
+    </motion.div>
+  )
 
   if (loading) {
     return (
@@ -294,7 +318,7 @@ export default function EditarConstancias() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 relative overflow-hidden flex flex-col">
-      {/* BG animado */}
+      {/* Fondo animado */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"
@@ -353,7 +377,7 @@ export default function EditarConstancias() {
       <main className="relative z-10 flex-1 overflow-hidden">
         <div className="h-full max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
 
-          {/* Sidebar izquierda */}
+          {/* Sidebar izquierda: participantes */}
           <motion.div
             className="lg:col-span-1"
             initial={{ x: -100, opacity: 0 }}
@@ -421,6 +445,7 @@ export default function EditarConstancias() {
           >
             {constancias.length > 0 && (
               <>
+                {/* Controles de edición */}
                 <div className="bg-white/80 backdrop-blur-xl border-purple-200 shadow-xl mb-6 rounded-xl overflow-hidden">
                   <div className="p-4 border-b border-purple-100">
                     <div className="flex items-center space-x-2 text-purple-900">
@@ -471,6 +496,7 @@ export default function EditarConstancias() {
                   </div>
                 </div>
 
+                {/* Preview */}
                 <motion.div
                   className="transform scale-90 origin-top"
                   key={constanciaActual}

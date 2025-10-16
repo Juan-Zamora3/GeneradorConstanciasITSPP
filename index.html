@@ -1,10 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png+xml" href="/logo.png" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestor De Constancias</title>
+
+    <!-- CSP pensada para Render + Firebase + pdf.js -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      base-uri 'self';
+      object-src 'none';
+      frame-ancestors 'self';
+      img-src 'self' data: blob: https://firebasestorage.googleapis.com;
+      font-src 'self' data:;
+      style-src 'self' 'unsafe-inline';
+      script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+      worker-src 'self' blob: https://cdn.jsdelivr.net;
+      connect-src 'self'
+        https://firebasestorage.googleapis.com
+        https://firestore.googleapis.com
+        https://www.googleapis.com
+        https://securetoken.googleapis.com
+        https://identitytoolkit.googleapis.com
+        https://firebaseinstallations.googleapis.com;
+    ">
+
+    <!-- (Opcional) preconnects para latencia menor con Firebase -->
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://firebaseinstallations.googleapis.com" crossorigin>
   </head>
   <body>
     <div id="root"></div>
