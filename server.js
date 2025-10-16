@@ -69,6 +69,41 @@ function approxBase64Bytes(b64) {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 /* =========================
+   GET /proxy-pdf
+   - Proxy sencillo para PDFs (evita CORS del bucket)
+   - Uso: /proxy-pdf?url=<URL_PUBLICA_DEL_PDF>
+========================= */
+app.get('/proxy-pdf', async (req, res) => {
+  try {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ error: 'missing url' });
+
+    // Node 18+ tiene fetch global
+    const r = await fetch(url);
+    if (!r.ok) {
+      return res.status(r.status).send(`upstream error (${r.status})`);
+    }
+
+    // Opcional: permitir CORS si tu front vive en otro dominio
+    res.setHeader('Access-Control-Allow-Origin', frontOrigin || '*');
+
+    // Propagar algunos headers útiles
+    const ct = r.headers.get('content-type') || 'application/pdf';
+    const ar = r.headers.get('accept-ranges');
+    if (ar) res.setHeader('Accept-Ranges', ar);
+    res.setHeader('Content-Type', ct);
+
+    // Enviar como buffer
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.setHeader('Content-Length', String(buf.length));
+    return res.status(200).end(buf);
+  } catch (e) {
+    console.error('proxy-pdf error:', e);
+    return res.status(500).json({ error: 'proxy error' });
+  }
+});
+
+/* =========================
    POST /EnviarCorreo
    - Enviar 1 adjunto (por persona)
    - Por defecto PDF, pero acepta Filename/ContentType para ser flexible
