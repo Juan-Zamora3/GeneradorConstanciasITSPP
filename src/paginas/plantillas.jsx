@@ -1,45 +1,66 @@
 import React, { useEffect, useState, useContext } from 'react'
 import { AuthContext } from '../contexto/AuthContext'
 import { db, storage } from '../servicios/firebaseConfig'
-import { collection, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc, query, orderBy } from 'firebase/firestore'
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  serverTimestamp,
+  deleteDoc,
+  doc,
+  query,
+  orderBy
+} from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
-import { FiLayers, FiUploadCloud, FiFileText, FiTrash2, FiEye, FiAlertCircle, FiPlus } from 'react-icons/fi'
+import { FiLayers, FiFileText, FiAlertCircle, FiPlus } from 'react-icons/fi'
 import { Link } from 'react-router-dom'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 
-// Configura el worker de pdf.js compatible con la versión instalada
+// Configura el worker de pdf.js (compatible con Vite)
 GlobalWorkerOptions.workerPort = new pdfjsWorker()
 
 export default function Plantillas() {
   const { usuario } = useContext(AuthContext)
+
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [plantillas, setPlantillas] = useState([])
-  const [thumbs, setThumbs] = useState({}) // {id: dataURL}
+  const [thumbs, setThumbs] = useState({}) // { [id]: dataURL }
   const [showModal, setShowModal] = useState(false)
   const [nombre, setNombre] = useState('')
 
+  // Cargar listado de plantillas
   useEffect(() => {
     const q = query(collection(db, 'Plantillas'), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(q, snap => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      setPlantillas(list)
-    })
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        setPlantillas(list)
+      },
+      err => {
+        console.error(err)
+        setError('No se pudieron cargar las plantillas.')
+      }
+    )
     return () => unsub()
   }, [])
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     setError('')
     const f = e.target.files?.[0]
-    if (!f) return setFile(null)
+    if (!f) {
+      setFile(null)
+      return
+    }
     if (f.type !== 'application/pdf') {
       setError('Solo se permiten archivos PDF.')
+      setFile(null)
       return
     }
     setFile(f)
-    // En modo modal, solo selecciona; se sube al confirmar
   }
 
   const handleUpload = async (f = file, providedName = null) => {
@@ -47,9 +68,12 @@ export default function Plantillas() {
     try {
       setUploading(true)
       setError('')
-      const path = `plantillas/${Date.now()}_${f.name.replace(/\s+/g, '_')}`
+
+      const safeName = f.name.replace(/\s+/g, '_')
+      const path = `plantillas/${Date.now()}_${safeName}`
       const storageRef = ref(storage, path)
-      await uploadBytes(storageRef, f)
+
+      await uploadBytes(storageRef, f, { contentType: 'application/pdf' })
       const url = await getDownloadURL(storageRef)
 
       await addDoc(collection(db, 'Plantillas'), {
@@ -65,7 +89,7 @@ export default function Plantillas() {
       setShowModal(false)
     } catch (err) {
       console.error(err)
-      setError('Error al subir la plantilla')
+      setError('Error al subir la plantilla.')
     } finally {
       setUploading(false)
     }
@@ -81,19 +105,25 @@ export default function Plantillas() {
       await deleteDoc(doc(db, 'Plantillas', plantilla.id))
     } catch (err) {
       console.error(err)
-      setError('No se pudo eliminar la plantilla')
+      setError('No se pudo eliminar la plantilla.')
     }
   }
 
-  // Genera miniatura de la primera página del PDF
+  // Generar miniatura de la primera página del PDF
   const generateThumbnail = async (pdfUrl) => {
     try {
-      const loadingTask = getDocument({ url: pdfUrl, isEvalSupported: false })
+      const loadingTask = getDocument({
+        url: pdfUrl,
+        // Estas banderas mejoran compatibilidad en navegadores con CSP estricta
+        isEvalSupported: false,
+        useWorkerFetch: true,
+        disableFontFace: false
+      })
       const pdf = await loadingTask.promise
       const page = await pdf.getPage(1)
       const viewport = page.getViewport({ scale: 0.35 })
       const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
+      const ctx = canvas.getContext('2d', { willReadFrequently: false })
       canvas.width = viewport.width
       canvas.height = viewport.height
       await page.render({ canvasContext: ctx, viewport }).promise
@@ -104,20 +134,32 @@ export default function Plantillas() {
     }
   }
 
-  // Genera miniaturas para nuevas plantillas
+  // Generar miniaturas solo para las plantillas que aún no la tienen
   useEffect(() => {
-    let alive = true
-    const run = async () => {
-      for (const p of plantillas) {
-        if (!thumbs[p.id]) {
+    let cancelled = false
+    ;(async () => {
+      const pendientes = plantillas.filter(p => !thumbs[p.id] && p.url)
+      if (!pendientes.length) return
+
+      const pares = await Promise.all(
+        pendientes.map(async (p) => {
           const dataUrl = await generateThumbnail(p.url)
-          if (alive && dataUrl) setThumbs(t => ({ ...t, [p.id]: dataUrl }))
+          return [p.id, dataUrl]
+        })
+      )
+
+      if (cancelled) return
+      setThumbs(prev => {
+        const next = { ...prev }
+        for (const [id, dataUrl] of pares) {
+          if (dataUrl) next[id] = dataUrl
         }
-      }
-    }
-    run()
-    return () => { alive = false }
-  }, [plantillas])
+        return next
+      })
+    })()
+
+    return () => { cancelled = true }
+  }, [plantillas, thumbs])
 
   return (
     <div className="p-6">
@@ -131,7 +173,7 @@ export default function Plantillas() {
             onClick={() => { setShowModal(true); setError(''); setFile(null); setNombre(''); }}
             className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 flex items-center"
           >
-            <FiPlus className="mr-1"/> Crear plantilla
+            <FiPlus className="mr-1" /> Crear plantilla
           </button>
         </div>
       </div>
@@ -141,6 +183,7 @@ export default function Plantillas() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-5">
             <h3 className="text-lg font-semibold mb-3">Crear plantilla</h3>
+
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la plantilla</label>
@@ -152,15 +195,24 @@ export default function Plantillas() {
                   placeholder="Ej. Constancia Oficial 2025"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Archivo PDF</label>
-                <input type="file" accept="application/pdf" onChange={handleFileChange} className="block w-full" />
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileChange}
+                  className="block w-full"
+                />
                 {file && <p className="text-xs text-gray-500 mt-1">Seleccionado: {file.name}</p>}
                 {error && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1"><FiAlertCircle/> {error}</p>
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                    <FiAlertCircle /> {error}
+                  </p>
                 )}
               </div>
             </div>
+
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => { setShowModal(false); setFile(null); setNombre(''); setError(''); }}
@@ -171,7 +223,9 @@ export default function Plantillas() {
               <button
                 onClick={() => handleUpload(file, nombre)}
                 disabled={!file || uploading || !nombre.trim()}
-                className={`px-4 py-2 rounded text-white ${(!file || uploading || !nombre.trim()) ? 'bg-gray-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+                className={`px-4 py-2 rounded text-white ${(!file || uploading || !nombre.trim())
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-teal-600 hover:bg-teal-700'}`}
               >
                 {uploading ? 'Creando…' : 'Crear'}
               </button>
@@ -184,26 +238,38 @@ export default function Plantillas() {
       <div className="bg-white rounded-xl shadow p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            <FiFileText className="text-teal-600"/> Plantillas guardadas
+            <FiFileText className="text-teal-600" /> Plantillas guardadas
           </h3>
         </div>
+
         {!plantillas.length ? (
           <div className="text-center text-gray-500 py-6">Aún no hay plantillas cargadas.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {plantillas.map((p) => (
-              <div key={p.id} className="rounded-xl border border-gray-200 shadow-sm hover:shadow transition">
+              <div
+                key={p.id}
+                className="rounded-xl border border-gray-200 shadow-sm hover:shadow transition"
+              >
                 <div className="w-full h-40 bg-gray-100 rounded-t-xl overflow-hidden flex items-center justify-center">
                   {thumbs[p.id] ? (
-                    <img src={thumbs[p.id]} alt={`Miniatura ${p.nombre}`} className="w-full h-full object-cover" />
+                    <img
+                      src={thumbs[p.id]}
+                      alt={`Miniatura ${p.nombre}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
                   ) : (
                     <div className="flex items-center justify-center w-full h-full text-gray-400">
                       <FiFileText className="text-4xl" />
                     </div>
                   )}
                 </div>
+
                 <div className="p-3">
-                  <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate" title={p.nombre}>
+                    {p.nombre}
+                  </p>
                   <div className="mt-2 flex items-center gap-2">
                     <Link
                       to={`/plantillas/${p.id}`}
