@@ -2,23 +2,20 @@ import React, { useEffect, useState, useContext } from 'react'
 import { AuthContext } from '../contexto/AuthContext'
 import { db, storage } from '../servicios/firebaseConfig'
 import {
-  collection,
-  addDoc,
-  onSnapshot,
-  serverTimestamp,
-  deleteDoc,
-  doc,
-  query,
-  orderBy
+  collection, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc, query, orderBy
 } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { FiLayers, FiFileText, FiAlertCircle, FiPlus } from 'react-icons/fi'
 import { Link } from 'react-router-dom'
+
+// pdf.js (con fallback para Render)
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
-
-// Configura el worker de pdf.js (compatible con Vite)
-GlobalWorkerOptions.workerPort = new pdfjsWorker()
+try {
+  GlobalWorkerOptions.workerPort = new pdfjsWorker()
+} catch {
+  GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs'
+}
 
 export default function Plantillas() {
   const { usuario } = useContext(AuthContext)
@@ -109,21 +106,24 @@ export default function Plantillas() {
     }
   }
 
-  // Generar miniatura de la primera página del PDF
+  // Miniatura PDF: descarga como ArrayBuffer (funciona en Render)
   const generateThumbnail = async (pdfUrl) => {
     try {
+      const ab = await fetch(pdfUrl, { mode: 'cors', cache: 'no-store' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.arrayBuffer()
+      })
       const loadingTask = getDocument({
-        url: pdfUrl,
-        // Estas banderas mejoran compatibilidad en navegadores con CSP estricta
+        data: ab,
         isEvalSupported: false,
-        useWorkerFetch: true,
-        disableFontFace: false
+        useWorkerFetch: false,
+        useSystemFonts: true
       })
       const pdf = await loadingTask.promise
       const page = await pdf.getPage(1)
       const viewport = page.getViewport({ scale: 0.35 })
       const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d', { willReadFrequently: false })
+      const ctx = canvas.getContext('2d')
       canvas.width = viewport.width
       canvas.height = viewport.height
       await page.render({ canvasContext: ctx, viewport }).promise

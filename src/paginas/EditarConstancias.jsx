@@ -1,14 +1,18 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { getConfigConstancia } from '../servicios/constancias'
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs'
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
 import { motion } from "framer-motion"
 import { ArrowLeft, Edit3, FileText, Save, Eye, User, Check, Users } from "lucide-react"
 import itsppLogo from '../assets/logo.png'
+import { getConfigConstancia } from '../servicios/constancias'
 
-// pdf.js worker
-GlobalWorkerOptions.workerPort = new pdfjsWorker()
+// pdf.js (con fallback para Render)
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/build/pdf.mjs'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker'
+try {
+  GlobalWorkerOptions.workerPort = new pdfjsWorker()
+} catch {
+  GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs'
+}
 
 export default function EditarConstancias() {
   const navigate = useNavigate()
@@ -23,12 +27,9 @@ export default function EditarConstancias() {
   const [nombreEditado, setNombreEditado] = useState('')
   const [loading, setLoading] = useState(true)
 
-  // Preview A4 container & background canvas
-  const contRef = useRef(null)
-  const bgCanvasRef = useRef(null)
-  const [contSize, setContSize] = useState({ w: 595, h: 842 })
-
-  const handleGoBack = () => navigate(`/seleccionar-integrantes/${cursoId}/${equipoId}`)
+  const handleGoBack = () => {
+    navigate(`/seleccionar-integrantes/${cursoId}/${equipoId}`)
+  }
 
   const handleEditarNombre = (index) => {
     setConstanciaActual(index)
@@ -37,7 +38,9 @@ export default function EditarConstancias() {
   }
 
   const handleGuardarNombre = () => {
-    setConstancias(prev => prev.map((c, i) => i === constanciaActual ? { ...c, nombre: nombreEditado } : c))
+    setConstancias(prev => prev.map((c, i) =>
+      i === constanciaActual ? { ...c, nombre: nombreEditado } : c
+    ))
     setEditandoNombre(false)
     setNombreEditado('')
   }
@@ -55,35 +58,37 @@ export default function EditarConstancias() {
 
   const formatearFecha = (fecha) => {
     if (!fecha) return 'Fecha no disponible'
-    const d = new Date(fecha)
-    return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+    const date = new Date(fecha)
+    return date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
   }
 
-  // ------- Carga inicial: validar inputs + crear constancias + leer config del curso
+  // ====== Cargar datos base + config de constancia del curso ======
   useEffect(() => {
     if (!integrantesSeleccionados || !equipo || !curso) {
       navigate(`/equipos-curso/${cursoId}`)
       return
     }
 
-    // Crea constancias base con info del integrante y del curso/equipo
-    const data = integrantesSeleccionados.map((integrante, index) => ({
+    const constanciasData = integrantesSeleccionados.map((integrante, index) => ({
       id: `${equipoId}-${index}`,
       nombre: integrante?.nombre || `Integrante ${index + 1}`,
       email: integrante?.email || '',
-      equipo: equipo?.nombre || '',
-      lider: equipo?.lider || '',
-      categoria: equipo?.categoria || '',
-      curso: curso?.nombre || curso?.cursoNombre || '',
-      instructor: curso?.instructor || '',
+      equipo: equipo?.nombre,
+      lider: equipo?.lider,
+      categoria: equipo?.categoria,
+      curso: curso?.nombre || curso?.cursoNombre,
+      instructor: curso?.instructor,
       fechaGeneracion: new Date(),
-      mensaje: `Por su participación en "${(curso?.nombre || curso?.cursoNombre || '')}" como ${integrante?.nombre === equipo?.lider ? 'Líder' : 'Integrante'} del equipo "${equipo?.nombre || ''}".`,
+      mensaje: `Por su participación en "${curso?.nombre || curso?.cursoNombre}" como ${integrante?.nombre === equipo?.lider ? 'Líder' : 'Integrante'} del equipo "${equipo?.nombre}".`,
       folio: integrante?.folio || ''
     }))
-    setConstancias(data)
+    setConstancias(constanciasData)
     setLoading(false)
 
-    // Carga config guardada en el curso
     ;(async () => {
       try {
         const conf = await getConfigConstancia(cursoId) // { plantilla, campos[] }
@@ -95,7 +100,11 @@ export default function EditarConstancias() {
     })()
   }, [integrantesSeleccionados, equipo, curso, cursoId, equipoId, navigate])
 
-  // ------- Medir contenedor A4 (para convertir % a px)
+  // ====== Preview A4: medida del contenedor ======
+  const contRef = useRef(null)
+  const bgCanvasRef = useRef(null)
+  const [contSize, setContSize] = useState({ w: 595, h: 842 })
+
   useLayoutEffect(() => {
     const measure = () => {
       if (!contRef.current) return
@@ -110,13 +119,22 @@ export default function EditarConstancias() {
     return () => ro.disconnect()
   }, [])
 
-  // ------- Renderizar plantilla PDF de fondo (página 1)
+  // ====== Fondo PDF: cargar como ArrayBuffer (Render-safe) ======
   useEffect(() => {
     if (!cfg?.plantilla?.url || !bgCanvasRef.current || !contSize.w) return
     let cancelled = false
     ;(async () => {
       try {
-        const loading = getDocument({ url: cfg.plantilla.url, isEvalSupported: false })
+        const ab = await fetch(cfg.plantilla.url, { mode: 'cors', cache: 'no-store' }).then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.arrayBuffer()
+        })
+        const loading = getDocument({
+          data: ab,
+          isEvalSupported: false,
+          useWorkerFetch: false,
+          useSystemFonts: true
+        })
         const pdf = await loading.promise
         const page = await pdf.getPage(1)
         const scale = contSize.w / 595
@@ -129,12 +147,14 @@ export default function EditarConstancias() {
         if (cancelled) return
       } catch (e) {
         console.warn('No se pudo mostrar PDF de fondo:', e)
+        const c = bgCanvasRef.current
+        if (c) { const ctx = c.getContext('2d'); ctx?.clearRect(0,0,c.width,c.height) }
       }
     })()
     return () => { cancelled = true }
   }, [cfg?.plantilla?.url, contSize.w])
 
-  // ------- Helpers de valores y campo posicionado
+  // ====== Helpers de valores / rendering de campos ======
   const getValue = (key, c) => {
     const map = {
       NOMBRE: c?.nombre,
@@ -182,7 +202,7 @@ export default function EditarConstancias() {
     )
   }
 
-  // -------- Componente de previsualización (tu diseño + preview real)
+  // ====== PREVIEW con tu diseño + campos reales ======
   const CertificatePreview = ({ constancia }) => {
     return (
       <motion.div
@@ -191,14 +211,29 @@ export default function EditarConstancias() {
         animate={{ opacity: 1, scale: 1, rotateY: 0 }}
         transition={{ duration: 0.6 }}
       >
-        {/* Decorativos de tu diseño */}
+        {/* decorativos */}
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-green-500 to-red-500"></div>
         <div className="absolute top-4 right-4 w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-30"></div>
         <div className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-30"></div>
 
-      
+        <motion.div
+          className="border-b border-purple-100 pb-6"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <motion.div
+            className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+            whileHover={{ scale: 1.05, rotate: 5 }}
+            transition={{ duration: 0.3 }}
+          >
+            <img src={itsppLogo} alt="ITSPP Logo" className="w-12 h-12" />
+          </motion.div>
+          <h3 className="text-2xl text-blue-900">Instituto Tecnológico Superior</h3>
+          <h4 className="text-xl text-blue-900">de Puerto Peñasco</h4>
+        </motion.div>
 
-        {/* Aquí va la PREVIEW REAL (PDF fondo + campos en coordenadas) */}
+        {/* PREVIEW real (fondo PDF + campos) */}
         <div className="py-6">
           <div
             ref={contRef}
@@ -209,17 +244,10 @@ export default function EditarConstancias() {
               boxShadow: 'inset 0 0 32px rgba(124,58,237,.06)'
             }}
           >
-            {/* Fondo PDF (si hay plantilla) */}
             <canvas ref={bgCanvasRef} className="absolute inset-0 w-full h-full" />
-
-            {/* Pintar campos si existen */}
             {Array.isArray(cfg?.campos) && cfg.campos.length > 0 && constancia && (
-              cfg.campos.map((c, i) => (
-                <Campo key={i} campo={c} participante={constancia} />
-              ))
+              cfg.campos.map((c, i) => <Campo key={i} campo={c} participante={constancia} />)
             )}
-
-            {/* Fallback si no hay campos configurados */}
             {(!cfg?.campos || cfg.campos.length === 0) && (
               <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm p-6 text-center">
                 No hay campos configurados en <b className="mx-1">Cursos/{'{cursoId}'}.constancia.campos</b>
@@ -227,7 +255,6 @@ export default function EditarConstancias() {
             )}
           </div>
 
-          {/* Pie con fecha/categoría (tu diseño) */}
           <div className="pt-8 text-base text-gray-700">
             <p>Puerto Peñasco, Sonora</p>
             <p>{formatearFecha(constancia?.fechaGeneracion)}</p>
@@ -267,7 +294,7 @@ export default function EditarConstancias() {
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 relative overflow-hidden flex flex-col">
-      {/* Fondos animados (tu diseño) */}
+      {/* BG animado */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"
@@ -325,7 +352,8 @@ export default function EditarConstancias() {
       {/* Main */}
       <main className="relative z-10 flex-1 overflow-hidden">
         <div className="h-full max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar izquierda: participantes */}
+
+          {/* Sidebar izquierda */}
           <motion.div
             className="lg:col-span-1"
             initial={{ x: -100, opacity: 0 }}
@@ -364,10 +392,7 @@ export default function EditarConstancias() {
                       </div>
                       <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditarNombre(index)
-                          }}
+                          onClick={(e) => { e.stopPropagation(); handleEditarNombre(index) }}
                           className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -387,7 +412,7 @@ export default function EditarConstancias() {
             </div>
           </motion.div>
 
-          {/* Centro: preview + edición de nombre */}
+          {/* Centro: edición + preview */}
           <motion.div
             className="lg:col-span-2 overflow-y-auto"
             initial={{ y: 50, opacity: 0 }}
@@ -446,7 +471,6 @@ export default function EditarConstancias() {
                   </div>
                 </div>
 
-                {/* PREVIEW con tu diseño pero dibujando los campos reales */}
                 <motion.div
                   className="transform scale-90 origin-top"
                   key={constanciaActual}
@@ -460,7 +484,7 @@ export default function EditarConstancias() {
             )}
           </motion.div>
 
-          {/* Derecha: panel de confirmación */}
+          {/* Derecha: confirmación */}
           <motion.div
             className="lg:col-span-1 flex flex-col justify-center"
             initial={{ x: 100, opacity: 0 }}
@@ -509,7 +533,7 @@ export default function EditarConstancias() {
         </div>
       </main>
 
-      {/* Modal: editar nombre */}
+      {/* Modal edición de nombre */}
       {editandoNombre && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <motion.div
