@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { CheckCircle, Printer, FileText, Home, Sparkles, Award, Star } from 'lucide-react'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import JSZip from 'jszip'
@@ -161,48 +160,41 @@ export default function ImprimirConstancias() {
 
   if (!constancias || !equipo || !curso || !factura || !cfg) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <motion.div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 flex items-center space-x-4" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 flex items-center justify-center">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 flex items-center space-x-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="text-gray-700 font-medium">Preparando constancias…</span>
-        </motion.div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 relative overflow-hidden">
       {impresionCompleta && (
         <div className="absolute inset-0 pointer-events-none">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <motion.div key={i} className="absolute" style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%` }}
-              initial={{ opacity: 0, scale: 0, rotate: 0 }}
-              animate={{ opacity: [0,1,0], scale: [0,1,0], rotate: [0,360], y: [0,-100] }}
-              transition={{ duration: 3, delay: i * 0.1, ease: 'easeOut' }}>
-              {i % 3 === 0 ? <Star className="w-4 h-4 text-yellow-400" /> : i % 3 === 1 ? <Sparkles className="w-4 h-4 text-purple-400" /> : <Award className="w-4 h-4 text-green-400" />}
-            </motion.div>
-          ))}
+          <div className="absolute top-10 left-10 w-20 h-20 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-40"></div>
+          <div className="absolute bottom-12 right-16 w-24 h-24 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-30"></div>
         </div>
       )}
 
       <div className="min-h-screen flex items-center justify-center relative z-10">
         <div className="max-w-3xl mx-auto px-8 w-full">
-          <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, type: 'spring', stiffness: 100 }}>
-            <div className="bg-white/80 backdrop-blur-xl border-indigo-200 shadow-2xl overflow-hidden relative rounded-xl">
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400"></div>
+          <div>
+            <div className="bg-white/80 backdrop-blur-xl border-blue-200 shadow-2xl overflow-hidden relative rounded-xl">
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400"></div>
               <div className="p-16 text-center space-y-10">
                 {generandoPDFs || !impresionCompleta ? (
                   <>
-                    <motion.div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mx-auto shadow-2xl"
-                      animate={{ scale: [1,1.1,1], rotate: [0,5,-5,0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
-                      <motion.div animate={{ y: [0,-10,0] }} transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}>
-                        <Printer className="w-16 h-16 text-indigo-600" />
-                      </motion.div>
-                    </motion.div>
+                    <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                      <div>
+                        <Printer className="w-16 h-16 text-blue-600" />
+                      </div>
+                    </div>
 
                     <div className="space-y-6">
-                      <motion.h1 className="text-4xl bg-gradient-to-r from-indigo-900 to-purple-700 bg-clip-text text-transparent">Generando Constancias</motion.h1>
-                      <motion.p className="text-gray-600 text-xl">Preparando documentos con la plantilla y posiciones guardadas…</motion.p>
+                      <h1 className="text-4xl bg-gradient-to-r from-blue-900 to-cyan-700 bg-clip-text text-transparent">Generando Constancias</h1>
+                      <p className="text-gray-600 text-xl">Preparando documentos con la plantilla y posiciones guardadas…</p>
                     </div>
 
                     <div className="space-y-6">
@@ -212,30 +204,30 @@ export default function ImprimirConstancias() {
                       </div>
                       <div className="relative">
                         <div className="w-full h-4 bg-gray-200 rounded-full"></div>
-                        <motion.div className="absolute top-0 left-0 h-4 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full" style={{ width: `${progreso}%` }} />
+                        <div className="absolute top-0 left-0 h-4 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full" style={{ width: `${progreso}%` }} />
                       </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <motion.div className="w-32 h-32 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto shadow-2xl" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <CheckCircle className="w-16 h-16 text-green-600" />
-                    </motion.div>
-
-                    <div className="space-y-6">
-                      <motion.h1 className="text-4xl bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">¡Impresión Completada!</motion.h1>
-                      <motion.p className="text-gray-600 text-xl">Se han generado y subido {constanciasGeneradas.length} constancia{constanciasGeneradas.length !== 1 ? 's' : ''}.</motion.p>
+                    <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full flex items-center justify-center mx-auto shadow-2xl">
+                      <CheckCircle className="w-16 h-16 text-blue-600" />
                     </div>
 
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 shadow-lg rounded-xl p-8">
+                    <div className="space-y-6">
+                      <h1 className="text-4xl bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">¡Impresión Completada!</h1>
+                      <p className="text-gray-600 text-xl">Se han generado y subido {constanciasGeneradas.length} constancia{constanciasGeneradas.length !== 1 ? 's' : ''}.</p>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 shadow-lg rounded-xl p-8">
                       <div className="space-y-4">
-                        <h3 className="text-green-800 text-xl font-medium">Constancias generadas:</h3>
+                        <h3 className="text-blue-800 text-xl font-medium">Constancias generadas:</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {constanciasGeneradas.map((c, idx) => (
                             <div key={idx} className="flex items-center justify-between space-x-3 p-3 bg-white/50 rounded-lg">
                               <div className="flex items-center space-x-2">
-                                <CheckCircle className="w-5 h-5 text-green-600" />
-                                <a href={c.pdfUrl} target="_blank" rel="noreferrer" className="text-green-700 font-medium underline">
+                                <CheckCircle className="w-5 h-5 text-blue-600" />
+                                <a href={c.pdfUrl} target="_blank" rel="noreferrer" className="text-blue-700 font-medium underline">
                                   {c.nombre}
                                 </a>
                               </div>
@@ -243,13 +235,13 @@ export default function ImprimirConstancias() {
                           ))}
                         </div>
                         <div className="mt-6">
-                          <button onClick={descargarTodas} className="px-6 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium shadow">Descargar ZIP</button>
+                          <button onClick={descargarTodas} className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow">Descargar ZIP</button>
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-6">
-                      <button onClick={handleVolverInicio} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-12 py-4 text-lg shadow-xl hover:shadow-2xl transition-all duration-300 w-full rounded-xl flex items-center justify-center">
+                      <button onClick={handleVolverInicio} className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-12 py-4 text-lg shadow-xl hover:shadow-2xl transition-all duration-300 w-full rounded-xl flex items-center justify-center">
                         <Home className="w-5 h-5 mr-3" /> Regresar al Inicio
                       </button>
                       <div className="text-blue-600 text-sm mt-2">
@@ -260,7 +252,7 @@ export default function ImprimirConstancias() {
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

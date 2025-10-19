@@ -83,11 +83,11 @@ export default function EquiposCurso() {
   }, [cursoId])
 
   useEffect(() => {
-    const filtered = equipos.filter(equipo =>
-      equipo.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    setEquiposFiltrados(filtered)
-  }, [searchTerm, equipos])
+    const filtered = equipos
+      .filter(equipo => equipo.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    setEquiposFiltrados(filtered);
+  }, [searchTerm, equipos]);
 
   // Asignar colores a los equipos
   const getTeamColor = (index, categoria) => {
@@ -211,16 +211,14 @@ export default function EquiposCurso() {
         <div className="h-full max-w-7xl mx-auto px-12 py-12 grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* Teams Section - Takes 3 columns */}
-          <div className="lg:col-span-3 overflow-y-auto px-6">
-            {/* Search Section */}
+          <div className="lg:col-span-3 flex flex-col min-h-0">
+            {/* Search Section - Static */}
             <motion.div 
-              className="mb-8"
+              className="mb-8 flex-shrink-0"
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
-
-              
               <motion.div 
                 className="relative max-w-2xl mx-auto"
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -248,86 +246,88 @@ export default function EquiposCurso() {
               </motion.div>
             </motion.div>
 
-            {/* Teams Grid */}
-            {loading ? (
-              <div className="flex justify-center items-center h-64">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full"
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {equiposFiltrados.map((equipo, index) => {
-                  const teamColor = getTeamColor(index, equipo.categoria);
-                  const colorNumber = String(index + 1).padStart(2, '0');
-                  
-                  return (
-                    <motion.div
-                      key={equipo.id}
-                      initial={{ opacity: 0, y: 50 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ 
-                        duration: 0.5, 
-                        delay: index * 0.1
-                      }}
-                      whileHover={{ 
-                        y: -5,
-                        scale: 1.02
-                      }}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/seleccionar-integrantes/${cursoId}/${equipo.id}`)}
-                    >
-                      <div className="w-full bg-white shadow-[0px_0px_15px_rgba(0,0,0,0.09)] p-9 space-y-3 relative overflow-hidden rounded-lg hover:shadow-[0px_0px_25px_rgba(0,0,0,0.15)] transition-shadow duration-300">
-                        {/* Círculo de color en esquina superior derecha con estrella */}
-                        <motion.div 
-                          className={`w-24 h-24 bg-gradient-to-br ${teamColor} rounded-full absolute -right-5 -top-7 flex items-center justify-center`}
-                          whileHover={{ 
-                            rotate: 360
-                          }}
-                          transition={{ 
-                            duration: 2, 
-                            ease: "easeInOut" 
-                          }}
-                        >
-                          <Star className="w-8 h-8 text-white fill-white" />
-                        </motion.div>
-                        
-                        {/* Ícono principal */}
-                        <div className={`fill-current w-12 text-gray-600`}>
-                          <svg 
-                            viewBox="0 0 24 24" 
-                            data-name="Layer 1" 
-                            id="Layer_1" 
-                            xmlns="http://www.w3.org/2000/svg"
-                          > 
-                            <path 
-                              d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-                            />
-                          </svg>
+            {/* Teams Grid - Scrollable */}
+            <div className="flex-1 overflow-y-auto pr-2">
+              {loading ? (
+                <div className="flex justify-center items-center h-64">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {equiposFiltrados.map((equipo, index) => {
+                    const teamColor = getTeamColor(index, equipo.categoria);
+                    const colorNumber = String(index + 1).padStart(2, '0');
+                    
+                    return (
+                      <motion.div
+                        key={equipo.id}
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ 
+                          duration: 0.5, 
+                          delay: index * 0.1
+                        }}
+                        whileHover={{ 
+                          y: -5,
+                          scale: 1.02
+                        }}
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/seleccionar-integrantes/${cursoId}/${equipo.id}`)}
+                      >
+                        <div className="w-full bg-white shadow-[0px_0px_15px_rgba(0,0,0,0.09)] p-9 space-y-3 relative overflow-hidden rounded-lg hover:shadow-[0px_0px_25px_rgba(0,0,0,0.15)] transition-shadow duration-300">
+                          {/* Círculo de color en esquina superior derecha con estrella */}
+                          <motion.div 
+                            className={`w-24 h-24 bg-gradient-to-br ${teamColor} rounded-full absolute -right-5 -top-7 flex items-center justify-center`}
+                            whileHover={{ 
+                              rotate: 360
+                            }}
+                            transition={{ 
+                              duration: 2, 
+                              ease: "easeInOut" 
+                            }}
+                          >
+                            <Star className="w-8 h-8 text-white fill-white" />
+                          </motion.div>
+                          
+                          {/* Ícono principal */}
+                          <div className={`fill-current w-12 text-gray-600`}>
+                            <svg 
+                              viewBox="0 0 24 24" 
+                              data-name="Layer 1" 
+                              id="Layer_1" 
+                              xmlns="http://www.w3.org/2000/svg"
+                            > 
+                              <path 
+                                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                              />
+                            </svg>
+                          </div>
+                          
+                          {/* Título del equipo */}
+                          <h1 className="font-semibold text-xl text-gray-900 leading-tight">
+                            {equipo.nombre}
+                          </h1>
+                          
+                          {/* Descripción/Información */}
+                          <div className="space-y-2">
+                            <p className="text-sm text-zinc-500 leading-6 font-medium">
+                              <span className="font-semibold text-zinc-700">Líder:</span> {equipo.lider}
+                            </p>
+                            <p className="text-sm text-zinc-500 leading-6 font-medium">
+                              <span className="font-semibold text-zinc-700">Categoría:</span> {equipo.categoria || 'General'}
+                            </p>
+                          </div>
                         </div>
-                        
-                        {/* Título del equipo */}
-                        <h1 className="font-semibold text-xl text-gray-900 leading-tight">
-                          {equipo.nombre}
-                        </h1>
-                        
-                        {/* Descripción/Información */}
-                        <div className="space-y-2">
-                          <p className="text-sm text-zinc-500 leading-6 font-medium">
-                            <span className="font-semibold text-zinc-700">Líder:</span> {equipo.lider}
-                          </p>
-                          <p className="text-sm text-zinc-500 leading-6 font-medium">
-                            <span className="font-semibold text-zinc-700">Categoría:</span> {equipo.categoria || 'General'}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right Sidebar - Action Panel */}

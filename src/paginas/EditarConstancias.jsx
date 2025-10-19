@@ -1,7 +1,7 @@
 // src/paginas/EditarConstancias.jsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { motion } from "framer-motion"
+
 import { ArrowLeft, Edit3, FileText, Save, Eye, User, Check, Users } from "lucide-react"
 import itsppLogo from '../assets/logo.png'
 import { getConfigConstancia } from '../servicios/constancias'
@@ -228,43 +228,29 @@ export default function EditarConstancias() {
 
   /* ======================== PREVIEW (tu diseño + PDF real) ======================== */
   const CertificatePreview = ({ constancia }) => (
-    <motion.div
-      className="bg-white border-2 border-purple-200 rounded-2xl p-8 text-center space-y-6 shadow-xl relative overflow-hidden"
-      initial={{ opacity: 0, scale: 0.9, rotateY: -10 }}
-      animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-      transition={{ duration: 0.6 }}
-    >
+    <div className="bg-white border-2 border-blue-200 rounded-2xl p-8 text-center space-y-6 shadow-xl relative overflow-hidden">
       {/* Decorativos */}
-      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-green-500 to-red-500"></div>
+      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500"></div>
       <div className="absolute top-4 right-4 w-16 h-16 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-full opacity-30"></div>
-      <div className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full opacity-30"></div>
+      <div className="absolute bottom-4 left-4 w-12 h-12 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-full opacity-30"></div>
 
-      <motion.div
-        className="border-b border-purple-100 pb-6"
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-      >
-        <motion.div
-          className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-          whileHover={{ scale: 1.05, rotate: 5 }}
-          transition={{ duration: 0.3 }}
-        >
+      <div className="border-b border-blue-100 pb-6">
+        <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
           <img src={itsppLogo} alt="ITSPP Logo" className="w-12 h-12" />
-        </motion.div>
+        </div>
         <h3 className="text-2xl text-blue-900">Instituto Tecnológico Superior</h3>
         <h4 className="text-xl text-blue-900">de Puerto Peñasco</h4>
-      </motion.div>
+      </div>
 
       {/* Preview real: PDF en canvas + campos encima */}
       <div className="py-6">
         <div
           ref={contRef}
-          className="relative mx-auto rounded-xl overflow-hidden border border-purple-200 bg-white"
+          className="relative mx-auto rounded-xl overflow-hidden border border-blue-200 bg-white"
           style={{
             width: 'min(720px, 100%)',
             aspectRatio: '595 / 842',
-            boxShadow: 'inset 0 0 32px rgba(124,58,237,.06)'
+            boxShadow: 'inset 0 0 32px rgba(37,99,235,.06)'
           }}
         >
           <canvas
@@ -277,7 +263,7 @@ export default function EditarConstancias() {
           )}
           {(!cfg?.campos || cfg.campos.length === 0) && (
             <div className="absolute inset-0 flex items-start justify-start p-6 text-slate-500 text-sm pointer-events:none">
-              No hay campos configurados en <b className="mx-1">Cursos/{{cursoId}}.constancia.campos</b>
+              No hay campos configurados en <b className="mx-1">Cursos/{cursoId}.constancia.campos</b>
             </div>
           )}
         </div>
@@ -288,140 +274,106 @@ export default function EditarConstancias() {
         </div>
       </div>
 
-      <motion.div
-        className="border-t border-purple-100 pt-4 text-sm text-gray-500"
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.6 }}
-      >
+      <div className="border-t border-blue-100 pt-4 text-sm text-gray-500">
         <p>Categoría: {constancia?.categoria || 'Sin categoría'}</p>
-        {cfg?.plantilla?.nombre && <p className="mt-1 text-indigo-700">Plantilla: {cfg.plantilla.nombre}</p>}
-      </motion.div>
-    </motion.div>
+        {cfg?.plantilla?.nombre && <p className="mt-1 text-blue-700">Plantilla: {cfg.plantilla.nombre}</p>}
+      </div>
+    </div>
   )
 
   if (loading) {
     return (
-      <div className="h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <motion.div
-          className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 flex items-center space-x-4"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 flex items-center justify-center">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8 flex items-center space-x-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="text-gray-700 font-medium">Preparando constancias...</span>
-        </motion.div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 relative overflow-hidden flex flex-col">
-      {/* Fondo animado */}
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 relative overflow-hidden flex flex-col">
+      {/* Fondo estático sin animaciones */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"
-          animate={{ rotate: [0, 360], scale: [1, 1.3, 1] }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        <div
+          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl"
         />
-        <motion.div
-          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl"
-          animate={{ rotate: [360, 0], scale: [1.2, 1, 1.2] }}
-          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+        <div
+          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-indigo-400/10 to-blue-400/10 rounded-full blur-3xl"
         />
       </div>
 
       {/* Header */}
-      <motion.header
+      <header
         className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg flex-shrink-0"
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.8 }}
       >
         <div className="max-w-7xl mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <div>
                 <button
                   onClick={handleGoBack}
-                  className="border border-purple-200 text-purple-900 hover:bg-purple-50 bg-white/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 p-3 rounded-full"
+                  className="border border-blue-200 text-blue-900 hover:bg-blue-50 bg-white/50 backdrop-blur-sm shadow-lg transition-all duration-300 p-3 rounded-full"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-              </motion.div>
+              </div>
               <div>
-                <motion.h1
-                  className="text-3xl bg-gradient-to-r from-purple-900 to-pink-700 bg-clip-text text-transparent"
-                  initial={{ x: -50, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.2 }}
-                >
+                <h1 className="text-3xl bg-gradient-to-r from-blue-900 to-cyan-700 bg-clip-text text-transparent">
                   Editar Constancias
-                </motion.h1>
-                <motion.p
-                  className="text-purple-600"
-                  initial={{ x: -50, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 0.4 }}
-                >
+                </h1>
+                <p className="text-blue-600">
                   {curso?.nombre || curso?.cursoNombre} • {equipo?.nombre}
-                </motion.p>
+                </p>
               </div>
             </div>
           </div>
         </div>
-      </motion.header>
+      </header>
 
       {/* Main */}
       <main className="relative z-10 flex-1 overflow-hidden">
         <div className="h-full max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
 
           {/* Sidebar izquierda: participantes */}
-          <motion.div
-            className="lg:col-span-1"
-            initial={{ x: -100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-          >
-            <div className="bg-white/80 backdrop-blur-xl border-purple-200 shadow-xl h-full rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-purple-100">
-                <div className="flex items-center space-x-2 text-purple-900">
+          <div className="lg:col-span-1">
+            <div className="bg-white/80 backdrop-blur-xl border-blue-200 shadow-xl h-full rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-blue-100">
+                <div className="flex items-center space-x-2 text-blue-900">
                   <Users className="w-5 h-5" />
                   <span className="font-medium">Participantes ({constancias.length})</span>
                 </div>
               </div>
               <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-300px)]">
                 {constancias.map((c, index) => (
-                  <motion.div
+                  <div
                     key={c.id}
                     className={`p-4 rounded-xl cursor-pointer border-2 transition-all duration-300 ${
                       constanciaActual === index
-                        ? 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-300 shadow-lg'
-                        : 'bg-white/50 border-gray-200 hover:border-purple-200 hover:bg-purple-50'
+                        ? 'bg-gradient-to-r from-blue-100 to-cyan-100 border-blue-300 shadow-lg'
+                        : 'bg-white/50 border-gray-200 hover:border-blue-200 hover:bg-blue-50'
                     }`}
                     onClick={() => setConstanciaActual(index)}
-                    whileHover={{ scale: 1.02, x: 5 }}
-                    whileTap={{ scale: 0.98 }}
                   >
                     <div className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${constanciaActual === index ? 'bg-purple-500' : 'bg-gray-300'}`} />
+                      <div className={`w-3 h-3 rounded-full ${constanciaActual === index ? 'bg-blue-600' : 'bg-gray-300'}`} />
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${constanciaActual === index ? 'text-purple-900' : 'text-gray-700'}`}>
+                        <p className={`text-sm font-medium truncate ${constanciaActual === index ? 'text-blue-900' : 'text-gray-700'}`}>
                           {c.nombre}
                         </p>
                         <p className="text-xs text-gray-500">
                           {c.nombre === equipo?.lider ? 'Líder' : 'Integrante'}
                         </p>
                       </div>
-                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                      <div>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleEditarNombre(index) }}
-                          className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                          className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
-                      </motion.div>
+                      </div>
                     </div>
 
                     <div className="mt-2 text-xs">
@@ -430,25 +382,20 @@ export default function EditarConstancias() {
                         <span className="text-gray-600">{c.email || 'Sin correo'}</span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Centro: edición + preview */}
-          <motion.div
-            className="lg:col-span-2 overflow-y-auto"
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-          >
+          <div className="lg:col-span-2 overflow-y-auto">
             {constancias.length > 0 && (
               <>
                 {/* Controles de edición */}
-                <div className="bg-white/80 backdrop-blur-xl border-purple-200 shadow-xl mb-6 rounded-xl overflow-hidden">
-                  <div className="p-4 border-b border-purple-100">
-                    <div className="flex items-center space-x-2 text-purple-900">
+                <div className="bg-white/80 backdrop-blur-xl border-blue-200 shadow-xl mb-6 rounded-xl overflow-hidden">
+                  <div className="p-4 border-b border-blue-100">
+                    <div className="flex items-center space-x-2 text-blue-900">
                       <FileText className="w-5 h-5" />
                       <span className="font-medium">Editar Constancia</span>
                     </div>
@@ -456,7 +403,7 @@ export default function EditarConstancias() {
                   <div className="p-6">
                     <div className="space-y-4">
                       <div>
-                        <label className="text-purple-900 mb-2 block font-medium">
+                        <label className="text-blue-900 mb-2 block font-medium">
                           Nombre en la constancia
                         </label>
                         <div className="flex space-x-3">
@@ -466,16 +413,16 @@ export default function EditarConstancias() {
                             disabled={!editandoNombre}
                             className={`flex-1 px-4 py-2 rounded-lg border ${
                               editandoNombre
-                                ? 'border-purple-300 focus:border-purple-500 focus:ring-purple-500 bg-white'
+                                ? 'border-blue-300 focus:border-blue-500 focus:ring-blue-500 bg-white'
                                 : 'bg-gray-50 border-gray-200'
                             }`}
                             placeholder="Nombre completo"
                           />
-                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <div>
                             {editandoNombre ? (
                               <button
                                 onClick={handleGuardarNombre}
-                                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg px-4 py-2 rounded-lg flex items-center space-x-2"
+                                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg px-4 py-2 rounded-lg flex items-center space-x-2"
                               >
                                 <Save className="w-4 h-4" />
                                 <span>Guardar</span>
@@ -483,13 +430,13 @@ export default function EditarConstancias() {
                             ) : (
                               <button
                                 onClick={() => handleEditarNombre(constanciaActual)}
-                                className="border border-purple-200 text-purple-700 hover:bg-purple-50 shadow-lg px-4 py-2 rounded-lg flex items-center space-x-2"
+                                className="border border-blue-200 text-blue-700 hover:bg-blue-50 shadow-lg px-4 py-2 rounded-lg flex items-center space-x-2"
                               >
                                 <Edit3 className="w-4 h-4" />
                                 <span>Editar</span>
                               </button>
                             )}
-                          </motion.div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -497,116 +444,76 @@ export default function EditarConstancias() {
                 </div>
 
                 {/* Preview */}
-                <motion.div
-                  className="transform scale-90 origin-top"
-                  key={constanciaActual}
-                  initial={{ opacity: 0, rotateY: 90 }}
-                  animate={{ opacity: 1, rotateY: 0 }}
-                  transition={{ duration: 0.6 }}
-                >
+                <div className="transform scale-90 origin-top" key={constanciaActual}>
                   <CertificatePreview constancia={constancias[constanciaActual]} />
-                </motion.div>
+                </div>
               </>
             )}
-          </motion.div>
+          </div>
 
           {/* Derecha: confirmación */}
-          <motion.div
-            className="lg:col-span-1 flex flex-col justify-center"
-            initial={{ x: 100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-          >
-            <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-purple-200 shadow-xl rounded-xl overflow-hidden">
+          <div className="lg:col-span-1 flex flex-col justify-center">
+            <div className="bg-gradient-to-r from-blue-100 to-cyan-100 border-blue-200 shadow-xl rounded-xl overflow-hidden">
               <div className="p-8 text-center">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.6, delay: 1 }}>
-                  <Eye className="w-16 h-16 text-purple-600 mx-auto mb-6" />
-                </motion.div>
-                <motion.h3
-                  className="text-2xl text-purple-900 mb-3"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.2 }}
-                >
-                  ¿Todo se ve correcto?
-                </motion.h3>
-                <motion.p
-                  className="text-gray-600 mb-8 text-lg"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.4 }}
-                >
+                <Eye className="w-16 h-16 text-blue-600 mx-auto mb-6" />
+                <h3 className="text-2xl text-blue-900 mb-3">¿Todo se ve correcto?</h3>
+                <p className="text-gray-600 mb-8 text-lg">
                   Verifica que toda la información esté correcta antes de proceder al pago e impresión.
-                </motion.p>
-                <motion.div
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  whileTap={{ scale: 0.95 }}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.6 }}
-                >
+                </p>
+                <div>
                   <button
                     onClick={handleContinuar}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-4 text-lg shadow-xl hover:shadow-2xl transition-all duration-300 w-full rounded-xl flex items-center justify-center"
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-4 text-lg shadow-xl transition-all duration-300 w-full rounded-xl flex items-center justify-center"
                   >
                     <Check className="w-5 h-5 mr-2" />
                     Confirmar y Continuar
                   </button>
-                </motion.div>
+                </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </main>
 
       {/* Modal edición de nombre */}
       {editandoNombre && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <motion.div
-            className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4"
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-900 to-pink-700 bg-clip-text text-transparent mb-6 text-center">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-900 to-cyan-700 bg-clip-text text-transparent mb-6 text-center">
               Editar Nombre
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-purple-700 mb-2">
+                <label className="block text-sm font-medium text-blue-700 mb-2">
                   Nombre del participante
                 </label>
                 <input
                   type="text"
                   value={nombreEditado}
                   onChange={(e) => setNombreEditado(e.target.value)}
-                  className="w-full px-4 py-3 border border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   placeholder="Ingresa el nombre completo"
                   autoFocus
                 />
               </div>
 
               <div className="flex space-x-3 pt-4">
-                <motion.button
+                <button
                   onClick={handleCancelarEdicion}
                   className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
                 >
                   Cancelar
-                </motion.button>
-                <motion.button
+                </button>
+                <button
                   onClick={handleGuardarNombre}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all duration-200 font-medium"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 font-medium"
                 >
                   Guardar
-                </motion.button>
+                </button>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
     </div>

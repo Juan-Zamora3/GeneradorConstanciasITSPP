@@ -375,14 +375,10 @@ export default function PantallaCajero() {
       </motion.footer>
 
       {/* Agregar estilos para la animación de spin lenta */}
-      <style jsx>{`
+      <style>{`
         @keyframes spin-slow {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
         .animate-spin-slow {
           animation: spin-slow 2s linear infinite;
